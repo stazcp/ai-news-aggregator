@@ -8,9 +8,15 @@ interface ArticleCardProps {
 }
 
 export default function ArticleCard({ article, showSummary = false }: ArticleCardProps) {
+  // Better validation for image URL
+  const hasValidImage =
+    article.urlToImage &&
+    article.urlToImage.trim() !== '' &&
+    (article.urlToImage.startsWith('http://') || article.urlToImage.startsWith('https://'))
+
   return (
     <article className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      {article?.urlToImage && (
+      {hasValidImage && (
         <div className="relative h-48">
           <Image
             src={article.urlToImage}
@@ -34,11 +40,7 @@ export default function ArticleCard({ article, showSummary = false }: ArticleCar
           <time>{new Date(article.publishedAt).toLocaleDateString()}</time>
         </div>
 
-        {/* <h3 className="text-xl font-semibold mb-2 line-clamp-2">
-          <Link href={`/article/${article.id}`} className="hover:text-blue-600 transition-colors">
-            {article.title}
-          </Link>
-        </h3> */}
+        <h3 className="text-xl font-semibold mb-2 line-clamp-2">{article.title}</h3>
 
         <p className="text-gray-700 line-clamp-3 mb-4">{article.description}</p>
 
@@ -50,12 +52,14 @@ export default function ArticleCard({ article, showSummary = false }: ArticleCar
           </div>
         )}
 
-        {/* <Link
-          href={`/article/${article.id}`}
+        <a
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
           className="text-blue-600 hover:text-blue-800 font-medium"
         >
-          Read more →
-        </Link> */}
+          Read full article →
+        </a>
       </div>
     </article>
   )

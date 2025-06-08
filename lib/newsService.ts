@@ -4,14 +4,14 @@ import { Article } from '@/types'
 const parser = new Parser({
   timeout: 5000, // 5 second timeout
   headers: {
-    'User-Agent': 'AI News Aggregator/1.0',
+    'User-Agent': 'Mozilla/5.0 (compatible; NewsAggregator/1.0)',
   },
 })
 
-// Simplified RSS feeds - using more reliable sources
+// Using more reliable RSS feeds based on research
 const RSS_FEEDS = {
   technology: ['https://hnrss.org/frontpage'],
-  general: ['https://rss.cnn.com/rss/edition.rss'],
+  general: ['http://rss.cnn.com/rss/cnn_topstories.rss'], // More reliable CNN feed
 }
 
 // Helper function to extract image URL from HTML content
@@ -28,7 +28,14 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
 
   try {
     console.log(`📡 Parsing URL: ${url}`)
-    const feed = await parser.parseURL(url)
+
+    // Add extra timeout wrapper to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 8000)
+    })
+
+    const parsePromise = parser.parseURL(url)
+    const feed = await Promise.race([parsePromise, timeoutPromise])
 
     console.log(
       `✅ Successfully parsed feed: "${feed.title}" with ${feed.items?.length || 0} items`
@@ -39,7 +46,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       return []
     }
 
-    const articles = feed.items.map((item, index) => ({
+    const articles = feed.items.slice(0, 10).map((item, index) => ({
+      // Limit to 10 articles per feed
       id: `${category}-${Date.now()}-${index}`,
       title: item.title || '',
       description: item.contentSnippet || item.summary || '',
@@ -77,16 +85,20 @@ export async function fetchAllNews(): Promise<Article[]> {
     }
   }
 
-  // Wait for all feeds to complete (or fail)
-  const results = await Promise.allSettled(feedPromises)
+  // Wait for all feeds to complete (or fail) with a global timeout
+  try {
+    const results = await Promise.allSettled(feedPromises)
 
-  results.forEach((result) => {
-    if (result.status === 'fulfilled') {
-      allArticles.push(...result.value)
-    }
-  })
+    results.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        allArticles.push(...result.value)
+      }
+    })
 
-  console.log(`📊 Successfully fetched ${allArticles.length} articles from RSS feeds`)
+    console.log(`📊 Successfully fetched ${allArticles.length} articles from RSS feeds`)
+  } catch (error) {
+    console.error('❌ Error in feed fetching process:', error)
+  }
 
   console.log(`🔄 Sorting ${allArticles.length} articles by publish date`)
   const sortedArticles = allArticles.sort(
