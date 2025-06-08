@@ -2,13 +2,6 @@
 
 A high-performance news aggregation platform with AI-powered summaries, built to demonstrate advanced frontend engineering concepts including SSR, performance optimization, and modern tooling.
 
-## 🎯 Interview Focus Areas
-
-- **SSR vs CSR**: Demonstrates when and why to use each approach
-- **Performance Optimization**: Bundle splitting, caching, image optimization
-- **Modern Tooling**: Next.js, TypeScript, Groq AI, performance monitoring
-- **Architecture Decisions**: API design, data flow, rendering strategies
-
 ## 🚀 Tech Stack
 
 - **Frontend**: Next.js 14 + TypeScript
@@ -65,7 +58,6 @@ ANALYZE=false
 ### 4. Project Structure
 
 ```
-src/
 ├── app/
 │   ├── api/
 │   │   ├── news/route.ts          # Fetch news feeds
@@ -655,6 +647,9 @@ export default function ArticleCard({ article, showSummary = false }: ArticleCar
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            onError={(e) => {
+              console.log('banana',e)
+            }}
           />
         </div>
       )}
