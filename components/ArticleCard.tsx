@@ -15,7 +15,7 @@ export default function ArticleCard({ article, showSummary = false }: ArticleCar
     (article.urlToImage.startsWith('http://') || article.urlToImage.startsWith('https://'))
 
   return (
-    <article className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+    <article className="bg-zinc-900 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
       {hasValidImage && (
         <div className="relative h-48">
           <Image
@@ -24,7 +24,6 @@ export default function ArticleCard({ article, showSummary = false }: ArticleCar
             fill
             className="object-cover"
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            onError={(e) => console.log('Image Error:', e)}
           />
         </div>
       )}

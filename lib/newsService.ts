@@ -6,12 +6,16 @@ const parser = new Parser({
   headers: {
     'User-Agent': 'Mozilla/5.0 (compatible; NewsAggregator/1.0)',
   },
+  customFields: {
+    item: [['media:content', 'media:content']],
+  },
 })
 
 // Using more reliable RSS feeds based on research
 const RSS_FEEDS = {
-  technology: ['https://hnrss.org/frontpage'],
-  general: ['http://rss.cnn.com/rss/cnn_topstories.rss'], // More reliable CNN feed
+  // technology: ['https://hnrss.org/frontpage'],
+  // general: ['http://rss.cnn.com/rss/cnn_topstories.rss'], // More reliable CNN feed
+  World: ['https://rss.nytimes.com/services/xml/rss/nyt/World.xml'],
 }
 
 // Helper function to extract image URL from HTML content
@@ -46,6 +50,15 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       return []
     }
 
+    const getImage = (item: (typeof feed.items)[0]) => {
+      if (item.enclosure?.url) return item.enclosure.url
+      if (item['media:content'] && typeof item['media:content'] === 'object') {
+        return item['media:content']['$']?.url || item['media:content'].url
+      }
+      extractImageFromContent(item.content)
+      return ''
+    }
+
     const articles = feed.items.slice(0, 10).map((item, index) => ({
       // Limit to 10 articles per feed
       id: `${category}-${Date.now()}-${index}`,
@@ -53,7 +66,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       description: item.contentSnippet || item.summary || '',
       content: item.content || item.contentSnippet || '',
       url: item.link || '',
-      urlToImage: item.enclosure?.url || extractImageFromContent(item.content) || '',
+      urlToImage: getImage(item),
       publishedAt: item.pubDate || new Date().toISOString(),
       source: {
         name: feed.title || 'Unknown',
