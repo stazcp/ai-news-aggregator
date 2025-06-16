@@ -15,3 +15,10 @@ export default async function Home() {
     </div>
   )
 }
+
+export async function generateMetadata() {
+  return {
+    title: 'AI News Aggregator - Latest News with AI Summaries',
+    description: 'Get the latest news with AI-powered summaries. Fast, accurate, and up-to-date.',
+  }
+}
