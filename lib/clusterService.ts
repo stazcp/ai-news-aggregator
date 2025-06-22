@@ -34,7 +34,7 @@ async function enrichClusters(
       const summary = await summarizeCluster(articlesInCluster)
       const imageUrls = articlesInCluster
         .map((a) => a.urlToImage)
-        .filter((url): url is string => !!url)
+        .filter((url) => url && !url.includes('placehold.co'))
         .slice(0, 4)
 
       return { ...cluster, articles: articlesInCluster, summary, imageUrls }
