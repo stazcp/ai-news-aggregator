@@ -53,7 +53,7 @@ export default function ArticleCard({ article, showSummary = true }: ArticleCard
           {article.description}
         </p>
 
-        {showSummary && <LazySummary articleId={article.id} content={article.content} />}
+        {showSummary && <LazySummary articleId={article.id} content={article.content ?? ''} />}
 
         <footer className="mt-auto pt-4">
           <a
