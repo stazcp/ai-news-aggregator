@@ -1,12 +1,35 @@
 import { fetchAllNews } from '@/lib/newsService'
+import { clusterArticles, summarizeCluster } from '@/lib/groq'
 import NewsList from '@/components/NewsList'
-import { Article } from '@/types'
+import { Article, StoryCluster } from '@/types'
 
-export const revalidate = 300 // Revalidate every 5 minutes
+export const revalidate = 600 // Cache for 10 minutes
 
 export default async function Home() {
-  const articles = await fetchAllNews()
-  const featuredArticles = articles.slice(0, 20)
+  const allArticles = await fetchAllNews()
+  const articleMap = new Map(allArticles.map((a) => [a.id, a]))
+
+  const rawClusters = await clusterArticles(allArticles)
+
+  // For each cluster, fetch a summary in parallel
+  const clustersWithSummaries = await Promise.all(
+    rawClusters.map(async (cluster): Promise<StoryCluster> => {
+      const articlesInCluster = cluster.articleIds
+        .map((id) => articleMap.get(id))
+        .filter(Boolean) as Article[]
+
+      if (articlesInCluster.length === 0) {
+        return { ...cluster, articles: [], summary: 'No articles found for this cluster.' }
+      }
+
+      const summary = await summarizeCluster(articlesInCluster)
+      return { ...cluster, articles: articlesInCluster, summary }
+    })
+  )
+
+  // Find articles that were not part of any cluster
+  const clusteredIds = new Set(rawClusters.flatMap((c) => c.articleIds))
+  const unclusteredArticles = allArticles.filter((a) => !clusteredIds.has(a.id))
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-7xl">
@@ -15,10 +38,10 @@ export default async function Home() {
           AI-Curated News
         </h1>
         <p className="mt-4 text-lg text-[var(--muted-foreground)]">
-          Your daily feed of news, summarized by AI.
+          Your daily feed of news, intelligently grouped and summarized by AI.
         </p>
       </header>
-      <NewsList articles={featuredArticles} />
+      <NewsList storyClusters={clustersWithSummaries} unclusteredArticles={unclusteredArticles} />
     </main>
   )
 }

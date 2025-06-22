@@ -121,3 +121,22 @@ export async function fetchAllNews(): Promise<Article[]> {
   console.log(`✅ Final result: ${sortedArticles.length} articles sorted successfully`)
   return sortedArticles
 }
+
+export const SOURCE_CATEGORIES = ['Technology', 'Business', 'World News', 'Science']
+
+export const SOURCES = [
+  { id: 'hn', name: 'Hacker News', category: 'Technology', url: 'https://hnrss.org/frontpage' },
+  {
+    id: 'nyt',
+    name: 'The New York Times',
+    category: 'World News',
+    url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
+  },
+  {
+    id: 'verge',
+    name: 'The Verge',
+    category: 'Technology',
+    url: 'https://www.theverge.com/rss/index.xml',
+  },
+  // ...and so on, for dozens of sources
+]

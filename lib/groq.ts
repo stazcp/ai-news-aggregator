@@ -1,4 +1,6 @@
 import Groq from 'groq-sdk'
+import { getCachedData, setCachedData } from '@/lib/cache'
+import { Article, StoryCluster } from '@/types'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
@@ -73,4 +75,116 @@ export async function batchSummarize(
   }
 
   return summaries
+}
+
+export async function summarizeCluster(articles: Article[]): Promise<string> {
+  const cacheKey = `cluster-summary-${articles
+    .map((a) => a.id)
+    .sort()
+    .join('-')}`
+  const cachedSummary = await getCachedData(cacheKey)
+  if (cachedSummary) {
+    console.log('📦 Returning cached cluster summary')
+    return cachedSummary
+  }
+
+  const contentToSummarize = articles
+    .map((a) => `Source: ${a.source.name}\nTitle: ${a.title}\nContent: ${a.content}\n\n`)
+    .join('--- \n')
+
+  const prompt = `
+    You are a senior news editor. Your task is to synthesize a single, cohesive summary from multiple articles covering the same event.
+    The following is a collection of articles.
+    Generate a single, well-written summary paragraph that incorporates the key facts and perspectives from all provided sources.
+    Do not just list what each source said. Synthesize the information into a unified narrative.
+
+    Here is the content:
+    ${contentToSummarize}
+  `
+
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+        { role: 'system', content: 'You are a senior news editor.' },
+        { role: 'user', content: prompt },
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.5,
+      max_tokens: 250,
+    })
+
+    const summary =
+      completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
+    await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
+    return summary
+  } catch (error) {
+    console.error('Error summarizing cluster:', error)
+    return 'An error occurred while generating the cluster summary.'
+  }
+}
+
+export async function clusterArticles(articles: Article[]): Promise<StoryCluster[]> {
+  const articleSummaries = articles.map((a) => ({
+    id: a.id,
+    title: a.title,
+    description: a.description?.substring(0, 100),
+  }))
+
+  const prompt = `
+    You are a news categorization engine. Your task is to group similar articles into story clusters based on the core event they are reporting.
+    Analyze the following list of JSON objects.
+    Respond with ONLY a valid JSON object containing a single key "clusters". The value should be an array of objects.
+    Each object in the array represents a story cluster and must have two keys:
+    1. "clusterTitle": A short, clear headline for the overall event (e.g., "Federal Reserve Announces Interest Rate Hike").
+    2. "articleIds": An array of the original article IDs that belong to this cluster. A cluster must contain 2 or more articles.
+
+    Do not include articles that are unique.
+
+    Here is the list of articles:
+    ${JSON.stringify(articleSummaries)}
+  `
+
+  try {
+    const cacheKey = `clusters-${articles
+      .map((a) => a.id)
+      .sort()
+      .join('-')}`
+    const cachedClusters = await getCachedData(cacheKey)
+    if (cachedClusters) {
+      console.log('📦 Returning cached clusters')
+      return cachedClusters
+    }
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that only responds with valid, well-formed JSON.',
+        },
+        { role: 'user', content: prompt },
+      ],
+      model: 'llama3-8b-8192', // Use a faster model for categorization
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+    })
+
+    const responseContent = completion.choices[0]?.message?.content
+    if (!responseContent) return []
+
+    const responseObject = JSON.parse(responseContent)
+    const clusters = responseObject.clusters
+
+    if (Array.isArray(clusters)) {
+      const validClusters = clusters.filter(
+        (c) => c.clusterTitle && Array.isArray(c.articleIds) && c.articleIds.length >= 2
+      )
+      await setCachedData(cacheKey, validClusters, 600) // Cache for 10 minutes
+      return validClusters
+    }
+
+    return []
+  } catch (error) {
+    console.error('Error clustering articles:', error)
+    return []
+  }
 }

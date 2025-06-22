@@ -1,10 +1,10 @@
 export interface Article {
   id: string
   title: string
-  description: string
-  content: string
+  description?: string
+  content?: string
   url: string
-  urlToImage: string
+  urlToImage?: string
   publishedAt: string
   source: {
     name: string
@@ -12,6 +12,13 @@ export interface Article {
   }
   category: string
   summary?: string
+}
+
+export interface StoryCluster {
+  clusterTitle: string
+  articleIds: string[]
+  summary?: string
+  articles?: Article[]
 }
 
 export interface NewsResponse {
