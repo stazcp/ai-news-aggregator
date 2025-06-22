@@ -6,7 +6,7 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
   }
 
   return (
-    <div className="mb-4 grid grid-cols-2 grid-rows-2 gap-2 max-h-96 rounded-lg overflow-hidden border border-[var(--card-border)]">
+    <div className="mb-4 grid grid-cols-2 grid-rows-2 gap-2 max-h-96 rounded-lg overflow-hidden border">
       {cluster.imageUrls.map((url, index) => {
         const isFirst = index === 0
         const count = cluster.imageUrls?.length || 0

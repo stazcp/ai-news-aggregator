@@ -70,14 +70,14 @@ export default function LazySummary({ articleId, content, className = '' }: Lazy
 
   if (isLoading) {
     return (
-      <div className={`${containerClasses} bg-[var(--accent)]/10 border-[var(--accent)]/30`}>
-        <h4 className="flex items-center text-sm font-semibold text-[var(--accent)] mb-2">
+      <div className={`${containerClasses} bg-accent/10 border-accent/30`}>
+        <h4 className="flex items-center text-sm font-semibold text-accent mb-2">
           <span className="mr-2">✨</span>
           AI-Powered Summary
         </h4>
         <div className="flex items-center space-x-2">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[var(--accent)]"></div>
-          <p className="text-sm text-[var(--muted-foreground)]">Generating summary...</p>
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-accent"></div>
+          <p className="text-sm text-muted-foreground">Generating summary...</p>
         </div>
       </div>
     )
@@ -89,14 +89,14 @@ export default function LazySummary({ articleId, content, className = '' }: Lazy
 
   return (
     <div
-      className={`${containerClasses} bg-[var(--accent)]/10`}
+      className={`${containerClasses} bg-accent/10`}
       style={{ animation: 'pulse-border 2s infinite' }}
     >
-      <h4 className="flex items-center text-sm font-semibold text-[var(--accent)] mb-2">
+      <h4 className="flex items-center text-sm font-semibold text-accent mb-2">
         <span className="mr-2">✨</span>
         AI-Powered Summary
       </h4>
-      <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{summary}</p>
+      <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
     </div>
   )
 }

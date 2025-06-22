@@ -2,16 +2,17 @@
 
 import { Article } from '@/types'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 
 const SourceArticle = ({ article }: { article: Article }) => (
   <a
     href={article.url}
     target="_blank"
     rel="noopener noreferrer"
-    className="block p-3 rounded-lg bg-[var(--card-background)] border border-[var(--card-border)] hover:bg-[var(--accent)]/10 transition-colors"
+    className="block p-3 rounded-lg bg-secondary border hover:bg-accent/10 transition-colors"
   >
-    <p className="font-semibold text-sm text-[var(--foreground)] truncate">{article.title}</p>
-    <p className="text-xs text-[var(--muted-foreground)]">{article.source.name}</p>
+    <p className="font-semibold text-sm text-foreground truncate">{article.title}</p>
+    <p className="text-xs text-muted-foreground">{article.source.name}</p>
   </a>
 )
 
@@ -26,9 +27,7 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
 
   return (
     <div className="mt-4">
-      <h3 className="text-sm font-semibold text-[var(--muted-foreground)] mb-2">
-        Sources in this story:
-      </h3>
+      <h3 className="text-sm font-semibold text-muted-foreground mb-2">Sources in this story:</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {visibleArticles.map((article) => (
           <SourceArticle key={article.id} article={article} />
@@ -37,12 +36,9 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
 
       {articles.length > 3 && (
         <footer className="text-center mt-4">
-          <button
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="text-sm font-semibold text-[var(--accent)] hover:underline"
-          >
+          <Button variant="link" onClick={() => setIsExpanded(!isExpanded)}>
             {isExpanded ? 'Show Less' : `Show ${articles.length - 3} More Sources...`}
-          </button>
+          </Button>
         </footer>
       )}
     </div>
