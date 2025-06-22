@@ -9,10 +9,17 @@ export default async function Home() {
   const featuredArticles = articles.slice(0, 20)
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-8">Latest News</h1>
+    <main className="container mx-auto px-4 py-8 max-w-7xl">
+      <header className="text-center mb-12">
+        <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
+          AI-Curated News
+        </h1>
+        <p className="mt-4 text-lg text-[var(--muted-foreground)]">
+          Your daily feed of news, summarized by AI.
+        </p>
+      </header>
       <NewsList articles={featuredArticles} />
-    </div>
+    </main>
   )
 }
 

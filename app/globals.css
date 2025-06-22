@@ -1,8 +1,14 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Default to light theme - can be expanded later */
+  --background: #f0f2f5;
+  --foreground: #1c1e21;
+  --card-background: #ffffff;
+  --card-border: #e0e0e0;
+  --accent: #007bff;
+  --accent-foreground: #ffffff;
+  --muted-foreground: #606770;
 }
 
 @theme inline {
@@ -14,13 +20,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0d1117; /* GitHub Dark Background */
+    --foreground: #e6edf3; /* GitHub Dark Text */
+    --card-background: #161b22; /* GitHub Dark UI Element */
+    --card-border: #30363d; /* GitHub Dark Border */
+    --accent: #58a6ff; /* GitHub Dark Blue Accent */
+    --accent-foreground: #0d1117;
+    --muted-foreground: #8b949e; /* GitHub Dark Muted Text */
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), sans-serif; /* Use the font variable from the layout */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Keyframe for a subtle pulse animation on the AI container */
+@keyframes pulse-border {
+  0%,
+  100% {
+    border-color: var(--accent);
+    opacity: 0.7;
+  }
+  50% {
+    border-color: var(--accent);
+    opacity: 1;
+    box-shadow: 0 0 8px 0 var(--accent);
+  }
 }
