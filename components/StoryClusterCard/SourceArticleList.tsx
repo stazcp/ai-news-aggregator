@@ -4,15 +4,45 @@ import { Article } from '@/types'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 
-const SourceArticle = ({ article }: { article: Article }) => (
+const SourceArticle = ({ article, index }: { article: Article; index: number }) => (
   <a
     href={article.url}
     target="_blank"
     rel="noopener noreferrer"
-    className="block p-3 rounded-lg bg-secondary border hover:bg-accent/10 transition-colors"
+    className="group block p-4 rounded-lg bg-background border hover:border-accent/50 transition-all duration-200 hover:shadow-md"
   >
-    <p className="font-semibold text-sm text-foreground truncate">{article.title}</p>
-    <p className="text-xs text-muted-foreground">{article.source.name}</p>
+    <div className="flex items-start gap-3">
+      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-medium text-accent">
+        {index + 1}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-sm text-foreground group-hover:text-accent transition-colors line-clamp-2 mb-1">
+          {article.title}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium">{article.source.name}</span>
+          <span>•</span>
+          <span>
+            {new Date(article.publishedAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+      </div>
+      <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+          />
+        </svg>
+      </div>
+    </div>
   </a>
 )
 
@@ -23,23 +53,20 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
     return null
   }
 
-  const visibleArticles = isExpanded ? articles : articles.slice(0, 3)
+  const visibleArticles = isExpanded ? articles : articles.slice(0, 4)
 
   return (
-    <div className="mt-4">
-      <h3 className="text-sm font-semibold text-muted-foreground mb-2">Sources in this story:</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {visibleArticles.map((article) => (
-          <SourceArticle key={article.id} article={article} />
-        ))}
-      </div>
+    <div className="space-y-3">
+      {visibleArticles.map((article, index) => (
+        <SourceArticle key={article.id} article={article} index={index} />
+      ))}
 
-      {articles.length > 3 && (
-        <footer className="text-center mt-4">
-          <Button variant="link" onClick={() => setIsExpanded(!isExpanded)}>
-            {isExpanded ? 'Show Less' : `Show ${articles.length - 3} More Sources...`}
+      {articles.length > 4 && (
+        <div className="pt-4 border-t border-border">
+          <Button variant="outline" onClick={() => setIsExpanded(!isExpanded)} className="w-full">
+            {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
           </Button>
-        </footer>
+        </div>
       )}
     </div>
   )

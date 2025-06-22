@@ -14,7 +14,7 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
         const twoImages = count === 2
         const threeImages = count === 3
 
-        let className = 'object-cover w-full h-full'
+        let className = 'w-full h-full'
 
         if (singleImage) {
           className += ' col-span-2 row-span-2'
@@ -27,12 +27,16 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
         }
 
         return (
-          <img
-            key={url}
-            src={url}
-            alt={`${cluster.clusterTitle} - Image ${index + 1}`}
-            className={className}
-          />
+          <div key={url} className={className}>
+            <img
+              src={url}
+              alt={`${cluster.clusterTitle} - Image ${index + 1}`}
+              className="w-full h-full object-cover"
+              style={{
+                objectPosition: 'center 25%',
+              }}
+            />
+          </div>
         )
       })}
     </div>
