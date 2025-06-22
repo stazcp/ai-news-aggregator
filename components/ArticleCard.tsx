@@ -13,7 +13,7 @@ interface ArticleCardProps {
 export default function ArticleCard({ article, showSummary = true }: ArticleCardProps) {
   return (
     <article className="group flex flex-col bg-card rounded-xl overflow-hidden border transition-all duration-300 hover:border-accent hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
-      <div className="relative h-48">
+      <div className="relative h-56 lg:h-64">
         <Image
           src={article.urlToImage || ''}
           alt={article.title}
