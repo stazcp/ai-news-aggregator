@@ -23,7 +23,12 @@ export default async function Home() {
       }
 
       const summary = await summarizeCluster(articlesInCluster)
-      return { ...cluster, articles: articlesInCluster, summary }
+      const imageUrls = articlesInCluster
+        .map((a) => a.urlToImage)
+        .filter((url): url is string => !!url)
+        .slice(0, 4) // Limit to a max of 4 images
+
+      return { ...cluster, articles: articlesInCluster, summary, imageUrls }
     })
   )
 

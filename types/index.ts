@@ -19,6 +19,7 @@ export interface StoryCluster {
   articleIds: string[]
   summary?: string
   articles?: Article[]
+  imageUrls?: string[]
 }
 
 export interface NewsResponse {
