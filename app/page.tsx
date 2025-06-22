@@ -1,40 +1,13 @@
 import { fetchAllNews } from '@/lib/newsService'
-import { clusterArticles, summarizeCluster } from '@/lib/groq'
+import { getStoryClusters, getUnclusteredArticles } from '@/lib/clusterService'
 import NewsList from '@/components/NewsList'
-import { Article, StoryCluster } from '@/types'
 
 export const revalidate = 600 // Cache for 10 minutes
 
 export default async function Home() {
   const allArticles = await fetchAllNews()
-  const articleMap = new Map(allArticles.map((a) => [a.id, a]))
-
-  const rawClusters = await clusterArticles(allArticles)
-
-  // For each cluster, fetch a summary in parallel
-  const clustersWithSummaries = await Promise.all(
-    rawClusters.map(async (cluster): Promise<StoryCluster> => {
-      const articlesInCluster = cluster.articleIds
-        .map((id) => articleMap.get(id))
-        .filter(Boolean) as Article[]
-
-      if (articlesInCluster.length === 0) {
-        return { ...cluster, articles: [], summary: 'No articles found for this cluster.' }
-      }
-
-      const summary = await summarizeCluster(articlesInCluster)
-      const imageUrls = articlesInCluster
-        .map((a) => a.urlToImage)
-        .filter((url): url is string => !!url)
-        .slice(0, 4) // Limit to a max of 4 images
-
-      return { ...cluster, articles: articlesInCluster, summary, imageUrls }
-    })
-  )
-
-  // Find articles that were not part of any cluster
-  const clusteredIds = new Set(rawClusters.flatMap((c) => c.articleIds))
-  const unclusteredArticles = allArticles.filter((a) => !clusteredIds.has(a.id))
+  const storyClusters = await getStoryClusters(allArticles)
+  const unclusteredArticles = getUnclusteredArticles(allArticles, storyClusters)
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-7xl">
@@ -46,7 +19,7 @@ export default async function Home() {
           Your daily feed of news, intelligently grouped and summarized by AI.
         </p>
       </header>
-      <NewsList storyClusters={clustersWithSummaries} unclusteredArticles={unclusteredArticles} />
+      <NewsList storyClusters={storyClusters} unclusteredArticles={unclusteredArticles} />
     </main>
   )
 }
