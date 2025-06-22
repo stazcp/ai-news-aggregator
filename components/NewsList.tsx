@@ -14,7 +14,7 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
     <div className="space-y-12">
       {/* Render Clustered Stories First */}
       {storyClusters.map((cluster, index) => (
-        <StoryClusterCard key={index} cluster={cluster} />
+        <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
       ))}
 
       {/* Divider */}
@@ -30,8 +30,13 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
       {/* Render Individual Stories */}
       {unclusteredArticles.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {unclusteredArticles.map((article) => (
-            <ArticleCard key={article.id} article={article} />
+          {unclusteredArticles.map((article, index) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              showSummary={true}
+              eager={index < 2} // Eager load first 2 individual articles
+            />
           ))}
         </div>
       )}

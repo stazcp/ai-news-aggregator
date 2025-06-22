@@ -1,0 +1,92 @@
+{
+  "categories": ["Technology", "Business", "World News", "Science"],
+  "feeds": {
+    "Technology": [
+      "https://hnrss.org/frontpage",
+      "https://www.theverge.com/rss/index.xml",
+      "https://techcrunch.com/feed/",
+      "https://feeds.arstechnica.com/arstechnica/index"
+    ],
+    "Business": [
+      "https://feeds.reuters.com/reuters/businessNews",
+      "https://techcrunch.com/category/startups/feed/"
+    ],
+    "World News": [
+      "https://feeds.bbci.co.uk/news/world/rss.xml",
+      "https://feeds.reuters.com/reuters/topNews",
+      "https://feeds.theguardian.com/theguardian/world/rss"
+    ],
+    "Science": [
+      "https://feeds.nature.com/nature/rss/current",
+      "https://www.newscientist.com/feed/home/"
+    ]
+  },
+  "sources": [
+    {
+      "id": "hn",
+      "name": "Hacker News",
+      "category": "Technology",
+      "url": "https://hnrss.org/frontpage"
+    },
+    {
+      "id": "verge",
+      "name": "The Verge",
+      "category": "Technology",
+      "url": "https://www.theverge.com/rss/index.xml"
+    },
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch",
+      "category": "Technology",
+      "url": "https://techcrunch.com/feed/"
+    },
+    {
+      "id": "ars",
+      "name": "Ars Technica",
+      "category": "Technology",
+      "url": "https://feeds.arstechnica.com/arstechnica/index"
+    },
+    {
+      "id": "reuters_business",
+      "name": "Reuters Business",
+      "category": "Business",
+      "url": "https://feeds.reuters.com/reuters/businessNews"
+    },
+    {
+      "id": "techcrunch_startups",
+      "name": "TechCrunch Startups",
+      "category": "Business",
+      "url": "https://techcrunch.com/category/startups/feed/"
+    },
+    {
+      "id": "bbc_world",
+      "name": "BBC World",
+      "category": "World News",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+    },
+    {
+      "id": "reuters_top",
+      "name": "Reuters Top News",
+      "category": "World News",
+      "url": "https://feeds.reuters.com/reuters/topNews"
+    },
+    {
+      "id": "guardian_world",
+      "name": "The Guardian World",
+      "category": "World News",
+      "url": "https://feeds.theguardian.com/theguardian/world/rss"
+    },
+    {
+      "id": "nature",
+      "name": "Nature",
+      "category": "Science",
+      "url": "https://feeds.nature.com/nature/rss/current"
+    },
+    {
+      "id": "newscientist",
+      "name": "New Scientist",
+      "category": "Science",
+      "url": "https://www.newscientist.com/feed/home/"
+    }
+  ]
+}

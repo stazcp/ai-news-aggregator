@@ -8,9 +8,14 @@ import LazySummary from './LazySummary'
 interface ArticleCardProps {
   article: Article
   showSummary?: boolean
+  eager?: boolean // For eager loading of summaries
 }
 
-export default function ArticleCard({ article, showSummary = true }: ArticleCardProps) {
+export default function ArticleCard({
+  article,
+  showSummary = true,
+  eager = false,
+}: ArticleCardProps) {
   return (
     <article className="group flex flex-col bg-card rounded-xl overflow-hidden border transition-all duration-300 hover:border-accent hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
       <div className="relative h-56 lg:h-64">
@@ -51,7 +56,9 @@ export default function ArticleCard({ article, showSummary = true }: ArticleCard
 
         <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{article.description}</p>
 
-        {showSummary && <LazySummary articleId={article.id} content={article.content ?? ''} />}
+        {showSummary && (
+          <LazySummary articleId={article.id} content={article.content ?? ''} eager={eager} />
+        )}
 
         <footer className="mt-auto pt-4">
           <a

@@ -4,6 +4,22 @@ import { Article, StoryCluster } from '@/types'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
+// Helper function to check if error is a rate limit error
+function isRateLimitError(error: any): boolean {
+  if (!error) return false
+
+  const errorMessage = error.message || error.toString() || ''
+  const errorCode = error.code || error.error?.code || ''
+
+  return (
+    errorMessage.includes('rate_limit_exceeded') ||
+    errorMessage.includes('429') ||
+    errorCode === 'rate_limit_exceeded' ||
+    error.status === 429 ||
+    errorMessage.includes('Rate limit reached')
+  )
+}
+
 export async function main() {
   const chatCompletion = await getGroqChatCompletion()
   // Print the completion returned by the LLM.
@@ -42,6 +58,10 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
 
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during article summarization')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error summarizing article', error)
     return 'Summary not available'
   }
@@ -118,6 +138,10 @@ export async function summarizeCluster(articles: Article[]): Promise<string> {
     await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
     return summary
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during cluster summarization')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error summarizing cluster:', error)
     return 'An error occurred while generating the cluster summary.'
   }
@@ -184,6 +208,10 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
 
     return []
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during article clustering')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error clustering articles:', error)
     return []
   }
