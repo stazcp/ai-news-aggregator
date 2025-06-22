@@ -118,8 +118,22 @@ export async function fetchAllNews(): Promise<Article[]> {
     (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
   )
 
-  console.log(`✅ Final result: ${sortedArticles.length} articles sorted successfully`)
-  return sortedArticles
+  const articlesWithPlaceholders = sortedArticles.map((article) => {
+    const hasValidImage =
+      article.urlToImage &&
+      article.urlToImage.trim() !== '' &&
+      (article.urlToImage.startsWith('http://') || article.urlToImage.startsWith('https://'))
+
+    if (!hasValidImage) {
+      article.urlToImage = `https://placehold.co/600x400/27272a/a1a1aa?text=${encodeURIComponent(
+        article.source.name
+      )}`
+    }
+    return article
+  })
+
+  console.log(`✅ Final result: ${articlesWithPlaceholders.length} articles processed successfully`)
+  return articlesWithPlaceholders
 }
 
 export const SOURCE_CATEGORIES = ['Technology', 'Business', 'World News', 'Science']

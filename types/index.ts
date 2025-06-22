@@ -4,7 +4,7 @@ export interface Article {
   description?: string
   content?: string
   url: string
-  urlToImage?: string
+  urlToImage: string
   publishedAt: string
   source: {
     name: string

@@ -11,25 +11,22 @@ interface ArticleCardProps {
 }
 
 export default function ArticleCard({ article, showSummary = true }: ArticleCardProps) {
-  const hasValidImage =
-    article.urlToImage &&
-    article.urlToImage.trim() !== '' &&
-    (article.urlToImage.startsWith('http://') || article.urlToImage.startsWith('https://'))
-
   return (
     <article className="group flex flex-col bg-[var(--card-background)] rounded-xl overflow-hidden border border-[var(--card-border)] transition-all duration-300 hover:border-[var(--accent)] hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
-      {hasValidImage && (
-        <div className="relative h-48">
-          <Image
-            src={article.urlToImage}
-            alt={article.title}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            onError={(e) => console.log('Image Error:', e)}
-          />
-        </div>
-      )}
+      <div className="relative h-48">
+        <Image
+          src={article.urlToImage || ''}
+          alt={article.title}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+          onError={(e) => {
+            if (e.currentTarget.parentElement) {
+              e.currentTarget.parentElement.style.display = 'none'
+            }
+          }}
+        />
+      </div>
 
       <div className="p-6 flex flex-col flex-grow">
         <div className="flex items-center gap-3 text-xs text-[var(--muted-foreground)] mb-3">
