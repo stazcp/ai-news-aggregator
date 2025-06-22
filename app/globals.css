@@ -4,41 +4,41 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Default to light theme - can be expanded later */
-  --card-background: #ffffff;
-  --card-border: #e0e0e0;
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --muted-foreground: oklch(0.552 0.016 285.938);
+  /* Light Steel Granite Theme - Cool light tones */
+  --card-background: #f8fafc;
+  --card-border: #cbd5e1;
+  --accent: #6366f1;
+  --accent-foreground: #1e293b;
+  --muted-foreground: #64748b;
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #f8fafc;
+  --card-foreground: #0f172a;
+  --popover: #f8fafc;
+  --popover-foreground: #0f172a;
+  --primary: #334155;
+  --primary-foreground: #f8fafc;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #334155;
+  --muted: #f1f5f9;
+  --destructive: #dc2626;
+  --border: #e2e8f0;
+  --input: #f1f5f9;
+  --ring: #6366f1;
+  --chart-1: #0ea5e9;
+  --chart-2: #10b981;
+  --chart-3: #6366f1;
+  --chart-4: #8b5cf6;
+  --chart-5: #f59e0b;
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #334155;
+  --sidebar-primary-foreground: #f8fafc;
+  --sidebar-accent: #f1f5f9;
+  --sidebar-accent-foreground: #334155;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #6366f1;
 }
 
 @theme inline {
@@ -90,12 +90,12 @@
 }
 
 body {
-  font-family: var(--font-sans), sans-serif; /* Use the font variable from the layout */
+  font-family: var(--font-sans), sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Keyframe for a subtle pulse animation on the AI container */
+/* Enhanced pulse animation with cold steel granite colors */
 @keyframes pulse-border {
   0%,
   100% {
@@ -105,31 +105,44 @@ body {
   50% {
     border-color: var(--accent);
     opacity: 1;
-    box-shadow: 0 0 8px 0 var(--accent);
+    box-shadow: 0 0 12px 0 rgba(156, 163, 175, 0.3);
   }
 }
 
 .dark {
-  /* GitHub Dark Theme variables */
-  --background: #0d1117; /* Main Background */
-  --foreground: #c9d1d9; /* Main Text */
-  --card: #161b22; /* Card Background */
-  --card-foreground: #c9d1d9; /* Card Text */
-  --popover: #161b22;
-  --popover-foreground: #c9d1d9;
-  --primary: #c9d1d9;
-  --primary-foreground: #0d1117;
-  --secondary: #30363d;
-  --secondary-foreground: #c9d1d9;
-  --muted: #161b22;
-  --muted-foreground: #8b949e; /* Muted Text */
-  --accent: #58a6ff; /* Blue Accent */
-  --accent-foreground: #ffffff;
-  --destructive: #f85149;
-  --border: #30363d; /* Borders */
-  --input: #0d1117;
-  --ring: #58a6ff;
+  /* Cold Steel Granite Theme - Pure neutral steel tones */
+  --background: #0f1419; /* Deep steel charcoal */
+  --foreground: #f8f9fa; /* Light steel gray */
+  --card: #1a1f25; /* Medium steel gray */
+  --card-foreground: #f8f9fa;
+  --popover: #1a1f25;
+  --popover-foreground: #f8f9fa;
+  --primary: #d1d5db; /* Light steel */
+  --primary-foreground: #0f1419;
+  --secondary: #374151; /* Dark steel */
+  --secondary-foreground: #f8f9fa;
+  --muted: #1a1f25;
+  --muted-foreground: #9ca3af; /* Muted steel gray */
+  --accent: #9ca3af; /* Pure steel gray accent */
+  --accent-foreground: #0f1419;
+  --destructive: #ef4444;
+  --border: #374151;
+  --input: #1a1f25;
+  --ring: #9ca3af;
   --radius: 0.5rem;
+  --chart-1: #6b7280; /* Steel gray */
+  --chart-2: #9ca3af; /* Light steel */
+  --chart-3: #4b5563; /* Dark steel */
+  --chart-4: #d1d5db; /* Bright steel */
+  --chart-5: #374151; /* Medium steel */
+  --sidebar: #0f1419;
+  --sidebar-foreground: #f8f9fa;
+  --sidebar-primary: #d1d5db;
+  --sidebar-primary-foreground: #0f1419;
+  --sidebar-accent: #374151;
+  --sidebar-accent-foreground: #f8f9fa;
+  --sidebar-border: #374151;
+  --sidebar-ring: #9ca3af;
 }
 
 @layer base {
@@ -139,4 +152,25 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Cold steel granite texture effect */
+.granite-texture {
+  background-image:
+    radial-gradient(circle at 20% 80%, rgba(156, 163, 175, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(209, 213, 219, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, rgba(107, 114, 128, 0.06) 0%, transparent 50%);
+}
+
+/* Enhanced hover effects for cold steel granite theme */
+.granite-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.granite-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.15),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(156, 163, 175, 0.1);
 }
