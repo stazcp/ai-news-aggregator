@@ -18,31 +18,6 @@ interface LazySummaryProps {
   variant?: 'article' | 'cluster' // Determines styling and behavior
 }
 
-// Shared UI Components
-const SummaryBadge = ({
-  variant,
-  status,
-  children,
-}: {
-  variant: 'article' | 'cluster'
-  status: 'loading' | 'error' | 'available' | 'ready'
-  children: React.ReactNode
-}) => {
-  const baseClasses =
-    variant === 'cluster'
-      ? 'flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-medium'
-      : 'flex items-center text-sm font-semibold mb-2'
-
-  const statusStyles = {
-    loading: variant === 'cluster' ? 'bg-accent/10 border-accent/20' : '',
-    error: variant === 'cluster' ? 'bg-red-900/20 border-red-700/30' : '',
-    available: variant === 'cluster' ? 'bg-accent/5 border-accent/10' : '',
-    ready: variant === 'cluster' ? 'bg-accent/10 border-accent/20' : '',
-  }
-
-  return <div className={`${baseClasses} ${statusStyles[status]}`}>{children}</div>
-}
-
 const LoadingSpinner = ({
   variant,
   articleCount,
@@ -159,6 +134,8 @@ export default function LazySummary({
     setHasRequested(false)
     fetchSummary()
   }
+
+  if (error) return null
 
   // Render cluster variant
   if (variant === 'cluster') {
