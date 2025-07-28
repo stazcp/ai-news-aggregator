@@ -2,10 +2,15 @@
 
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
-import SynthesizedSummary from './SynthesizedSummary'
+import LazySummary from '../LazySummary'
 import SourceArticleList from './SourceArticleList'
 
-export default function StoryClusterCard({ cluster }: { cluster: StoryCluster }) {
+interface StoryClusterCardProps {
+  cluster: StoryCluster
+  isFirst?: boolean // Indicates if this is the first story (above-the-fold)
+}
+
+export default function StoryClusterCard({ cluster, isFirst = false }: StoryClusterCardProps) {
   if (!cluster.articles || cluster.articles.length === 0) {
     return null
   }
@@ -19,7 +24,7 @@ export default function StoryClusterCard({ cluster }: { cluster: StoryCluster })
       <header className="mb-6">
         <div className="flex items-center gap-4 mb-3">
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/30">
-            Top Story
+            {isFirst ? 'Breaking News' : 'Top Story'}
           </span>
           <span className="text-sm text-muted-foreground">
             {sourceCount} source{sourceCount !== 1 ? 's' : ''} •{' '}
@@ -44,9 +49,13 @@ export default function StoryClusterCard({ cluster }: { cluster: StoryCluster })
           <ImageCollage cluster={cluster} />
         </div>
 
-        {/* Right Column: AI Summary */}
+        {/* Right Column: AI Summary with Lazy Loading */}
         <div className="lg:col-span-2">
-          <SynthesizedSummary summary={cluster.summary} />
+          <LazySummary
+            cluster={cluster}
+            variant="cluster"
+            eager={isFirst} // Load immediately for first story only
+          />
         </div>
       </div>
 

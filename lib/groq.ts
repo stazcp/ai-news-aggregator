@@ -4,22 +4,20 @@ import { Article, StoryCluster } from '@/types'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
-export async function main() {
-  const chatCompletion = await getGroqChatCompletion()
-  // Print the completion returned by the LLM.
-  console.log(chatCompletion.choices[0]?.message?.content || '')
-}
+// Helper function to check if error is a rate limit error
+function isRateLimitError(error: any): boolean {
+  if (!error) return false
 
-export async function getGroqChatCompletion() {
-  return groq.chat.completions.create({
-    messages: [
-      {
-        role: 'user',
-        content: 'Explain the importance of fast language models',
-      },
-    ],
-    model: 'llama-3.3-70b-versatile',
-  })
+  const errorMessage = error.message || error.toString() || ''
+  const errorCode = error.code || error.error?.code || ''
+
+  return (
+    errorMessage.includes('rate_limit_exceeded') ||
+    errorMessage.includes('429') ||
+    errorCode === 'rate_limit_exceeded' ||
+    error.status === 429 ||
+    errorMessage.includes('Rate limit reached')
+  )
 }
 
 export async function summarizeArticle(content: string, maxLength: number = 150): Promise<string> {
@@ -42,39 +40,13 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
 
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during article summarization')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error summarizing article', error)
     return 'Summary not available'
   }
-}
-
-export async function batchSummarize(
-  articles: Array<{ id: string; content: string }>
-): Promise<Record<string, string>> {
-  const summaries: Record<string, string> = {}
-
-  // Process in batches to respect rate limits
-  const batchSize = 5
-  for (let i = 0; i < articles.length; i += batchSize) {
-    const batch = articles.slice(i, i + batchSize)
-    const promises = batch.map(async (article) => {
-      const summary = await summarizeArticle(article.content)
-      return { id: article.id, summary }
-    })
-
-    const results = await Promise.allSettled(promises)
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        summaries[batch[index].id] = result.value.summary
-      }
-    })
-
-    // Rate limiting delay
-    if (i + batchSize < articles.length) {
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-    }
-  }
-
-  return summaries
 }
 
 export async function summarizeCluster(articles: Article[]): Promise<string> {
@@ -118,6 +90,10 @@ export async function summarizeCluster(articles: Article[]): Promise<string> {
     await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
     return summary
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during cluster summarization')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error summarizing cluster:', error)
     return 'An error occurred while generating the cluster summary.'
   }
@@ -139,16 +115,18 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
     2. "articleIds": An array of the original article IDs that belong to this cluster. A cluster must contain 2 or more articles.
 
     Do not include articles that are unique.
+    Only create clusters when there are at least 3 very similar articles. Be selective.
 
     Here is the list of articles:
     ${JSON.stringify(articleSummaries)}
   `
 
+  const cacheKey = `clusters-${articles
+    .map((a) => a.id)
+    .sort()
+    .join('-')}`
+
   try {
-    const cacheKey = `clusters-${articles
-      .map((a) => a.id)
-      .sort()
-      .join('-')}`
     const cachedClusters = await getCachedData(cacheKey)
     if (cachedClusters) {
       console.log('📦 Returning cached clusters')
@@ -176,14 +154,26 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
 
     if (Array.isArray(clusters)) {
       const validClusters = clusters.filter(
-        (c) => c.clusterTitle && Array.isArray(c.articleIds) && c.articleIds.length >= 2
+        (c) => c.clusterTitle && Array.isArray(c.articleIds) && c.articleIds.length > 2
       )
-      await setCachedData(cacheKey, validClusters, 600) // Cache for 10 minutes
+
+      // Only cache successful results - don't cache empty results which might be due to rate limits
+      if (validClusters.length > 0) {
+        await setCachedData(cacheKey, validClusters, 600) // Cache for 10 minutes
+        console.log(`✅ Successfully clustered and cached ${validClusters.length} clusters`)
+      } else {
+        console.log('ℹ️ No clusters found - not caching empty result')
+      }
+
       return validClusters
     }
 
     return []
   } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate limit hit during article clustering - not caching this failure')
+      throw error // Re-throw rate limit errors to be handled upstream
+    }
     console.error('Error clustering articles:', error)
     return []
   }
