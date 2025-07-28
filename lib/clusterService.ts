@@ -43,7 +43,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       console.error(`Error clustering batch starting at index ${i}:`, error)
     }
     // Optional: Add a small delay between batches if hitting rate limits
-    // await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
   // A potential issue with simple batching is that a single story might be split
@@ -67,7 +67,8 @@ async function enrichClusters(
 ): Promise<StoryCluster[]> {
   const enrichedClusters: StoryCluster[] = []
 
-  for (const cluster of rawClusters) {
+  for (let i = 0; i < rawClusters.length; i++) {
+    const cluster = rawClusters[i]
     try {
       const articlesInCluster = cluster.articleIds
         .map((id) => articleMap.get(id))
@@ -84,6 +85,12 @@ async function enrichClusters(
         .slice(0, 4)
 
       enrichedClusters.push({ ...cluster, articles: articlesInCluster, summary, imageUrls })
+
+      // Artificial Delay to avoid rate limits
+      if (i < rawClusters.length - 1) {
+        // Only delay if there are more clusters
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+      }
     } catch (error) {
       if (isRateLimitError(error)) {
         console.warn(`⚠️ Rate limit hit during cluster summarization. Stopping further processing.`)
@@ -101,9 +108,12 @@ async function enrichClusters(
  * Main orchestrator function to get fully processed story clusters.
  * It fetches raw clusters and then enriches them.
  * @param articles - An array of all articles to be processed.
- * @returns A promise that resolves to an array of enriched story clusters.
+ * @returns A promise that resolves to an object with clusters and rate limit status.
  */
-export async function getStoryClusters(articles: Article[]): Promise<StoryCluster[]> {
+export async function getStoryClusters(articles: Article[]): Promise<{
+  clusters: StoryCluster[]
+  rateLimited: boolean
+}> {
   try {
     console.log(`🔄 Starting clustering process for ${articles.length} articles`)
     const articleMap = new Map(articles.map((a) => [a.id, a]))
@@ -114,17 +124,17 @@ export async function getStoryClusters(articles: Article[]): Promise<StoryCluste
       (cluster) => cluster.articles && cluster.articles.length >= 2
     )
     console.log(`✅ Successfully created ${validClusters.length} story clusters`)
-    return validClusters
+    return { clusters: validClusters, rateLimited: false }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     if (isRateLimitError(error) || errorMessage === 'RATE_LIMIT_EXCEEDED') {
       console.warn(
         '⚠️ Rate limit exceeded during clustering. Returning empty clusters array to show individual articles instead.'
       )
-      return []
+      return { clusters: [], rateLimited: true }
     }
     console.error('❌ Unexpected error during clustering:', error)
-    return [] // Return empty array to gracefully fallback to individual articles
+    return { clusters: [], rateLimited: false } // Return empty array to gracefully fallback to individual articles
   }
 }
 
