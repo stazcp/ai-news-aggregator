@@ -4,7 +4,7 @@ import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import LazySummary from '../LazySummary'
 import SourceArticleList from './SourceArticleList'
-import { Badge } from '@/components/ui'
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 
 interface StoryClusterCardProps {
   cluster: StoryCluster
@@ -59,18 +59,20 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
       </div>
 
       {/* Source Articles Section */}
-      <div className="bg-secondary/30 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            Coverage from {sourceCount} Sources
-          </h3>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 bg-accent rounded-full"></div>
-            Live Coverage
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Coverage from {sourceCount} Sources</CardTitle>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="w-2 h-2 bg-accent rounded-full"></div>
+              Live Coverage
+            </div>
           </div>
-        </div>
-        <SourceArticleList articles={cluster.articles} />
-      </div>
+        </CardHeader>
+        <CardContent>
+          <SourceArticleList articles={cluster.articles} />
+        </CardContent>
+      </Card>
     </section>
   )
 }
