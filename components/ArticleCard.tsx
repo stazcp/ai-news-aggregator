@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Article } from '@/types'
 import LazySummary from './LazySummary'
-import { Badge } from '@/components/ui'
+import { Badge, Card, CardContent } from '@/components/ui'
 
 interface ArticleCardProps {
   article: Article
@@ -26,8 +26,8 @@ export default function ArticleCard({
   // Render compact card for articles without images
   if (!hasValidImage) {
     return (
-      <article className="group flex flex-col bg-card rounded-lg overflow-hidden border transition-all duration-300 hover:border-accent hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 min-h-[280px]">
-        <div className="p-4 flex flex-col flex-grow">
+      <Card className="group flex flex-col overflow-hidden transition-all duration-300 hover:border-accent hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 min-h-[280px]">
+        <CardContent className="p-4 flex flex-col flex-grow">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
             <Badge variant="outline" className="text-accent border-accent/20 bg-accent/10">
               {article.category}
@@ -70,14 +70,14 @@ export default function ArticleCard({
               Read Article →
             </a>
           </footer>
-        </div>
-      </article>
+        </CardContent>
+      </Card>
     )
   }
 
   // Render full-size card for articles with images
   return (
-    <article className="group flex flex-col bg-card rounded-xl overflow-hidden border transition-all duration-300 hover:border-accent hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
+    <Card className="group flex flex-col overflow-hidden transition-all duration-300 hover:border-accent hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
       <div className="relative h-56 lg:h-64">
         <Image
           src={article.urlToImage || ''}
@@ -92,7 +92,7 @@ export default function ArticleCard({
         />
       </div>
 
-      <div className="p-6 flex flex-col flex-grow">
+      <CardContent className="p-6 flex flex-col flex-grow">
         <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
           <Badge variant="outline" className="text-accent border-accent/20 bg-accent/10">
             {article.category}
@@ -129,7 +129,7 @@ export default function ArticleCard({
             Read Full Article →
           </a>
         </footer>
-      </div>
-    </article>
+      </CardContent>
+    </Card>
   )
 }
