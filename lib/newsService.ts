@@ -9,7 +9,12 @@ const parser = new Parser({
     'User-Agent': 'Mozilla/5.0 (compatible; NewsAggregator/1.0)',
   },
   customFields: {
-    item: [['media:content', 'media:content']],
+    item: [
+      ['media:content', 'media:content'],
+      ['media:thumbnail', 'media:thumbnail'],
+      ['media:group', 'media:group'],
+      ['image', 'image'],
+    ],
   },
 })
 
@@ -123,11 +128,28 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
 
     const getImage = (item: (typeof feed.items)[0]) => {
       try {
-        // Try multiple image sources
+        // Priority 1: media:thumbnail (BBC format)
+        if (item['media:thumbnail']) {
+          const thumbnail = item['media:thumbnail']
+          // BBC format: media:thumbnail has $ property with url
+          if (thumbnail && typeof thumbnail === 'object') {
+            const thumbnailUrl = thumbnail['$']?.url || thumbnail.$.url || thumbnail.url
+            if (thumbnailUrl && isValidUrl(thumbnailUrl)) {
+              console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:thumbnail: ${thumbnailUrl}`)
+              return thumbnailUrl
+            }
+          }
+        }
+
+        // Priority 2: enclosure (common format)
         if (item.enclosure?.url && isValidUrl(item.enclosure.url)) {
+          console.log(
+            `🖼️ [${getFeedTitle(feed, url)}] Found enclosure image: ${item.enclosure.url}`
+          )
           return item.enclosure.url
         }
 
+        // Priority 3: media:content (some feeds)
         if (item['media:content']) {
           const mediaContent = item['media:content']
           const imageUrl =
@@ -135,16 +157,56 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               ? mediaContent['$'].url
               : mediaContent.url
           if (imageUrl && isValidUrl(imageUrl)) {
+            console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:content: ${imageUrl}`)
             return imageUrl
           }
         }
 
-        // Try to extract from content
+        // Priority 4: media:group (complex media)
+        if (item['media:group']) {
+          const mediaGroup = item['media:group']
+          if (mediaGroup && typeof mediaGroup === 'object') {
+            // Check for thumbnail in media group
+            if (mediaGroup['media:thumbnail']) {
+              const groupThumbnail = mediaGroup['media:thumbnail']
+              if (groupThumbnail) {
+                const groupThumbnailUrl =
+                  groupThumbnail['$']?.url || groupThumbnail.$.url || groupThumbnail.url
+                if (groupThumbnailUrl && isValidUrl(groupThumbnailUrl)) {
+                  console.log(
+                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group thumbnail: ${groupThumbnailUrl}`
+                  )
+                  return groupThumbnailUrl
+                }
+              }
+            }
+            // Check for content in media group
+            if (mediaGroup['media:content']) {
+              const groupContent = mediaGroup['media:content']
+              if (groupContent) {
+                const groupContentUrl =
+                  groupContent['$']?.url || groupContent.$.url || groupContent.url
+                if (groupContentUrl && isValidUrl(groupContentUrl)) {
+                  console.log(
+                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group content: ${groupContentUrl}`
+                  )
+                  return groupContentUrl
+                }
+              }
+            }
+          }
+        }
+
+        // Priority 5: Extract from HTML content
         const extractedImage = extractImageFromContent(item.content || item.contentSnippet)
         if (extractedImage && isValidUrl(extractedImage)) {
+          console.log(`🖼️ [${getFeedTitle(feed, url)}] Extracted from content: ${extractedImage}`)
           return extractedImage
         }
 
+        console.log(
+          `🚫 [${getFeedTitle(feed, url)}] No image found for: ${item.title?.substring(0, 50)}...`
+        )
         return null
       } catch (error) {
         console.warn(`Warning: Error getting image for item: ${item.title}`, error)
@@ -153,7 +215,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
     }
 
     const articles: Article[] = feed.items
-      .slice(0, 2) // Limit to 2 articles per feed to reduce load
+      .slice(0, 5) // Increased from 2 to 5 articles per feed for better coverage
       .map((item, index) => {
         try {
           const article: Article = {

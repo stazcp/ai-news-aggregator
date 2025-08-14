@@ -3,32 +3,23 @@ import { getStoryClusters, getUnclusteredArticles } from '@/lib/clusterService'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import NewsList from '@/components/NewsList'
 import { StoryCluster, Article } from '@/types'
+import HomeHeader from '@/components/HomePage/HomeHeader'
+import HomeLayout from '@/components/HomePage/HomeLayout'
+import HomeError from '@/components/HomePage/HomeError'
 
 export const revalidate = 1800 // 30 minutes instead of 10 to reduce server load
 
-// Extracted render function to avoid JSX duplication
+// Composed homepage renderer
 function renderHomepage(
   storyClusters: StoryCluster[],
   unclusteredArticles: Article[],
   rateLimitMessage: string | null
 ) {
   return (
-    <main className="container mx-auto px-4 py-8 max-w-7xl">
-      <header className="text-center mb-12">
-        <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
-          AI-Curated News
-        </h1>
-        <p className="mt-4 text-lg text-[var(--muted-foreground)]">
-          Your daily feed of news, intelligently grouped and summarized by AI.
-        </p>
-        {rateLimitMessage && (
-          <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-700/30 rounded-lg max-w-2xl mx-auto">
-            <p className="text-sm text-yellow-300">⚠️ {rateLimitMessage}</p>
-          </div>
-        )}
-      </header>
+    <HomeLayout>
+      <HomeHeader rateLimitMessage={rateLimitMessage} />
       <NewsList storyClusters={storyClusters} unclusteredArticles={unclusteredArticles} />
-    </main>
+    </HomeLayout>
   )
 }
 
@@ -107,32 +98,7 @@ export default async function Home() {
   } catch (error) {
     console.error('❌ Critical error loading homepage:', error)
 
-    return (
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
-            AI-Curated News
-          </h1>
-          <p className="mt-4 text-lg text-[var(--muted-foreground)]">
-            Your daily feed of news, intelligently grouped and summarized by AI.
-          </p>
-        </header>
-        <div className="text-center py-12">
-          <div className="mx-auto max-w-md">
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-4">
-              Unable to load news
-            </h2>
-            <p className="text-lg text-[var(--muted-foreground)] mb-6">
-              We're experiencing issues loading the latest news. This might be due to high traffic
-              or temporary server issues.
-            </p>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Please try refreshing the page in a few moments.
-            </p>
-          </div>
-        </div>
-      </main>
-    )
+    return <HomeError />
   }
 }
 

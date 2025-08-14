@@ -2,32 +2,27 @@
   "categories": ["Technology", "Business", "World News", "Science"],
   "feeds": {
     "Technology": [
-      "https://hnrss.org/frontpage",
       "https://www.theverge.com/rss/index.xml",
-      "https://techcrunch.com/feed/",
-      "https://feeds.arstechnica.com/arstechnica/index"
+      "https://feeds.arstechnica.com/arstechnica/index",
+      "https://www.wired.com/feed/rss"
     ],
     "Business": [
-      "https://feeds.reuters.com/reuters/businessNews",
-      "https://techcrunch.com/category/startups/feed/"
+      "https://rss.cnn.com/rss/money_topstories.rss",
+      "https://feeds.feedburner.com/venturebeat/SZYF"
     ],
     "World News": [
       "https://feeds.bbci.co.uk/news/world/rss.xml",
-      "https://feeds.reuters.com/reuters/topNews",
-      "https://feeds.theguardian.com/theguardian/world/rss"
+      "https://rss.cnn.com/rss/edition.rss",
+      "https://feeds.theguardian.com/theguardian/world/rss",
+      "https://www.npr.org/rss/rss.php?id=1001"
     ],
     "Science": [
-      "https://feeds.nature.com/nature/rss/current",
-      "https://www.newscientist.com/feed/home/"
+      "https://www.newscientist.com/feed/home/",
+      "https://feeds.feedburner.com/sciencedaily",
+      "https://www.livescience.com/feeds/all"
     ]
   },
   "sources": [
-    {
-      "id": "hn",
-      "name": "Hacker News",
-      "category": "Technology",
-      "url": "https://hnrss.org/frontpage"
-    },
     {
       "id": "verge",
       "name": "The Verge",
