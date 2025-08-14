@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useIntersectionObserver } from '@/lib/hooks/useIntersectionObserver'
 import { StoryCluster } from '@/types'
+import { AISummaryTitle, LoadingSpinner } from './ui'
 
 interface LazySummaryProps {
   // For individual articles
@@ -17,27 +18,6 @@ interface LazySummaryProps {
   eager?: boolean // Option to force immediate loading
   variant?: 'article' | 'cluster' // Determines styling and behavior
 }
-
-const LoadingSpinner = ({
-  variant,
-  articleCount,
-}: {
-  variant: 'article' | 'cluster'
-  articleCount?: number
-}) => (
-  <div className="flex items-center space-x-2">
-    <div
-      className={`animate-spin rounded-full border-b-2 border-accent ${variant === 'cluster' ? 'h-5 w-5' : 'h-4 w-4'}`}
-    ></div>
-    <p
-      className={`text-muted-foreground ${variant === 'cluster' ? 'text-lg animate-pulse' : 'text-sm'}`}
-    >
-      {variant === 'cluster'
-        ? `AI is analyzing ${articleCount || 0} articles to create a comprehensive summary...`
-        : 'Generating summary...'}
-    </p>
-  </div>
-)
 
 const RetryButton = ({ onRetry }: { onRetry: () => void }) => (
   <button onClick={onRetry} className="text-xs text-red-300 hover:text-red-200 mt-1 underline">
@@ -134,8 +114,6 @@ export default function LazySummary({
     setHasRequested(false)
     fetchSummary()
   }
-
-  if (error) return null
 
   // Render cluster variant
   if (variant === 'cluster') {
@@ -245,10 +223,7 @@ export default function LazySummary({
     if (!isIntersecting && !eager) {
       return (
         <div ref={elementRef} className={`${containerClasses} bg-accent/5 border-accent/20`}>
-          <h4 className="flex items-center text-sm font-semibold text-accent/70 mb-2">
-            <span className="mr-2">✨</span>
-            AI Summary Available
-          </h4>
+          <AISummaryTitle />
           <p className="text-sm text-muted-foreground">
             AI summary will load when this section becomes visible
           </p>
@@ -264,10 +239,7 @@ export default function LazySummary({
       className={`${containerClasses} bg-accent/10`}
       style={{ animation: 'pulse-border 2s infinite' }}
     >
-      <h4 className="flex items-center text-sm font-semibold text-accent mb-2">
-        <span className="mr-2">✨</span>
-        AI-Powered Summary
-      </h4>
+      <AISummaryTitle />
       <p className="text-sm text-muted-foreground leading-relaxed">{summary}</p>
     </div>
   )

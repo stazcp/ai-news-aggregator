@@ -4,6 +4,7 @@ import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import LazySummary from '../LazySummary'
 import SourceArticleList from './SourceArticleList'
+import { Badge } from '@/components/ui'
 
 interface StoryClusterCardProps {
   cluster: StoryCluster
@@ -23,9 +24,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
       {/* Story Header */}
       <header className="mb-6">
         <div className="flex items-center gap-4 mb-3">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/30">
-            {isFirst ? 'Breaking News' : 'Top Story'}
-          </span>
+          <Badge variant="secondary">{isFirst ? 'Breaking News' : 'Top Story'}</Badge>
           <span className="text-sm text-muted-foreground">
             {sourceCount} source{sourceCount !== 1 ? 's' : ''} •{' '}
             {new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Article } from '@/types'
 import LazySummary from './LazySummary'
+import { Badge } from '@/components/ui'
 
 interface ArticleCardProps {
   article: Article
@@ -28,9 +29,9 @@ export default function ArticleCard({
       <article className="group flex flex-col bg-card rounded-lg overflow-hidden border transition-all duration-300 hover:border-accent hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 min-h-[280px]">
         <div className="p-4 flex flex-col flex-grow">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-            <span className="inline-block px-2 py-1 bg-accent/10 text-accent rounded-md font-medium border border-accent/20">
+            <Badge variant="outline" className="text-accent border-accent/20 bg-accent/10">
               {article.category}
-            </span>
+            </Badge>
             <span>•</span>
             <span className="truncate text-xs">{article.source.name}</span>
           </div>
@@ -93,9 +94,9 @@ export default function ArticleCard({
 
       <div className="p-6 flex flex-col flex-grow">
         <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-          <span className="inline-block px-2 py-1 bg-accent/10 text-accent rounded-md font-medium border border-accent/20">
+          <Badge variant="outline" className="text-accent border-accent/20 bg-accent/10">
             {article.category}
-          </span>
+          </Badge>
           <span>•</span>
           <span className="truncate">{article.source.name}</span>
         </div>
