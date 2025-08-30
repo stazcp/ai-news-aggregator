@@ -1,0 +1,84 @@
+{
+  "sources": [
+    {
+      "id": "verge",
+      "name": "The Verge",
+      "category": "Technology",
+      "url": "https://www.theverge.com/rss/index.xml"
+    },
+    {
+      "id": "ars",
+      "name": "Ars Technica",
+      "category": "Technology",
+      "url": "https://feeds.arstechnica.com/arstechnica/index"
+    },
+    {
+      "id": "wired",
+      "name": "WIRED",
+      "category": "Technology",
+      "url": "https://www.wired.com/feed/rss"
+    },
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch",
+      "category": "Technology",
+      "url": "https://techcrunch.com/feed/"
+    },
+    {
+      "id": "techcrunch_startups",
+      "name": "TechCrunch Startups",
+      "category": "Business",
+      "url": "https://techcrunch.com/category/startups/feed/"
+    },
+    {
+      "id": "venturebeat",
+      "name": "VentureBeat",
+      "category": "Business",
+      "url": "https://feeds.feedburner.com/venturebeat/SZYF"
+    },
+
+    {
+      "id": "bbc_world",
+      "name": "BBC World",
+      "category": "World News",
+      "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+    },
+    {
+      "id": "guardian_world",
+      "name": "The Guardian World",
+      "category": "World News",
+      "url": "https://feeds.theguardian.com/theguardian/world/rss"
+    },
+    {
+      "id": "nyt_world",
+      "name": "NYT World",
+      "category": "World News",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+    },
+
+    {
+      "id": "nature",
+      "name": "Nature",
+      "category": "Science",
+      "url": "https://feeds.nature.com/nature/rss/current"
+    },
+    {
+      "id": "newscientist",
+      "name": "New Scientist",
+      "category": "Science",
+      "url": "https://www.newscientist.com/feed/home/"
+    },
+    {
+      "id": "sciencedaily",
+      "name": "ScienceDaily",
+      "category": "Science",
+      "url": "https://feeds.feedburner.com/sciencedaily"
+    },
+    {
+      "id": "livescience",
+      "name": "Live Science",
+      "category": "Science",
+      "url": "https://www.livescience.com/feeds/all"
+    }
+  ]
+}

@@ -2,10 +2,16 @@
 
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
-import SynthesizedSummary from './SynthesizedSummary'
+import LazySummary from '../LazySummary'
 import SourceArticleList from './SourceArticleList'
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 
-export default function StoryClusterCard({ cluster }: { cluster: StoryCluster }) {
+interface StoryClusterCardProps {
+  cluster: StoryCluster
+  isFirst?: boolean // Indicates if this is the first story (above-the-fold)
+}
+
+export default function StoryClusterCard({ cluster, isFirst = false }: StoryClusterCardProps) {
   if (!cluster.articles || cluster.articles.length === 0) {
     return null
   }
@@ -18,9 +24,7 @@ export default function StoryClusterCard({ cluster }: { cluster: StoryCluster })
       {/* Story Header */}
       <header className="mb-6">
         <div className="flex items-center gap-4 mb-3">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-accent/20 text-accent border border-accent/30">
-            Top Story
-          </span>
+          <Badge variant="secondary">{isFirst ? 'Breaking News' : 'Top Story'}</Badge>
           <span className="text-sm text-muted-foreground">
             {sourceCount} source{sourceCount !== 1 ? 's' : ''} •{' '}
             {new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
@@ -39,29 +43,25 @@ export default function StoryClusterCard({ cluster }: { cluster: StoryCluster })
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* Left Column: Image Collage */}
-        <div className="lg:col-span-1">
-          <ImageCollage cluster={cluster} />
-        </div>
-
-        {/* Right Column: AI Summary */}
-        <div className="lg:col-span-2">
-          <SynthesizedSummary summary={cluster.summary} />
-        </div>
-      </div>
-
-      {/* Source Articles Section */}
-      <div className="bg-secondary/30 rounded-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            Coverage from {sourceCount} Sources
-          </h3>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 bg-accent rounded-full"></div>
-            Live Coverage
+        {cluster?.imageUrls?.length ? (
+          <div className="lg:col-span-1 lg:pt-12">
+            <ImageCollage cluster={cluster} />
           </div>
+        ) : (
+          <SourceArticleList articles={cluster.articles} />
+        )}
+
+        {/* Right Column: AI Summary with Lazy Loading */}
+        <div className="lg:col-span-2">
+          <LazySummary
+            cluster={cluster}
+            variant="cluster"
+            eager={isFirst} // Load immediately for first story only
+          />
         </div>
-        <SourceArticleList articles={cluster.articles} />
+        {!!cluster?.imageUrls?.length && (
+          <div className="lg:col-span-3">{<SourceArticleList articles={cluster.articles} />}</div>
+        )}
       </div>
     </section>
   )
