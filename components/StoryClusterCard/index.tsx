@@ -44,7 +44,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {cluster?.imageUrls?.length ? (
-          <div className="lg:col-span-1 lg:pt-12">
+          <div className="lg:col-span-1">
             <ImageCollage cluster={cluster} />
           </div>
         ) : (
