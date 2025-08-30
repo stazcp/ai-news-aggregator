@@ -2,6 +2,7 @@ import Parser from 'rss-parser'
 import { Article } from '@/types'
 import rssConfig from './rss-feeds.json'
 import { getCachedData, setCachedData } from './cache'
+import { resolveImageUrl } from './imageResolver'
 
 const parser = new Parser({
   timeout: 5000, // 5 second timeout
@@ -255,7 +256,24 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       .filter((article): article is Article => article !== null) // Remove null entries
 
     console.log(`✅ Successfully processed ${articles.length} articles from ${url}`)
-    return articles
+
+    // Server-side resolve higher-res image URLs for individual articles (cached)
+    const resolvedArticles: Article[] = []
+    for (const a of articles) {
+      try {
+        if (a.urlToImage) {
+          // Use a moderate default width suitable for cards; Next/Image will downscale as needed
+          const resolved = await resolveImageUrl(a.urlToImage, 800)
+          resolvedArticles.push({ ...a, urlToImage: resolved })
+        } else {
+          resolvedArticles.push(a)
+        }
+      } catch {
+        resolvedArticles.push(a)
+      }
+    }
+
+    return resolvedArticles
   } catch (error) {
     // Enhanced error logging with more context and better error serialization
     let errorDetails: any = {

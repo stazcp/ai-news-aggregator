@@ -1,4 +1,5 @@
 import { Article, StoryCluster } from '@/types'
+import { resolveImageUrl } from './imageResolver'
 import { clusterArticles, summarizeCluster } from './groq'
 
 // Helper function to check if error is a rate limit error
@@ -79,10 +80,24 @@ async function enrichClusters(
       }
 
       const summary = await summarizeCluster(articlesInCluster)
-      const imageUrls = articlesInCluster
+      const rawImageUrls = articlesInCluster
         .map((a) => a.urlToImage)
         .filter((url) => url && !url.includes('placehold.co'))
         .slice(0, 4)
+
+      // Resolve higher-res, server-side with caching
+      const imageUrls: string[] = []
+      for (let idx = 0; idx < rawImageUrls.length; idx++) {
+        const originalUrl = rawImageUrls[idx] as string
+        // Hint width: hero might be wider; use a safe upper bound for collage
+        const desiredWidth = idx === 0 ? 1200 : 600
+        try {
+          const resolved = await resolveImageUrl(originalUrl, desiredWidth)
+          imageUrls.push(resolved)
+        } catch {
+          imageUrls.push(originalUrl)
+        }
+      }
 
       enrichedClusters.push({ ...cluster, articles: articlesInCluster, summary, imageUrls })
 

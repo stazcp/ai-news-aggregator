@@ -1,4 +1,8 @@
+'use client'
+
+import NextImage from 'next/image'
 import { StoryCluster } from '@/types'
+import { useEffect, useMemo, useState } from 'react'
 
 const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
   if (!cluster.imageUrls || cluster.imageUrls.length === 0) {
@@ -11,45 +15,111 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
       ?.filter((article) => article.urlToImage && !article.urlToImage.includes('placehold.co'))
       .slice(0, 4) || []
 
+  // Load intrinsic aspect ratios for the first few images to drive layout decisions
+  const [aspectRatios, setAspectRatios] = useState<number[]>([])
+  const [failedIdx, setFailedIdx] = useState<Set<number>>(new Set())
+  useEffect(() => {
+    let isCancelled = false
+    const urls = (cluster.imageUrls || []).slice(0, 4)
+    if (urls.length === 0) return
+    Promise.all(
+      urls.map(
+        (url) =>
+          new Promise<number>((resolve) => {
+            const img = new globalThis.Image()
+            img.onload = () => {
+              const ratio =
+                img.naturalWidth && img.naturalHeight ? img.naturalWidth / img.naturalHeight : 1
+              resolve(ratio || 1)
+            }
+            img.onerror = () => resolve(1)
+            img.src = url
+          })
+      )
+    ).then((ratios) => {
+      if (!isCancelled) setAspectRatios(ratios)
+    })
+    return () => {
+      isCancelled = true
+    }
+  }, [cluster.imageUrls])
+
+  const layoutForIndex = useMemo(() => {
+    const count = cluster.imageUrls?.length || 0
+    // Determine hero orientation from first image when available
+    const firstRatio = aspectRatios[0] ?? 1
+    const isLandscapeHero = firstRatio > 1.2
+    const isPortraitHero = firstRatio < 0.8
+
+    return (index: number): string => {
+      // Defaults
+      if (count === 1) return ' col-span-2 row-span-2'
+      if (count === 2) {
+        const r0 = aspectRatios[0] ?? 1
+        const r1 = aspectRatios[1] ?? 1
+        const bothLandscape = r0 > 1.2 && r1 > 1.2
+        if (bothLandscape) {
+          // Stack landscape images top/bottom to preserve width
+          return ' col-span-2 row-span-1'
+        }
+        // Default side-by-side columns
+        return ' col-span-1 row-span-2'
+      }
+      if (count === 3) {
+        if (isLandscapeHero) {
+          // Wide hero on top, two squares below
+          return index === 0 ? ' col-span-2 row-span-1' : ' col-span-1 row-span-1'
+        }
+        if (isPortraitHero) {
+          // Tall hero on left, two squares on right
+          return index === 0 ? ' col-span-1 row-span-2' : ' col-span-1 row-span-1'
+        }
+        // Neutral: fall back to tall-left composition
+        return index === 0 ? ' col-span-1 row-span-2' : ' col-span-1 row-span-1'
+      }
+      // 4 or more: uniform grid cells
+      return ' col-span-1 row-span-1'
+    }
+  }, [aspectRatios, cluster.imageUrls])
+
+  // Client-side URL upscaling removed. We rely solely on server-side resolution in clusterService.
+
   return (
     <div className="mb-4 grid grid-cols-2 grid-rows-2 gap-2 h-80 lg:h-96 xl:h-[500px] rounded-lg overflow-hidden border">
       {cluster.imageUrls.map((url, index) => {
-        const isFirst = index === 0
-        const count = cluster.imageUrls?.length || 0
-        const singleImage = count === 1
-        const twoImages = count === 2
-        const threeImages = count === 3
-
-        let className = 'w-full h-full'
-
-        if (singleImage) {
-          className += ' col-span-2 row-span-2'
-        } else if (twoImages) {
-          className += ' col-span-1 row-span-2'
-        } else if (threeImages && isFirst) {
-          className += ' col-span-1 row-span-2'
-        } else {
-          className += ' col-span-1 row-span-1'
-        }
+        const layoutClass = layoutForIndex(index)
+        let className = 'w-full h-full' + layoutClass
+        const srcToUse = url
 
         // Get the corresponding article for this image
         const correspondingArticle = articlesWithImages[index]
+        const isFailed = failedIdx.has(index)
 
         return (
           <div key={url} className={className}>
-            {correspondingArticle ? (
+            {isFailed ? (
+              <div className="w-full h-full bg-muted" />
+            ) : correspondingArticle ? (
               <a
                 href={correspondingArticle.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full h-full group relative overflow-hidden rounded-sm"
               >
-                <img
-                  src={url}
+                <NextImage
+                  src={srcToUse}
                   alt={`${cluster.clusterTitle} - ${correspondingArticle.source.name}`}
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                  style={{
-                    objectPosition: 'center 25%',
+                  fill
+                  className="object-cover transition-transform duration-300 group-hover:scale-110"
+                  sizes="(min-width: 1024px) 33vw, 100vw"
+                  priority={index === 0}
+                  onError={() => {
+                    setFailedIdx((prev) => {
+                      if (prev.has(index)) return prev
+                      const next = new Set(prev)
+                      next.add(index)
+                      return next
+                    })
                   }}
                 />
                 {/* Overlay with source name on hover */}
@@ -79,12 +149,20 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
                 </div>
               </a>
             ) : (
-              <img
-                src={url}
+              <NextImage
+                src={srcToUse}
                 alt={`${cluster.clusterTitle} - Image ${index + 1}`}
-                className="w-full h-full object-cover"
-                style={{
-                  objectPosition: 'center 25%',
+                fill
+                className="object-cover"
+                sizes="(min-width: 1024px) 33vw, 100vw"
+                priority={index === 0}
+                onError={() => {
+                  setFailedIdx((prev) => {
+                    if (prev.has(index)) return prev
+                    const next = new Set(prev)
+                    next.add(index)
+                    return next
+                  })
                 }}
               />
             )}

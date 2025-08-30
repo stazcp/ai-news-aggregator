@@ -133,24 +133,68 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
       return cachedClusters
     }
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful assistant that only responds with valid, well-formed JSON.',
-        },
-        { role: 'user', content: prompt },
-      ],
-      model: 'llama3-8b-8192', // Use a faster model for categorization
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-    })
+    // First attempt: structured JSON response
+    let responseContent: string | undefined
+    try {
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that only responds with valid, well-formed JSON.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama3-8b-8192', // Use a faster model for categorization
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+      })
+      responseContent = completion.choices[0]?.message?.content ?? undefined
+    } catch (err: any) {
+      const message = err?.message || String(err)
+      const code = err?.code || err?.error?.code
+      // If the model failed JSON validation, try a fallback call without response_format
+      if (code === 'json_validate_failed' || message.includes('json_validate_failed')) {
+        console.warn('⚠️ JSON validation failed. Retrying clustering without response_format...')
+        const strictPrompt = `Respond ONLY with a JSON object of shape {"clusters": [{"clusterTitle": string, "articleIds": string[]} ...]}. No prose. If unsure, return {"clusters": []}.\nArticles JSON:\n${JSON.stringify(
+          articleSummaries
+        )}`
+        const retry = await groq.chat.completions.create({
+          messages: [
+            { role: 'system', content: 'Output valid JSON only. No explanations.' },
+            { role: 'user', content: strictPrompt },
+          ],
+          model: 'llama3-8b-8192',
+          temperature: 0,
+          max_tokens: 800,
+        })
+        responseContent = retry.choices[0]?.message?.content ?? undefined
+      } else {
+        throw err
+      }
+    }
 
-    const responseContent = completion.choices[0]?.message?.content
     if (!responseContent) return []
 
-    const responseObject = JSON.parse(responseContent)
-    const clusters = responseObject.clusters
+    // Parse JSON safely, allowing for possible surrounding text
+    let responseObject: any
+    try {
+      responseObject = JSON.parse(responseContent)
+    } catch {
+      const start = responseContent.indexOf('{')
+      const end = responseContent.lastIndexOf('}')
+      if (start !== -1 && end !== -1 && end > start) {
+        try {
+          responseObject = JSON.parse(responseContent.slice(start, end + 1))
+        } catch {
+          console.warn('⚠️ Failed to parse clustering JSON after fallback. Returning empty.')
+          return []
+        }
+      } else {
+        return []
+      }
+    }
+
+    const clusters = responseObject?.clusters
 
     if (Array.isArray(clusters)) {
       const validClusters = clusters.filter(
