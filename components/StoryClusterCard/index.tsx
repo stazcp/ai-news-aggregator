@@ -43,10 +43,13 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* Left Column: Image Collage */}
-        <div className="lg:col-span-1">
-          <ImageCollage cluster={cluster} />
-        </div>
+        {cluster?.imageUrls?.length ? (
+          <div className="lg:col-span-1 lg:pt-12">
+            <ImageCollage cluster={cluster} />
+          </div>
+        ) : (
+          <SourceArticleList articles={cluster.articles} />
+        )}
 
         {/* Right Column: AI Summary with Lazy Loading */}
         <div className="lg:col-span-2">
@@ -56,23 +59,10 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
             eager={isFirst} // Load immediately for first story only
           />
         </div>
+        {!!cluster?.imageUrls?.length && (
+          <div className="lg:col-span-3">{<SourceArticleList articles={cluster.articles} />}</div>
+        )}
       </div>
-
-      {/* Source Articles Section */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Coverage from {sourceCount} Sources</CardTitle>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="w-2 h-2 bg-accent rounded-full"></div>
-              Live Coverage
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <SourceArticleList articles={cluster.articles} />
-        </CardContent>
-      </Card>
     </section>
   )
 }

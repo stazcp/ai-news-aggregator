@@ -1,27 +1,4 @@
 {
-  "categories": ["Technology", "Business", "World News", "Science"],
-  "feeds": {
-    "Technology": [
-      "https://www.theverge.com/rss/index.xml",
-      "https://feeds.arstechnica.com/arstechnica/index",
-      "https://www.wired.com/feed/rss"
-    ],
-    "Business": [
-      "https://rss.cnn.com/rss/money_topstories.rss",
-      "https://feeds.feedburner.com/venturebeat/SZYF"
-    ],
-    "World News": [
-      "https://feeds.bbci.co.uk/news/world/rss.xml",
-      "https://rss.cnn.com/rss/edition.rss",
-      "https://feeds.theguardian.com/theguardian/world/rss",
-      "https://www.npr.org/rss/rss.php?id=1001"
-    ],
-    "Science": [
-      "https://www.newscientist.com/feed/home/",
-      "https://feeds.feedburner.com/sciencedaily",
-      "https://www.livescience.com/feeds/all"
-    ]
-  },
   "sources": [
     {
       "id": "verge",
@@ -30,22 +7,22 @@
       "url": "https://www.theverge.com/rss/index.xml"
     },
     {
-      "id": "techcrunch",
-      "name": "TechCrunch",
-      "category": "Technology",
-      "url": "https://techcrunch.com/feed/"
-    },
-    {
       "id": "ars",
       "name": "Ars Technica",
       "category": "Technology",
       "url": "https://feeds.arstechnica.com/arstechnica/index"
     },
     {
-      "id": "reuters_business",
-      "name": "Reuters Business",
-      "category": "Business",
-      "url": "https://feeds.reuters.com/reuters/businessNews"
+      "id": "wired",
+      "name": "WIRED",
+      "category": "Technology",
+      "url": "https://www.wired.com/feed/rss"
+    },
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch",
+      "category": "Technology",
+      "url": "https://techcrunch.com/feed/"
     },
     {
       "id": "techcrunch_startups",
@@ -54,16 +31,17 @@
       "url": "https://techcrunch.com/category/startups/feed/"
     },
     {
+      "id": "venturebeat",
+      "name": "VentureBeat",
+      "category": "Business",
+      "url": "https://feeds.feedburner.com/venturebeat/SZYF"
+    },
+
+    {
       "id": "bbc_world",
       "name": "BBC World",
       "category": "World News",
       "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
-    },
-    {
-      "id": "reuters_top",
-      "name": "Reuters Top News",
-      "category": "World News",
-      "url": "https://feeds.reuters.com/reuters/topNews"
     },
     {
       "id": "guardian_world",
@@ -71,6 +49,13 @@
       "category": "World News",
       "url": "https://feeds.theguardian.com/theguardian/world/rss"
     },
+    {
+      "id": "nyt_world",
+      "name": "NYT World",
+      "category": "World News",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+    },
+
     {
       "id": "nature",
       "name": "Nature",
@@ -82,6 +67,18 @@
       "name": "New Scientist",
       "category": "Science",
       "url": "https://www.newscientist.com/feed/home/"
+    },
+    {
+      "id": "sciencedaily",
+      "name": "ScienceDaily",
+      "category": "Science",
+      "url": "https://feeds.feedburner.com/sciencedaily"
+    },
+    {
+      "id": "livescience",
+      "name": "Live Science",
+      "category": "Science",
+      "url": "https://www.livescience.com/feeds/all"
     }
   ]
 }

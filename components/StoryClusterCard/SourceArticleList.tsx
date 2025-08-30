@@ -3,6 +3,7 @@
 import { Article } from '@/types'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Card, CardHeader, CardTitle, CardContent } from '../ui'
 
 const SourceArticle = ({ article, index }: { article: Article; index: number }) => (
   <a
@@ -48,7 +49,7 @@ const SourceArticle = ({ article, index }: { article: Article; index: number }) 
 
 const SourceArticleList = ({ articles }: { articles: Article[] }) => {
   const [isExpanded, setIsExpanded] = useState(false)
-
+  const sourceCount = articles.length
   if (!articles || articles.length === 0) {
     return null
   }
@@ -56,19 +57,36 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
   const visibleArticles = isExpanded ? articles : articles.slice(0, 4)
 
   return (
-    <div className="space-y-3">
-      {visibleArticles.map((article, index) => (
-        <SourceArticle key={article.id} article={article} index={index} />
-      ))}
-
-      {articles.length > 4 && (
-        <div className="pt-4 border-t border-border">
-          <Button variant="outline" onClick={() => setIsExpanded(!isExpanded)} className="w-full">
-            {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
-          </Button>
+    <Card>
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Coverage from {sourceCount} Sources</CardTitle>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-2 h-2 bg-accent rounded-full"></div>
+            Live Coverage
+          </div>
         </div>
-      )}
-    </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {visibleArticles.map((article, index) => (
+            <SourceArticle key={article.id} article={article} index={index} />
+          ))}
+
+          {articles.length > 4 && (
+            <div className="pt-4 border-t border-border">
+              <Button
+                variant="outline"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full"
+              >
+                {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

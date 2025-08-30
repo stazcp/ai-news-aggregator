@@ -18,8 +18,22 @@ const parser = new Parser({
   },
 })
 
-// Import feeds from JSON configuration
-const RSS_FEEDS = rssConfig.feeds
+// Import sources from JSON configuration and derive categories/feeds
+const SOURCES = rssConfig.sources as Array<{
+  id: string
+  name: string
+  category: string
+  url: string
+}>
+const SOURCE_CATEGORIES: string[] = Array.from(new Set(SOURCES.map((s) => s.category)))
+
+const RSS_FEEDS: Record<string, string[]> = SOURCE_CATEGORIES.reduce(
+  (acc: Record<string, string[]>, category: string) => {
+    acc[category] = SOURCES.filter((s) => s.category === category).map((s) => s.url)
+    return acc
+  },
+  {}
+)
 
 // Helper function to extract image URL from HTML content
 function extractImageFromContent(content: string | undefined): string | null {
@@ -406,5 +420,4 @@ export async function fetchAllNews(): Promise<Article[]> {
 }
 
 // Export configuration for use in other components
-export const SOURCE_CATEGORIES = rssConfig.categories
-export const SOURCES = rssConfig.sources
+export { SOURCE_CATEGORIES, SOURCES }
