@@ -154,7 +154,7 @@
       "id": "scientificamerican",
       "name": "Scientific American",
       "category": "Science",
-      "url": "https://www.scientificamerican.com/feed/"
+      "url": "http://rss.sciam.com/basic-science"
     },
     {
       "id": "nyt_science",

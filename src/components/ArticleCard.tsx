@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Article } from '@/types'
-import LazySummary from './LazySummary'
+import Summary from '@/components/Summary/Summary'
 import { Badge, Card, CardContent } from '@/components/ui'
 
 interface ArticleCardProps {
@@ -52,7 +52,7 @@ export default function ArticleCard({
           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{article.description}</p>
 
           {showSummary && (
-            <LazySummary
+            <Summary
               articleId={article.id}
               content={article.content ?? ''}
               eager={eager}
@@ -116,7 +116,7 @@ export default function ArticleCard({
         <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{article.description}</p>
 
         {showSummary && (
-          <LazySummary articleId={article.id} content={article.content ?? ''} eager={eager} />
+          <Summary articleId={article.id} content={article.content ?? ''} eager={eager} />
         )}
 
         <footer className="mt-auto pt-4">

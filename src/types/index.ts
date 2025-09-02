@@ -20,6 +20,9 @@ export interface StoryCluster {
   summary?: string
   articles?: Article[]
   imageUrls?: string[]
+  // Optional, topic-aware summary data provided by parent for client summary generation
+  summarySeed?: string
+  summaryKey?: string
 }
 
 export interface NewsResponse {

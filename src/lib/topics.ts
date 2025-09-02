@@ -91,9 +91,26 @@ function recencyWeight(publishedAt: string): number {
   }
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function keywordToRegex(keyword: string): RegExp {
+  const k = keyword.trim()
+  const escaped = escapeRegExp(k)
+  const shortOrAmbiguous =
+    k.length <= 3 ||
+    ['ai', 'x', 'gop', 'cdc', 'who', 'ipo', 'gpu', 'tpu', 'saas'].includes(k.toLowerCase())
+  // Use word boundaries for short/ambiguous tokens to avoid false positives (e.g., 'ai' in 'said')
+  if (shortOrAmbiguous && /^[a-z0-9]+$/i.test(k)) {
+    return new RegExp(`\\b${escaped}\\b`, 'i')
+  }
+  // Otherwise do a case-insensitive substring match
+  return new RegExp(escaped, 'i')
+}
+
 function textIncludesAny(text: string, needles: string[]): boolean {
-  const t = text.toLowerCase()
-  return needles.some((n) => t.includes(n))
+  return needles.map(keywordToRegex).some((re) => re.test(text))
 }
 
 export function matchesTopic(topic: string, text: string): boolean {

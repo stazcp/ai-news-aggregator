@@ -2,7 +2,7 @@
 
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
-import LazySummary from '../LazySummary'
+import ClusterSummary from '@/components/Summary/ClusterSummary'
 import SourceArticleList from './SourceArticleList'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 
@@ -53,11 +53,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
 
         {/* Right Column: AI Summary with Lazy Loading */}
         <div className="lg:col-span-2">
-          <LazySummary
-            cluster={cluster}
-            variant="cluster"
-            eager={isFirst} // Load immediately for first story only
-          />
+          <ClusterSummary cluster={cluster} eager={isFirst} />
         </div>
         {!!cluster?.imageUrls?.length && (
           <div className="lg:col-span-3">{<SourceArticleList articles={cluster.articles} />}</div>
