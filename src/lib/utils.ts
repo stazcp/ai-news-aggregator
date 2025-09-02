@@ -1,7 +1,7 @@
 import { Article, StoryCluster } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { TOPIC_KEYWORDS } from './topics'
+import { TOPIC_KEYWORDS, computeKeywordScore } from './topics'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -65,7 +65,23 @@ export const filterByTopic = (
   const articleOk = (a: Article) => categoryMatches(topic, a.category)
 
   return {
-    clusters: clusters.filter(clusterOk),
-    unclustered: unclustered.filter(articleOk),
+    clusters: clusters.filter(clusterOk).sort((a, b) => {
+      const ta = [
+        a.clusterTitle,
+        ...(a.articles || []).map((x) => `${x.title} ${x.description || ''}`),
+      ].join(' ')
+      const tb = [
+        b.clusterTitle,
+        ...(b.articles || []).map((x) => `${x.title} ${x.description || ''}`),
+      ].join(' ')
+      return computeKeywordScore(topic, tb) - computeKeywordScore(topic, ta)
+    }),
+    unclustered: unclustered
+      .filter(articleOk)
+      .sort(
+        (a, b) =>
+          computeKeywordScore(topic, `${b.title} ${b.description || ''}`) -
+          computeKeywordScore(topic, `${a.title} ${a.description || ''}`)
+      ),
   }
 }

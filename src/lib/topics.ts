@@ -118,6 +118,22 @@ export function matchesTopic(topic: string, text: string): boolean {
   return textIncludesAny(text, keywords)
 }
 
+/**
+ * Computes a lightweight keyword relevance score for a given topic and text.
+ * - Counts regex matches of topic keywords
+ * - Short/ambiguous tokens use word boundaries (see keywordToRegex)
+ */
+export function computeKeywordScore(topic: string, text: string): number {
+  const keywords = TOPIC_KEYWORDS[topic] || [topic.toLowerCase()]
+  const regexes = keywords.map(keywordToRegex)
+  let score = 0
+  for (const re of regexes) {
+    const matches = text.match(re)
+    if (matches?.length) score += matches.length
+  }
+  return score
+}
+
 export function computeTrendingTopics(
   articles: Article[],
   clusters: StoryCluster[],
