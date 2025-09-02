@@ -32,9 +32,7 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
       {storyClusters.map((cluster, index) => (
         <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
       ))}
-
       {storyClusters.length > 0 && unclusteredArticles.length > 0 && <SectionDivider />}
-
       {unclusteredArticles.length > 0 && (
         <div className="space-y-8">
           <FeaturedArticles articles={articlesWithImages} />

@@ -144,7 +144,7 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
           },
           { role: 'user', content: prompt },
         ],
-        model: 'llama3-8b-8192', // Use a faster model for categorization
+        model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
         response_format: { type: 'json_object' },
       })
@@ -163,7 +163,7 @@ export async function clusterArticles(articles: Article[]): Promise<StoryCluster
             { role: 'system', content: 'Output valid JSON only. No explanations.' },
             { role: 'user', content: strictPrompt },
           ],
-          model: 'llama3-8b-8192',
+          model: 'llama-3.3-70b-versatile',
           temperature: 0,
           max_tokens: 800,
         })

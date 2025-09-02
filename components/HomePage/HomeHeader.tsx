@@ -1,10 +1,12 @@
 import React from 'react'
+import TrendingTopicsBar from '../TopBar/TrendingTopicsBar'
 
 interface HomeHeaderProps {
   rateLimitMessage?: string | null
+  topics: string[]
 }
 
-export default function HomeHeader({ rateLimitMessage }: HomeHeaderProps) {
+export default function HomeHeader({ rateLimitMessage, topics }: HomeHeaderProps) {
   return (
     <header className="text-center mb-12">
       <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
@@ -18,6 +20,7 @@ export default function HomeHeader({ rateLimitMessage }: HomeHeaderProps) {
           <p className="text-sm text-yellow-300">⚠️ {rateLimitMessage}</p>
         </div>
       )}
+      <TrendingTopicsBar topics={topics} />
     </header>
   )
 }

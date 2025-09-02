@@ -6,6 +6,8 @@ import { StoryCluster, Article } from '@/types'
 import HomeHeader from '@/components/HomePage/HomeHeader'
 import HomeLayout from '@/components/HomePage/HomeLayout'
 import HomeError from '@/components/HomePage/HomeError'
+import { computeTrendingTopics, computeCategoryFallbackTopics } from '@/lib/topics'
+import { filterByTopic, getParamString } from '@/lib/utils'
 
 export const revalidate = 1800 // 30 minutes instead of 10 to reduce server load
 
@@ -13,29 +15,45 @@ export const revalidate = 1800 // 30 minutes instead of 10 to reduce server load
 function renderHomepage(
   storyClusters: StoryCluster[],
   unclusteredArticles: Article[],
-  rateLimitMessage: string | null
+  rateLimitMessage: string | null,
+  topics: string[]
 ) {
   return (
     <HomeLayout>
-      <HomeHeader rateLimitMessage={rateLimitMessage} />
+      <HomeHeader rateLimitMessage={rateLimitMessage} topics={topics} />
       <NewsList storyClusters={storyClusters} unclusteredArticles={unclusteredArticles} />
     </HomeLayout>
   )
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   try {
     console.log('🏠 Loading homepage - checking for cached news data first...')
-
+    const sp = searchParams ? await searchParams : undefined
+    const topicParam = decodeURIComponent(getParamString(sp?.topic) || '')
     // Check for cached homepage result first
     const cachedHomepage = await getCachedData('homepage-result')
     if (cachedHomepage) {
       console.log('📦 Using cached homepage result')
-      return renderHomepage(
-        cachedHomepage.storyClusters,
-        cachedHomepage.unclusteredArticles,
-        cachedHomepage.rateLimitMessage
+      const { storyClusters, unclusteredArticles, rateLimitMessage, topics } = cachedHomepage || {}
+      const { clusters, unclustered } = filterByTopic(
+        storyClusters,
+        unclusteredArticles,
+        topicParam || undefined
       )
+      const computed = computeTrendingTopics(unclusteredArticles, storyClusters, 10)
+      const safeTopics = (
+        topics && topics.length
+          ? topics
+          : computed.length
+            ? computed
+            : computeCategoryFallbackTopics(unclusteredArticles, storyClusters, 10)
+      ) as string[]
+      return renderHomepage(clusters, unclustered, rateLimitMessage || null, safeTopics)
     }
 
     // Try to get cached data first to avoid expensive RSS fetching
@@ -70,7 +88,10 @@ export default async function Home() {
     const clusteringResult = await getStoryClusters(allArticles)
     const storyClusters = clusteringResult.clusters
     const unclusteredArticles = getUnclusteredArticles(allArticles, storyClusters)
-
+    const computed = computeTrendingTopics(allArticles, storyClusters, 10)
+    const topics = computed.length
+      ? computed
+      : computeCategoryFallbackTopics(allArticles, storyClusters, 10)
     // Only show rate limit message when actually rate limited
     const rateLimitMessage = clusteringResult.rateLimited
       ? 'AI clustering temporarily unavailable due to rate limits. Showing individual articles.'
@@ -80,6 +101,7 @@ export default async function Home() {
       storyClusters,
       unclusteredArticles,
       rateLimitMessage,
+      topics,
     }
 
     if (rateLimitMessage) {
@@ -93,8 +115,12 @@ export default async function Home() {
       // Cache successful result for longer
       await setCachedData('homepage-result', homepageResult, 600) // 10 min cache for successful results
     }
-
-    return renderHomepage(storyClusters, unclusteredArticles, rateLimitMessage)
+    const { clusters, unclustered } = filterByTopic(
+      storyClusters,
+      unclusteredArticles,
+      topicParam || undefined
+    )
+    return renderHomepage(clusters, unclustered, rateLimitMessage, topics)
   } catch (error) {
     console.error('❌ Critical error loading homepage:', error)
 
