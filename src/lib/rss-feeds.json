@@ -1,198 +1,334 @@
 {
-  "sources": [
-    {
-      "id": "bbc_world",
-      "name": "BBC World",
-      "category": "World News",
-      "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+  "sources": {
+    "BBC": {
+      "name": "BBC",
+      "feeds": [
+        {
+          "id": "bbc_world",
+          "category": "World News",
+          "url": "https://feeds.bbci.co.uk/news/world/rss.xml"
+        },
+        {
+          "id": "bbc_politics",
+          "category": "Politics",
+          "url": "https://feeds.bbci.co.uk/news/politics/rss.xml"
+        },
+        {
+          "id": "bbc_environment",
+          "category": "Environment",
+          "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+        },
+        {
+          "id": "bbc_culture",
+          "category": "Culture",
+          "url": "https://www.bbc.com/culture/feed.rss"
+        }
+      ]
     },
-    {
-      "id": "guardian_world",
-      "name": "The Guardian World",
-      "category": "World News",
-      "url": "https://feeds.theguardian.com/theguardian/world/rss"
+    "NYT": {
+      "name": "New York Times",
+      "feeds": [
+        {
+          "id": "nyt_world",
+          "category": "World News",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+        },
+        {
+          "id": "nyt_business",
+          "category": "Business",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
+        },
+        {
+          "id": "nyt_technology",
+          "category": "Technology",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
+        },
+        {
+          "id": "nyt_science",
+          "category": "Science",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"
+        },
+        {
+          "id": "nyt_culture",
+          "category": "Culture",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
+        },
+        {
+          "id": "nyt_politics",
+          "category": "US Politics",
+          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml"
+        }
+      ]
     },
-    {
-      "id": "nyt_world",
-      "name": "NYT World",
-      "category": "World News",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"
+    "DW": {
+      "name": "Deutsche Welle",
+      "feeds": [
+        {
+          "id": "dw_world",
+          "category": "World News",
+          "url": "https://rss.dw.com/rdf/rss-en-all"
+        },
+        {
+          "id": "dw_business",
+          "category": "Business",
+          "url": "https://rss.dw.com/rdf/rss-en-bus"
+        },
+        {
+          "id": "dw_science",
+          "category": "Science",
+          "url": "https://rss.dw.com/xml/rss_en_science"
+        },
+        {
+          "id": "dw_environment",
+          "category": "Environment",
+          "url": "https://rss.dw.com/xml/rss_en_environment"
+        },
+        {
+          "id": "dw_culture",
+          "category": "Culture",
+          "url": "https://rss.dw.com/rdf/rss-en-cul"
+        }
+      ]
     },
-    {
-      "id": "aljazeera",
-      "name": "Al Jazeera English",
-      "category": "World News",
-      "url": "https://www.aljazeera.com/xml/rss/all.xml"
+    "NPR": {
+      "name": "NPR",
+      "feeds": [
+        {
+          "id": "npr_world",
+          "category": "World News",
+          "url": "https://feeds.npr.org/1004/rss.xml"
+        },
+        {
+          "id": "npr_politics",
+          "category": "Politics",
+          "url": "https://feeds.npr.org/1014/rss.xml"
+        },
+        {
+          "id": "npr_technology",
+          "category": "Technology",
+          "url": "https://feeds.npr.org/1019/rss.xml"
+        }
+      ]
     },
-
-    {
-      "id": "thehill",
-      "name": "The Hill",
-      "category": "Politics",
-      "url": "https://thehill.com/rss/syndicator/19109"
-    },
-    {
-      "id": "bbc_politics",
-      "name": "BBC Politics",
-      "category": "Politics",
-      "url": "https://feeds.bbci.co.uk/news/politics/rss.xml"
-    },
-    {
-      "id": "guardian_politics",
-      "name": "The Guardian Politics",
-      "category": "Politics",
-      "url": "https://www.theguardian.com/politics/rss"
-    },
-
-    {
-      "id": "nyt_business",
-      "name": "NYT Business",
-      "category": "Business",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml"
-    },
-    {
-      "id": "wsj_business",
-      "name": "Wall Street Journal Business",
-      "category": "Business",
-      "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
-    },
-    {
-      "id": "ft",
-      "name": "Financial Times",
-      "category": "Business",
-      "url": "https://www.ft.com/?format=rss"
-    },
-
-    {
-      "id": "venturebeat",
-      "name": "VentureBeat",
-      "category": "Business",
-      "url": "https://feeds.feedburner.com/venturebeat/SZYF"
-    },
-    {
-      "id": "techcrunch_startups",
-      "name": "TechCrunch Startups",
-      "category": "Business",
-      "url": "https://techcrunch.com/category/startups/feed/"
-    },
-
-    {
-      "id": "verge",
-      "name": "The Verge",
-      "category": "Technology",
-      "url": "https://www.theverge.com/rss/index.xml"
-    },
-    {
-      "id": "ars",
-      "name": "Ars Technica",
-      "category": "Technology",
-      "url": "https://feeds.arstechnica.com/arstechnica/index"
-    },
-    {
-      "id": "wired",
-      "name": "WIRED",
-      "category": "Technology",
-      "url": "https://www.wired.com/feed/rss"
-    },
-    {
-      "id": "techcrunch",
+    "TechCrunch": {
       "name": "TechCrunch",
-      "category": "Technology",
-      "url": "https://techcrunch.com/feed/"
+      "feeds": [
+        {
+          "id": "techcrunch",
+          "category": "Technology",
+          "url": "https://techcrunch.com/feed/"
+        },
+        {
+          "id": "techcrunch_startups",
+          "category": "Business",
+          "url": "https://techcrunch.com/category/startups/feed/"
+        }
+      ]
     },
-    {
-      "id": "nyt_technology",
-      "name": "NYT Technology",
-      "category": "Technology",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"
+    "Al Jazeera": {
+      "name": "Al Jazeera English",
+      "feeds": [
+        {
+          "id": "aljazeera",
+          "category": "World News",
+          "url": "https://www.aljazeera.com/xml/rss/all.xml"
+        }
+      ]
     },
-
-    {
-      "id": "mit_ai",
-      "name": "MIT Technology Review AI",
-      "category": "AI",
-      "url": "https://www.technologyreview.com/feed/"
+    "The Hill": {
+      "name": "The Hill",
+      "feeds": [
+        {
+          "id": "thehill",
+          "category": "Politics",
+          "url": "https://thehill.com/rss/syndicator/19109"
+        }
+      ]
     },
-    {
-      "id": "venturebeat_ai",
-      "name": "VentureBeat AI",
-      "category": "AI",
-      "url": "https://venturebeat.com/category/ai/feed/"
+    "Wall Street Journal": {
+      "name": "Wall Street Journal",
+      "feeds": [
+        {
+          "id": "wsj_business",
+          "category": "Business",
+          "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+        }
+      ]
     },
-    {
-      "id": "syncedreview",
+    "Financial Times": {
+      "name": "Financial Times",
+      "feeds": [
+        {
+          "id": "ft",
+          "category": "Business",
+          "url": "https://www.ft.com/?format=rss"
+        }
+      ]
+    },
+    "VentureBeat": {
+      "name": "VentureBeat",
+      "feeds": [
+        {
+          "id": "venturebeat",
+          "category": "Business",
+          "url": "https://feeds.feedburner.com/venturebeat/SZYF"
+        }
+      ]
+    },
+    "The Verge": {
+      "name": "The Verge",
+      "feeds": [
+        {
+          "id": "verge",
+          "category": "Technology",
+          "url": "https://www.theverge.com/rss/index.xml"
+        }
+      ]
+    },
+    "Ars Technica": {
+      "name": "Ars Technica",
+      "feeds": [
+        {
+          "id": "ars",
+          "category": "Technology",
+          "url": "https://feeds.arstechnica.com/arstechnica/index"
+        }
+      ]
+    },
+    "WIRED": {
+      "name": "WIRED",
+      "feeds": [
+        {
+          "id": "wired",
+          "category": "Technology",
+          "url": "https://www.wired.com/feed/rss"
+        }
+      ]
+    },
+    "MIT Technology Review": {
+      "name": "MIT Technology Review",
+      "feeds": [
+        {
+          "id": "mit_ai",
+          "category": "AI",
+          "url": "https://www.technologyreview.com/feed/"
+        }
+      ]
+    },
+    "Synced Review": {
       "name": "Synced Review",
-      "category": "AI",
-      "url": "https://syncedreview.com/feed/"
+      "feeds": [
+        {
+          "id": "syncedreview",
+          "category": "AI",
+          "url": "https://syncedreview.com/feed/"
+        }
+      ]
     },
-
-    {
-      "id": "newscientist",
+    "New Scientist": {
       "name": "New Scientist",
-      "category": "Science",
-      "url": "https://www.newscientist.com/feed/home/"
+      "feeds": [
+        {
+          "id": "newscientist",
+          "category": "Science",
+          "url": "https://www.newscientist.com/feed/home/"
+        }
+      ]
     },
-    {
-      "id": "sciencedaily",
+    "ScienceDaily": {
       "name": "ScienceDaily",
-      "category": "Science",
-      "url": "https://feeds.feedburner.com/sciencedaily"
+      "feeds": [
+        {
+          "id": "sciencedaily",
+          "category": "Science",
+          "url": "https://feeds.feedburner.com/sciencedaily"
+        }
+      ]
     },
-    {
-      "id": "livescience",
+    "Live Science": {
       "name": "Live Science",
-      "category": "Science",
-      "url": "https://www.livescience.com/feeds/all"
+      "feeds": [
+        {
+          "id": "livescience",
+          "category": "Science",
+          "url": "https://www.livescience.com/feeds/all"
+        }
+      ]
     },
-    {
-      "id": "nature",
+    "Nature": {
       "name": "Nature",
-      "category": "Science",
-      "url": "https://www.nature.com/nmat.rss"
+      "feeds": [
+        {
+          "id": "nature",
+          "category": "Science",
+          "url": "https://www.nature.com/nmat.rss"
+        }
+      ]
     },
-    {
-      "id": "scientificamerican",
+    "Scientific American": {
       "name": "Scientific American",
-      "category": "Science",
-      "url": "http://rss.sciam.com/basic-science"
+      "feeds": [
+        {
+          "id": "scientificamerican",
+          "category": "Science",
+          "url": "http://rss.sciam.com/basic-science"
+        }
+      ]
     },
-    {
-      "id": "nyt_science",
-      "name": "NYT Science",
-      "category": "Science",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"
+    "CNBC": {
+      "name": "CNBC",
+      "feeds": [
+        {
+          "id": "cnbc_technology",
+          "category": "Technology",
+          "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+        }
+      ]
     },
-
-    {
-      "id": "guardian_environment",
-      "name": "Guardian Environment",
-      "category": "Environment",
-      "url": "https://www.theguardian.com/environment/rss"
+    "Le Monde": {
+      "name": "Le Monde",
+      "feeds": [
+        {
+          "id": "lemonde_world",
+          "category": "World News",
+          "url": "https://www.lemonde.fr/international/rss_full.xml"
+        },
+        {
+          "id": "lemonde_politics",
+          "category": "Politics",
+          "url": "https://www.lemonde.fr/politique/rss_full.xml"
+        }
+      ]
     },
-    {
-      "id": "bbc_environment",
-      "name": "BBC Environment",
-      "category": "Environment",
-      "url": "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml"
+    "The Jerusalem Post": {
+      "name": "The Jerusalem Post",
+      "feeds": [
+        {
+          "id": "jpost_headlines",
+          "category": "World News",
+          "url": "https://www.jpost.com/Rss/RssFeedsHeadlines.aspx"
+        }
+      ]
     },
-
-    {
-      "id": "nyt_culture",
-      "name": "NYT Arts",
-      "category": "Culture",
-      "url": "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
+    "Fox News": {
+      "name": "Fox News",
+      "feeds": [
+        {
+          "id": "fox_latest",
+          "category": "World News",
+          "url": "http://feeds.foxnews.com/foxnews/latest"
+        }
+      ]
     },
-    {
-      "id": "guardian_culture",
-      "name": "The Guardian Culture",
-      "category": "Culture",
-      "url": "https://www.theguardian.com/culture/rss"
-    },
-    {
-      "id": "bbc_culture",
-      "name": "BBC Culture",
-      "category": "Culture",
-      "url": "https://www.bbc.com/culture/feed.rss"
+    "ABC News": {
+      "name": "ABC News",
+      "feeds": [
+        {
+          "id": "abc_us",
+          "category": "US News",
+          "url": "http://feeds.abcnews.com/abcnews/usheadlines"
+        }
+      ]
     }
-  ]
+  }
 }

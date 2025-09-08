@@ -20,6 +20,13 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.livescience.com' },
       { protocol: 'https', hostname: '*.sciencedaily.com' },
       { protocol: 'https', hostname: '*.futurecdn.net' },
+      { protocol: 'https', hostname: '*.lemde.fr' },
+      { protocol: 'https', hostname: '*.jpost.com' },
+      { protocol: 'https', hostname: '*.politico.com' },
+      { protocol: 'https', hostname: '*.foxnews.com' },
+      { protocol: 'https', hostname: '*.abcnews.com' },
+      { protocol: 'https', hostname: '*.reuters.com' },
+      { protocol: 'https', hostname: '*.ap.org' },
 
       // CDN patterns
       { protocol: 'https', hostname: 'ichef.bbci.co.uk' },

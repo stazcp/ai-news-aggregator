@@ -2,7 +2,7 @@ import Parser from 'rss-parser'
 import { Article } from '@/types'
 import rssConfig from './rss-feeds.json'
 import { getCachedData, setCachedData } from './cache'
-import { resolveImageUrl } from './imageResolver'
+import { normalizeImageUrl } from './normalizeImageUrl'
 
 const parser = new Parser({
   timeout: 5000, // 5 second timeout
@@ -20,12 +20,28 @@ const parser = new Parser({
 })
 
 // Import sources from JSON configuration and derive categories/feeds
-const SOURCES = rssConfig.sources as Array<{
-  id: string
-  name: string
-  category: string
-  url: string
-}>
+const SOURCES_CONFIG = rssConfig.sources as Record<
+  string,
+  {
+    name: string
+    feeds: Array<{
+      id: string
+      category: string
+      url: string
+    }>
+  }
+>
+
+// Flatten all feeds into a single array for backward compatibility
+const SOURCES = Object.values(SOURCES_CONFIG).flatMap((source) =>
+  source.feeds.map((feed) => ({
+    id: feed.id,
+    name: `${source.name} ${feed.category}`,
+    category: feed.category,
+    url: feed.url,
+  }))
+)
+
 const SOURCE_CATEGORIES: string[] = Array.from(new Set(SOURCES.map((s) => s.category)))
 
 const RSS_FEEDS: Record<string, string[]> = SOURCE_CATEGORIES.reduce(
@@ -150,18 +166,18 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
           if (thumbnail && typeof thumbnail === 'object') {
             const thumbnailUrl = thumbnail['$']?.url || thumbnail.$.url || thumbnail.url
             if (thumbnailUrl && isValidUrl(thumbnailUrl)) {
-              console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:thumbnail: ${thumbnailUrl}`)
-              return thumbnailUrl
+              const normalizedUrl = normalizeImageUrl(thumbnailUrl, 976)
+              console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:thumbnail: ${normalizedUrl}`)
+              return normalizedUrl
             }
           }
         }
 
         // Priority 2: enclosure (common format)
         if (item.enclosure?.url && isValidUrl(item.enclosure.url)) {
-          console.log(
-            `🖼️ [${getFeedTitle(feed, url)}] Found enclosure image: ${item.enclosure.url}`
-          )
-          return item.enclosure.url
+          const normalizedUrl = normalizeImageUrl(item.enclosure.url, 976)
+          console.log(`🖼️ [${getFeedTitle(feed, url)}] Found enclosure image: ${normalizedUrl}`)
+          return normalizedUrl
         }
 
         // Priority 3: media:content (some feeds)
@@ -172,8 +188,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               ? mediaContent['$'].url
               : mediaContent.url
           if (imageUrl && isValidUrl(imageUrl)) {
-            console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:content: ${imageUrl}`)
-            return imageUrl
+            const normalizedUrl = normalizeImageUrl(imageUrl, 976)
+            console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:content: ${normalizedUrl}`)
+            return normalizedUrl
           }
         }
 
@@ -188,10 +205,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
                 const groupThumbnailUrl =
                   groupThumbnail['$']?.url || groupThumbnail.$.url || groupThumbnail.url
                 if (groupThumbnailUrl && isValidUrl(groupThumbnailUrl)) {
+                  const normalizedUrl = normalizeImageUrl(groupThumbnailUrl, 976)
                   console.log(
-                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group thumbnail: ${groupThumbnailUrl}`
+                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group thumbnail: ${normalizedUrl}`
                   )
-                  return groupThumbnailUrl
+                  return normalizedUrl
                 }
               }
             }
@@ -202,10 +220,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
                 const groupContentUrl =
                   groupContent['$']?.url || groupContent.$.url || groupContent.url
                 if (groupContentUrl && isValidUrl(groupContentUrl)) {
+                  const normalizedUrl = normalizeImageUrl(groupContentUrl, 976)
                   console.log(
-                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group content: ${groupContentUrl}`
+                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group content: ${normalizedUrl}`
                   )
-                  return groupContentUrl
+                  return normalizedUrl
                 }
               }
             }
@@ -215,8 +234,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         // Priority 5: Extract from HTML content
         const extractedImage = extractImageFromContent(item.content || item.contentSnippet)
         if (extractedImage && isValidUrl(extractedImage)) {
-          console.log(`🖼️ [${getFeedTitle(feed, url)}] Extracted from content: ${extractedImage}`)
-          return extractedImage
+          const normalizedUrl = normalizeImageUrl(extractedImage, 976)
+          console.log(`🖼️ [${getFeedTitle(feed, url)}] Extracted from content: ${normalizedUrl}`)
+          return normalizedUrl
         }
 
         console.log(
@@ -239,7 +259,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content: item.content?.trim() || item.contentSnippet?.trim() || '',
             url: item.link?.trim() || '',
-            urlToImage: getImage(item),
+            urlToImage: getImage(item) || '',
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),
             source: {
               name: getFeedTitle(feed, url),
@@ -257,23 +277,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
 
     console.log(`✅ Successfully processed ${articles.length} articles from ${url}`)
 
-    // Server-side resolve higher-res image URLs for individual articles (cached)
-    const resolvedArticles: Article[] = []
-    for (const a of articles) {
-      try {
-        if (a.urlToImage) {
-          // Use a moderate default width suitable for cards; Next/Image will downscale as needed
-          const resolved = await resolveImageUrl(a.urlToImage, 800)
-          resolvedArticles.push({ ...a, urlToImage: resolved })
-        } else {
-          resolvedArticles.push(a)
-        }
-      } catch {
-        resolvedArticles.push(a)
-      }
-    }
-
-    return resolvedArticles
+    // Return articles with original image URLs - let Next.js Image handle optimization
+    return articles
   } catch (error) {
     // Enhanced error logging with more context and better error serialization
     let errorDetails: any = {
