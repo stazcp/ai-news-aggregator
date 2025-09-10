@@ -38,11 +38,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   const MIN_SIZE = parseInt(process.env.PRECLUSTER_MIN_SIZE || '2', 10)
   const MAX_GROUP = parseInt(process.env.PRECLUSTER_MAX_GROUP || '40', 10)
   const JACCARD = parseFloat(process.env.CLUSTER_JACCARD_MERGE || '0.45')
-  const DIAG = (
-    process.env.CLUSTER_DIAGNOSTICS || (process.env.NODE_ENV !== 'production' ? 'true' : 'false')
-  )
-    .toLowerCase()
-    .trim() !== 'false'
+  const DIAG = (process.env.CLUSTER_DIAGNOSTICS || 'false').toLowerCase().trim() === 'true'
 
   const printSamples = (label: string, groups: StoryCluster[]) => {
     if (!DIAG) return
@@ -198,6 +194,8 @@ async function enrichClusters(
   articleMap: Map<string, Article>
 ): Promise<StoryCluster[]> {
   const enrichedClusters: StoryCluster[] = []
+  const DO_SUMMARY_DURING_ENRICH = (process.env.CLUSTER_SUMMARIZE_DURING_ENRICH || 'false')
+    .toLowerCase() !== 'false'
 
   for (let i = 0; i < rawClusters.length; i++) {
     const cluster = rawClusters[i]
@@ -209,6 +207,44 @@ async function enrichClusters(
       if (articlesInCluster.length < 2) {
         continue // Skip invalid clusters
       }
+
+      // Dedupe articles within a cluster (same story from multiple categories or mirrors)
+      const seen = new Set<string>()
+      const canonical = (a: Article) => {
+        try {
+          if (a.url) {
+            const u = new URL(a.url)
+            // Ignore query/hash for canonicalization to reduce duplicates
+            return `${u.origin}${u.pathname}`
+          }
+        } catch {}
+        // Fallback: tie dedupe explicitly to host (never cross-host)
+        let host = ''
+        try {
+          if (a.source?.url) host = new URL(a.source.url).hostname.replace(/^www\./, '').toLowerCase()
+        } catch {}
+        return `${host}|${(a.title || '').toLowerCase().trim()}`
+      }
+      articlesInCluster = articlesInCluster.filter((a) => {
+        const key = canonical(a)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      // Additional guard: drop exact same title from the same host (even if URL differs)
+      // This avoids removing articles from different outlets that share the same headline.
+      const seenTitleByHost = new Set<string>()
+      articlesInCluster = articlesInCluster.filter((a) => {
+        let host = ''
+        try {
+          host = new URL(a.url).hostname.replace(/^www\./, '').toLowerCase()
+        } catch {}
+        const k = `${host}|${(a.title || '').toLowerCase().trim()}`
+        if (seenTitleByHost.has(k)) return false
+        seenTitleByHost.add(k)
+        return true
+      })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
       const perDomainMax = 2
@@ -229,11 +265,23 @@ async function enrichClusters(
       }
       articlesInCluster = diverse
 
-      const summary = await summarizeCluster(articlesInCluster)
-      const imageUrls = articlesInCluster
-        .map((a) => a.urlToImage)
-        .filter((url) => url && !url.includes('placehold.co'))
-        .slice(0, 4)
+      const summary = DO_SUMMARY_DURING_ENRICH ? await summarizeCluster(articlesInCluster) : ''
+      const MINW = parseInt(process.env.MIN_IMAGE_WIDTH || '320', 10)
+      const MINH = parseInt(process.env.MIN_IMAGE_HEIGHT || '200', 10)
+      const validImageArticles = articlesInCluster.filter((a) => {
+        const urlOk = a.urlToImage && !a.urlToImage.includes('placehold.co')
+        if (!urlOk) return false
+        // If dimensions are provided, enforce minimums
+        if (a.imageWidth && a.imageHeight) {
+          return a.imageWidth >= MINW && a.imageHeight >= MINH
+        }
+        // Unknown dimensions: allow
+        return true
+      })
+      // Unique image URLs only to avoid duplicate keys and empty slots
+      const imageUrls = Array.from(
+        new Set(validImageArticles.map((a) => a.urlToImage))
+      ).slice(0, 4)
 
       enrichedClusters.push({ ...cluster, articles: articlesInCluster, summary, imageUrls })
 
@@ -297,6 +345,20 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     computed.push({ ...c, severity, score })
   }
   validClusters = computed
+
+  // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
+  const SUM_TOP = parseInt(process.env.CLUSTER_SUMMARIZE_TOP_N || '6', 10)
+  const topToSummarize = validClusters.slice(0, SUM_TOP)
+  for (let i = 0; i < topToSummarize.length; i++) {
+    try {
+      if (!topToSummarize[i].summary) {
+        const s = await summarizeCluster(topToSummarize[i].articles || [])
+        topToSummarize[i].summary = s
+      }
+    } catch (e) {
+      if (isRateLimitError(e)) break
+    }
+  }
 
   validClusters.sort((a, b) => (b.score || 0) - (a.score || 0))
 

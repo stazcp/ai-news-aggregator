@@ -4,9 +4,11 @@ import TrendingTopicsBar from '../TopBar/TrendingTopicsBar'
 interface HomeHeaderProps {
   rateLimitMessage?: string | null
   topics: string[]
+  activeTopic?: string
+  onTopicChange?: (topic: string) => void
 }
 
-export default function HomeHeader({ rateLimitMessage, topics }: HomeHeaderProps) {
+export default function HomeHeader({ rateLimitMessage, topics, activeTopic, onTopicChange }: HomeHeaderProps) {
   return (
     <header className="text-center mb-12">
       <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
@@ -20,7 +22,7 @@ export default function HomeHeader({ rateLimitMessage, topics }: HomeHeaderProps
           <p className="text-sm text-yellow-300">⚠️ {rateLimitMessage}</p>
         </div>
       )}
-      <TrendingTopicsBar topics={topics} />
+      <TrendingTopicsBar topics={topics} activeTopic={activeTopic} onTopicChange={onTopicChange} />
     </header>
   )
 }

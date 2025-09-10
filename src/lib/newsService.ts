@@ -4,6 +4,18 @@ import rssConfig from './rss-feeds.json'
 import { getCachedData, setCachedData } from './cache'
 import { normalizeImageUrl } from './normalizeImageUrl'
 
+// Simple log gating for feed operations
+const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()
+const LEVELS: Record<string, number> = { silent: 0, error: 1, warn: 2, info: 3, debug: 4 }
+function log(level: 'error' | 'warn' | 'info' | 'debug', ...args: any[]) {
+  if ((LEVELS[FEED_LOG_LEVEL] ?? 2) >= (LEVELS[level] ?? 2)) {
+    // Map to console
+    if (level === 'error') console.error(...args)
+    else if (level === 'warn') console.warn(...args)
+    else console.log(...args)
+  }
+}
+
 const parser = new Parser({
   timeout: 10000, // Increased timeout
   headers: {
@@ -124,7 +136,7 @@ function recordFeedFailure(url: string): void {
 }
 
 export async function fetchRSSFeed(url: string, category: string): Promise<Article[]> {
-  console.log(`🔄 Fetching RSS feed: ${url} (category: ${category})`)
+  log('info', `🔄 Fetching RSS feed: ${url} (category: ${category})`)
 
   // Validate URL first
   if (!isValidUrl(url)) {
@@ -138,7 +150,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
   }
 
   try {
-    console.log(`📡 Parsing URL: ${url}`)
+    log('debug', `📡 Parsing URL: ${url}`)
 
     // Use simple, reliable headers like the test script
     const simpleParser = new Parser({
@@ -158,8 +170,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
 
     const feed = await simpleParser.parseURL(url)
 
-    console.log(
-      `✅ Successfully parsed feed: "${getFeedTitle(feed, url)}" with ${feed.items?.length || 0} items`
+    log(
+      'info',
+      `✅ Parsed: "${getFeedTitle(feed, url)}" items=${feed.items?.length || 0}`
     )
 
     if (!feed.items || feed.items.length === 0) {
@@ -177,7 +190,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             const thumbnailUrl = thumbnail['$']?.url || thumbnail.$?.url || thumbnail.url
             if (thumbnailUrl && isValidUrl(thumbnailUrl)) {
               const normalizedUrl = normalizeImageUrl(thumbnailUrl, 976)
-              console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:thumbnail: ${normalizedUrl}`)
+              log('debug', `🖼️ [${getFeedTitle(feed, url)}] media:thumbnail ${normalizedUrl}`)
               return normalizedUrl
             }
           }
@@ -186,7 +199,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         // Priority 2: enclosure (common format)
         if (item.enclosure?.url && isValidUrl(item.enclosure.url)) {
           const normalizedUrl = normalizeImageUrl(item.enclosure.url, 976)
-          console.log(`🖼️ [${getFeedTitle(feed, url)}] Found enclosure image: ${normalizedUrl}`)
+          log('debug', `🖼️ [${getFeedTitle(feed, url)}] enclosure ${normalizedUrl}`)
           return normalizedUrl
         }
 
@@ -199,7 +212,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               : mediaContent.url
           if (imageUrl && isValidUrl(imageUrl)) {
             const normalizedUrl = normalizeImageUrl(imageUrl, 976)
-            console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:content: ${normalizedUrl}`)
+            log('debug', `🖼️ [${getFeedTitle(feed, url)}] media:content ${normalizedUrl}`)
             return normalizedUrl
           }
         }
@@ -217,7 +230,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
                 if (groupThumbnailUrl && isValidUrl(groupThumbnailUrl)) {
                   const normalizedUrl = normalizeImageUrl(groupThumbnailUrl, 976)
                   console.log(
-                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group thumbnail: ${normalizedUrl}`
+                    `🖼️ [${getFeedTitle(feed, url)}] media:group thumbnail ${normalizedUrl}`
                   )
                   return normalizedUrl
                 }
@@ -232,7 +245,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
                 if (groupContentUrl && isValidUrl(groupContentUrl)) {
                   const normalizedUrl = normalizeImageUrl(groupContentUrl, 976)
                   console.log(
-                    `🖼️ [${getFeedTitle(feed, url)}] Found media:group content: ${normalizedUrl}`
+                    `🖼️ [${getFeedTitle(feed, url)}] media:group content ${normalizedUrl}`
                   )
                   return normalizedUrl
                 }
@@ -245,13 +258,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         const extractedImage = extractImageFromContent(item.content || item.contentSnippet)
         if (extractedImage && isValidUrl(extractedImage)) {
           const normalizedUrl = normalizeImageUrl(extractedImage, 976)
-          console.log(`🖼️ [${getFeedTitle(feed, url)}] Extracted from content: ${normalizedUrl}`)
+          log('debug', `🖼️ [${getFeedTitle(feed, url)}] extracted ${normalizedUrl}`)
           return normalizedUrl
         }
 
-        console.log(
-          `🚫 [${getFeedTitle(feed, url)}] No image found for: ${item.title?.substring(0, 50)}...`
-        )
+        log('debug', `🚫 [${getFeedTitle(feed, url)}] No image for: ${item.title?.substring(0, 50)}...`)
         return null
       } catch (error) {
         console.warn(`Warning: Error getting image for item: ${item.title}`, error)
@@ -259,11 +270,48 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       }
     }
 
+    const getImageDimensions = (item: (typeof feed.items)[0]): { width?: number; height?: number } => {
+      try {
+        // media:thumbnail
+        if (item['media:thumbnail']) {
+          const t = item['media:thumbnail']
+          const w = Number(t['$']?.width || t.width)
+          const h = Number(t['$']?.height || t.height)
+          if (w > 0 && h > 0) return { width: w, height: h }
+        }
+        // media:content
+        if (item['media:content']) {
+          const mc = item['media:content']
+          const w = Number(mc['$']?.width || mc.width)
+          const h = Number(mc['$']?.height || mc.height)
+          if (w > 0 && h > 0) return { width: w, height: h }
+        }
+        // media:group
+        if (item['media:group']) {
+          const mg = item['media:group']
+          if (mg['media:thumbnail']) {
+            const gt = mg['media:thumbnail']
+            const w = Number(gt['$']?.width || gt.width)
+            const h = Number(gt['$']?.height || gt.height)
+            if (w > 0 && h > 0) return { width: w, height: h }
+          }
+          if (mg['media:content']) {
+            const gc = mg['media:content']
+            const w = Number(gc['$']?.width || gc.width)
+            const h = Number(gc['$']?.height || gc.height)
+            if (w > 0 && h > 0) return { width: w, height: h }
+          }
+        }
+      } catch {}
+      return {}
+    }
+
     const PER_FEED_LIMIT = parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
     const articles: Article[] = feed.items
       .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
         try {
+          const dims = getImageDimensions(item)
           const article: Article = {
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}-${index}`,
             title: item.title?.trim() || 'Untitled Article',
@@ -271,6 +319,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             content: item.content?.trim() || item.contentSnippet?.trim() || '',
             url: item.link?.trim() || '',
             urlToImage: getImage(item) || '',
+            imageWidth: dims.width,
+            imageHeight: dims.height,
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),
             source: {
               name: getFeedTitle(feed, url),
@@ -286,7 +336,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       })
       .filter((article): article is Article => article !== null) // Remove null entries
 
-    console.log(`✅ Successfully processed ${articles.length} articles from ${url}`)
+    log('info', `✅ Processed ${articles.length} articles from ${url}`)
 
     // Return articles with original image URLs - let Next.js Image handle optimization
     return articles
@@ -321,7 +371,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       errorDetails.help = 'Connection was refused. Feed server may be down.'
     }
 
-    console.error(`❌ Error fetching RSS feed ${url}:`, errorDetails)
+    log('error', `❌ Error fetching RSS feed ${url}:`, errorDetails)
 
     // Record this failure for future reference
     recordFeedFailure(url)
@@ -332,7 +382,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
 }
 
 export async function fetchAllNews(): Promise<Article[]> {
-  console.log(`🚀 Starting to fetch all news from ${Object.keys(RSS_FEEDS).length} categories`)
+  log('info', `🚀 Fetching news from ${Object.keys(RSS_FEEDS).length} categories`)
 
   // Check cache first to avoid expensive RSS fetching
   const cached = await getCachedData('all-news')
@@ -348,14 +398,23 @@ export async function fetchAllNews(): Promise<Article[]> {
   // Batch RSS feeds to prevent overwhelming servers and avoid connection exhaustion
   const allFeeds: Array<{ url: string; category: string }> = []
 
+  const FEED_BLOCKLIST = (process.env.FEED_BLOCKLIST || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
   for (const [category, feeds] of Object.entries(RSS_FEEDS)) {
-    console.log(`📂 Processing category: ${category} (${feeds.length} feeds)`)
+    log('info', `📂 Category: ${category} (${feeds.length} feeds)`)
     for (const feedUrl of feeds) {
+      if (FEED_BLOCKLIST.some((b) => (feedUrl || '').includes(b))) {
+        console.log(`🚫 Skipping blocked feed: ${feedUrl}`)
+        continue
+      }
       allFeeds.push({ url: feedUrl, category })
     }
   }
 
-  console.log(`⏰ Fetching ${allFeeds.length} RSS feeds in batches...`)
+  log('info', `⏰ Fetching ${allFeeds.length} RSS feeds in batches...`)
 
   // Process feeds in smaller batches to prevent connection exhaustion
   const BATCH_SIZE = 8 // Reduced from unlimited to 8 concurrent requests
@@ -363,9 +422,7 @@ export async function fetchAllNews(): Promise<Article[]> {
 
   for (let i = 0; i < allFeeds.length; i += BATCH_SIZE) {
     const batch = allFeeds.slice(i, i + BATCH_SIZE)
-    console.log(
-      `🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFeeds.length / BATCH_SIZE)} (${batch.length} feeds)`
-    )
+    log('info', `🔄 Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFeeds.length / BATCH_SIZE)} (${batch.length})`)
 
     const batchPromises = batch.map(async ({ url, category }) => {
       try {
@@ -394,7 +451,7 @@ export async function fetchAllNews(): Promise<Article[]> {
         results.push(result.value)
       } else {
         const { url, category } = batch[batchIndex]
-        console.warn(`Feed promise rejected for ${url}:`, result.reason)
+        log('warn', `Feed promise rejected for ${url}:`, result.reason)
         results.push({ articles: [], url, category })
       }
     })
@@ -417,28 +474,25 @@ export async function fetchAllNews(): Promise<Article[]> {
       }
     })
 
-    console.log(`📊 Feed Results Summary:`)
-    console.log(`  ✅ Successful feeds: ${successfulFeeds.length}`)
-    console.log(`  ❌ Failed feeds: ${failedFeeds.length}`)
-    console.log(`  📄 Total articles fetched: ${allArticles.length}`)
+    log('info', `📊 Feed Results: ok=${successfulFeeds.length} fail=${failedFeeds.length} items=${allArticles.length}`)
 
     if (failedFeeds.length > 0) {
-      console.log(`  Failed feed URLs:`, failedFeeds.slice(0, 5)) // Show first 5 failed feeds
+      log('warn', `  Failed feed URLs:`, failedFeeds.slice(0, 5))
     }
   } catch (error) {
-    console.error('❌ Critical error in feed fetching process:', error)
+    log('error', '❌ Critical error in feed fetching process:', error)
     // Even if there's a critical error, continue with whatever articles we have
   }
 
   // Always return articles, even if some feeds failed
   if (allArticles.length === 0) {
-    console.warn('⚠️ No articles were successfully fetched from any feed')
+    log('warn', '⚠️ No articles were successfully fetched from any feed')
     return []
   }
 
-  console.log(`🔄 Sorting ${allArticles.length} articles by publish date`)
+  log('debug', `🔄 Sorting ${allArticles.length} articles by publish date`)
   const GLOBAL_LIMIT = parseInt(process.env.NEWS_GLOBAL_LIMIT || '100', 10)
-  const sortedArticles = allArticles
+  const sortedAll = allArticles
     .filter((article) => article && article.title) // Remove any invalid articles
     .sort((a, b) => {
       try {
@@ -447,7 +501,31 @@ export async function fetchAllNews(): Promise<Article[]> {
         return 0 // If date parsing fails, maintain original order
       }
     })
-    .slice(0, GLOBAL_LIMIT) // Global limit configurable via env
+
+  // Dedupe by canonical URL or (source+title) before applying global limit
+  const seenKeys = new Set<string>()
+  const canonicalKey = (a: Article) => {
+    try {
+      if (a.url) {
+        const u = new URL(a.url)
+        return `${u.origin}${u.pathname}`.toLowerCase()
+      }
+    } catch {}
+    // Fallback: dedupe tied to host (prefer a.source.url host), never cross-host
+    let host = ''
+    try {
+      if (a.source?.url) host = new URL(a.source.url).hostname.replace(/^www\./, '').toLowerCase()
+    } catch {}
+    return `${host}|${(a.title || '').toLowerCase().trim()}`
+  }
+  const deduped: Article[] = []
+  for (const a of sortedAll) {
+    const key = canonicalKey(a)
+    if (seenKeys.has(key)) continue
+    seenKeys.add(key)
+    deduped.push(a)
+  }
+  const sortedArticles = deduped.slice(0, GLOBAL_LIMIT)
 
   const articlesWithPlaceholders = sortedArticles.map((article) => {
     try {
@@ -460,17 +538,17 @@ export async function fetchAllNews(): Promise<Article[]> {
       }
       return article
     } catch (error) {
-      console.warn('Warning: Error processing article placeholder:', error)
+      log('warn', 'Warning: Error processing article placeholder:', error)
       return article
     }
   })
 
-  console.log(`✅ Final result: ${articlesWithPlaceholders.length} articles processed successfully`)
+  log('info', `✅ Final articles: ${articlesWithPlaceholders.length}`)
 
   // Cache the results for 15 minutes to reduce server load
   if (articlesWithPlaceholders.length > 0) {
     await setCachedData('all-news', articlesWithPlaceholders, 900) // 15 minutes
-    console.log(`💾 Cached ${articlesWithPlaceholders.length} articles for future use`)
+    log('info', `💾 Cached ${articlesWithPlaceholders.length} articles`)
   }
 
   return articlesWithPlaceholders

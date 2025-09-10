@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import ClusterSummary from '@/components/Summary/ClusterSummary'
@@ -12,12 +13,11 @@ interface StoryClusterCardProps {
 }
 
 export default function StoryClusterCard({ cluster, isFirst = false }: StoryClusterCardProps) {
-  if (!cluster.articles || cluster.articles.length === 0) {
-    return null
-  }
+  if (!cluster.articles || cluster.articles.length === 0) return null
 
   const sourceCount = cluster.articles.length
   const latestArticle = cluster.articles[0] // Assuming articles are sorted by date
+  const hasImages = !!cluster?.imageUrls?.length
 
   return (
     <section className="mb-16 border-b border-border pb-16 last:border-b-0">
@@ -43,7 +43,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {cluster?.imageUrls?.length ? (
+        {hasImages ? (
           <div className="lg:col-span-1">
             <ImageCollage cluster={cluster} />
           </div>
@@ -55,7 +55,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
         <div className="lg:col-span-2">
           <ClusterSummary cluster={cluster} eager={isFirst} />
         </div>
-        {!!cluster?.imageUrls?.length && (
+        {hasImages && (
           <div className="lg:col-span-3">{<SourceArticleList articles={cluster.articles} />}</div>
         )}
       </div>

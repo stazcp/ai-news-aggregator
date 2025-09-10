@@ -79,11 +79,6 @@
           "url": "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml"
         },
         {
-          "id": "nyt_culture",
-          "category": "Culture",
-          "url": "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
-        },
-        {
           "id": "nyt_politics",
           "category": "US Politics",
           "url": "https://rss.nytimes.com/services/xml/rss/nyt/Politics.xml"
@@ -563,10 +558,6 @@
         }
       ]
     },
-    "The Hill": {
-      "name": "The Hill",
-      "feeds": [{ "id": "thehill", "category": "US Politics", "url": "https://thehill.com/feed/" }]
-    },
     "National Review": {
       "name": "National Review",
       "feeds": [
@@ -889,6 +880,61 @@
       "name": "Los Angeles Times",
       "feeds": [
         { "id": "latimes_all", "category": "US News", "url": "https://www.latimes.com/rss2.0.xml" }
+      ]
+    },
+    "Hacker News": {
+      "name": "Y Combinator Hacker News",
+      "feeds": [
+        { "id": "hn_front", "category": "Technology", "url": "https://hnrss.org/frontpage" },
+        { "id": "hn_best", "category": "Technology", "url": "https://hnrss.org/best" }
+      ]
+    },
+    "FactCheck.org": {
+      "name": "FactCheck.org",
+      "feeds": [
+        { "id": "factcheck", "category": "Fact-Check", "url": "https://www.factcheck.org/feed/" }
+      ]
+    },
+    "RealClearPolitics": {
+      "name": "RealClearPolitics",
+      "feeds": [
+        { "id": "rcp", "category": "US Politics", "url": "https://www.realclearpolitics.com/index.xml" }
+      ]
+    },
+    "9to5Mac": {
+      "name": "9to5Mac",
+      "feeds": [
+        { "id": "9to5mac", "category": "Technology", "url": "https://9to5mac.com/feed/" }
+      ]
+    },
+    "MacRumors": {
+      "name": "MacRumors",
+      "feeds": [
+        { "id": "macrumors", "category": "Technology", "url": "https://www.macrumors.com/macrumors.xml" }
+      ]
+    },
+    "Android Police": {
+      "name": "Android Police",
+      "feeds": [
+        { "id": "androidpolice", "category": "Technology", "url": "https://www.androidpolice.com/feed/" }
+      ]
+    },
+    "Tom's Hardware": {
+      "name": "Tom's Hardware",
+      "feeds": [
+        { "id": "tomshardware", "category": "Technology", "url": "https://www.tomshardware.com/feeds/all" }
+      ]
+    },
+    "BBC Africa": {
+      "name": "BBC Africa",
+      "feeds": [
+        { "id": "bbc_africa", "category": "World News", "url": "https://feeds.bbci.co.uk/news/world/africa/rss.xml" }
+      ]
+    },
+    "BBC Mundo": {
+      "name": "BBC Mundo",
+      "feeds": [
+        { "id": "bbc_mundo", "category": "World News", "url": "https://feeds.bbci.co.uk/mundo/rss.xml" }
       ]
     }
   }

@@ -3,8 +3,7 @@ import { getStoryClusters, getUnclusteredArticles } from '@/lib/clusterService'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import NewsList from '@/components/NewsList'
 import { StoryCluster, Article } from '@/types'
-import HomeHeader from '@/components/HomePage/HomeHeader'
-import HomeLayout from '@/components/HomePage/HomeLayout'
+import HomeClient from '@/components/HomePage/HomeClient'
 import HomeError from '@/components/HomePage/HomeError'
 import { computeTrendingTopics, computeCategoryFallbackTopics } from '@/lib/topics'
 import { filterByTopic, getParamString } from '@/lib/utils'
@@ -19,10 +18,12 @@ function renderHomepage(
   topics: string[]
 ) {
   return (
-    <HomeLayout>
-      <HomeHeader rateLimitMessage={rateLimitMessage} topics={topics} />
-      <NewsList storyClusters={storyClusters} unclusteredArticles={unclusteredArticles} />
-    </HomeLayout>
+    <HomeClient
+      storyClusters={storyClusters}
+      unclusteredArticles={unclusteredArticles}
+      topics={topics}
+      rateLimitMessage={rateLimitMessage}
+    />
   )
 }
 
@@ -40,12 +41,9 @@ export default async function Home({
     if (cachedHomepage) {
       console.log('📦 Using cached homepage result')
       const { storyClusters, unclusteredArticles, rateLimitMessage, topics } = cachedHomepage || {}
-      const { clusters, unclustered } = filterByTopic(
-        storyClusters,
-        unclusteredArticles,
-        topicParam || undefined
-      )
-      const computed = computeTrendingTopics(unclusteredArticles, storyClusters, 10)
+      const clusters = storyClusters
+      const unclustered = unclusteredArticles
+      const computed = computeTrendingTopics(unclustered, clusters, 10)
       const safeTopics = (
         topics && topics.length
           ? topics
@@ -120,12 +118,7 @@ export default async function Home({
       // Cache successful result for longer
       await setCachedData('homepage-result', homepageResult, 600) // 10 min cache for successful results
     }
-    const { clusters, unclustered } = filterByTopic(
-      storyClusters,
-      unclusteredArticles,
-      topicParam || undefined
-    )
-    return renderHomepage(clusters, unclustered, rateLimitMessage, topics)
+    return renderHomepage(storyClusters, unclusteredArticles, rateLimitMessage, topics)
   } catch (error) {
     console.error('❌ Critical error loading homepage:', error)
 

@@ -41,6 +41,9 @@ export function normalizeImageUrl(url: string, desiredWidth = 976): string {
       return normalizeBBC(url, desiredWidth)
     }
 
+    // Avoid generic query param upscaling because some providers use
+    // similarly named params for signatures or non-size purposes.
+
     // Add other normalizers here as needed
     // if (hostname.endsWith('cnn.com')) {
     //   return normalizeCNN(url, desiredWidth)

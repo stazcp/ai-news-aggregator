@@ -6,21 +6,31 @@ import { Button } from '@/components/ui/button'
 
 interface TrendingTopicsBarProps {
   topics: string[]
+  activeTopic?: string
+  onTopicChange?: (topic: string) => void
 }
 
-export default function TrendingTopicsBar({ topics }: TrendingTopicsBarProps) {
+export default function TrendingTopicsBar({ topics, activeTopic, onTopicChange }: TrendingTopicsBarProps) {
   const router = useRouter()
   const params = useSearchParams()
-  const active = useMemo(() => params.get('topic') || '', [params])
+  const active = useMemo(() => (activeTopic !== undefined ? activeTopic : params.get('topic') || ''), [params, activeTopic])
 
   const setTopic = (topic: string) => {
-    const next = new URLSearchParams(params.toString())
-    if (!topic || active === topic) {
-      next.delete('topic')
-    } else {
-      // URLSearchParams will handle encoding; store the raw value to avoid double-encoding
-      next.set('topic', topic)
+    if (onTopicChange) {
+      // Update URL without triggering a server navigation
+      try {
+        const url = new URL(window.location.href)
+        if (!topic || active === topic) url.searchParams.delete('topic')
+        else url.searchParams.set('topic', topic)
+        window.history.replaceState({}, '', `${url.pathname}${url.search}`)
+      } catch {}
+      onTopicChange(topic)
+      return
     }
+    // Fallback: navigate (server will filter)
+    const next = new URLSearchParams(params.toString())
+    if (!topic || active === topic) next.delete('topic')
+    else next.set('topic', topic)
     router.push(`?${next.toString()}`)
   }
 
