@@ -1,7 +1,7 @@
 'use client'
 
 import NextImage from 'next/image'
-import { StoryCluster } from '@/types'
+import { StoryCluster, Article } from '@/types'
 import { useEffect, useMemo, useState } from 'react'
 
 const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
@@ -9,18 +9,29 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
     return null
   }
 
-  // Get articles that have images, in the same order as imageUrls
-  const articlesWithImages =
-    cluster.articles
-      ?.filter((article) => article.urlToImage && !article.urlToImage.includes('placehold.co'))
-      .slice(0, 4) || []
+  // Build quick lookup from URL -> article
+  const articlesByUrl = useMemo(() => {
+    const map = new Map<string, Article>()
+    for (const a of cluster.articles || []) {
+      if (a?.urlToImage && !a.urlToImage.includes('placehold.co')) {
+        map.set(a.urlToImage, a)
+      }
+    }
+    return map
+  }, [cluster.articles])
+
+  // Keep a live list of usable URLs; when an image fails or is too small, remove it
+  const initialUrls = useMemo(
+    () => (cluster.imageUrls || []).filter(Boolean).slice(0, 4),
+    [cluster.imageUrls]
+  )
+  const [urls, setUrls] = useState<string[]>(initialUrls)
+  useEffect(() => setUrls(initialUrls), [initialUrls])
 
   // Load intrinsic aspect ratios for the first few images to drive layout decisions
   const [aspectRatios, setAspectRatios] = useState<number[]>([])
-  const [failedIdx, setFailedIdx] = useState<Set<number>>(new Set())
   useEffect(() => {
     let isCancelled = false
-    const urls = (cluster.imageUrls || []).slice(0, 4)
     if (urls.length === 0) return
     Promise.all(
       urls.map(
@@ -42,10 +53,10 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
     return () => {
       isCancelled = true
     }
-  }, [cluster.imageUrls])
+  }, [urls])
 
   const layoutForIndex = useMemo(() => {
-    const count = cluster.imageUrls?.length || 0
+    const count = urls.length || 0
     // Determine hero orientation from first image when available
     const firstRatio = aspectRatios[0] ?? 1
     const isLandscapeHero = firstRatio > 1.2
@@ -80,26 +91,27 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
       // 4 or more: uniform grid cells
       return ' col-span-1 row-span-1'
     }
-  }, [aspectRatios, cluster.imageUrls])
+  }, [aspectRatios, urls])
 
   // Client-side URL upscaling removed. We rely solely on server-side resolution in clusterService.
 
+  if (urls.length === 0) return null
+
   return (
     <div className="mb-4 grid grid-cols-2 grid-rows-2 gap-2 h-80 lg:h-96 xl:h-[500px] rounded-lg overflow-hidden border">
-      {cluster.imageUrls.map((url, index) => {
+      {urls.map((url, index) => {
         const layoutClass = layoutForIndex(index)
         let className = 'w-full h-full' + layoutClass
         const srcToUse = url
+        const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '480')
+        const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '300')
+        const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
 
-        // Get the corresponding article for this image
-        const correspondingArticle = articlesWithImages[index]
-        const isFailed = failedIdx.has(index)
+        const correspondingArticle = articlesByUrl.get(url)
 
         return (
-          <div key={correspondingArticle?.id || `fallback-${index}`} className={className}>
-            {isFailed ? (
-              <div className="w-full h-full bg-muted" />
-            ) : correspondingArticle ? (
+          <div key={url} className={className}>
+            {correspondingArticle ? (
               <a
                 href={correspondingArticle.url}
                 target="_blank"
@@ -110,16 +122,17 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
                   src={srcToUse}
                   alt={`${cluster.clusterTitle} - ${correspondingArticle.source.name}`}
                   fill
+                  quality={QUALITY}
                   className="object-cover transition-transform duration-300 group-hover:scale-110"
                   sizes="(min-width: 1024px) 33vw, 100vw"
                   priority={index === 0}
-                  onError={() => {
-                    setFailedIdx((prev) => {
-                      if (prev.has(index)) return prev
-                      const next = new Set(prev)
-                      next.add(index)
-                      return next
-                    })
+                  onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
+                  onLoad={(e) => {
+                    const el = e.currentTarget as HTMLImageElement
+                    const nw = el?.naturalWidth || 0
+                    const nh = el?.naturalHeight || 0
+                    if (nw > 0 && nh > 0 && (nw < MIN_W || nh < MIN_H))
+                      setUrls((prev) => prev.filter((u) => u !== url))
                   }}
                 />
                 {/* Overlay with source name on hover */}
@@ -153,16 +166,17 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
                 src={srcToUse}
                 alt={`${cluster.clusterTitle} - Image ${index + 1}`}
                 fill
+                quality={QUALITY}
                 className="object-cover"
                 sizes="(min-width: 1024px) 33vw, 100vw"
                 priority={index === 0}
-                onError={() => {
-                  setFailedIdx((prev) => {
-                    if (prev.has(index)) return prev
-                    const next = new Set(prev)
-                    next.add(index)
-                    return next
-                  })
+                onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
+                onLoad={(e) => {
+                  const el = e.currentTarget as HTMLImageElement
+                  const nw = el?.naturalWidth || 0
+                  const nh = el?.naturalHeight || 0
+                  if (nw > 0 && nh > 0 && (nw < MIN_W || nh < MIN_H))
+                    setUrls((prev) => prev.filter((u) => u !== url))
                 }}
               />
             )}

@@ -51,7 +51,17 @@ export default function ClusterSummary({ cluster, eager = false }: ClusterSummar
             <span>Generated from {cluster?.articles?.length || 0} sources using AI</span>
           </div>
         </>
-      ) : null}
+      ) : (
+        // Fallback paragraph constructed from top article titles when summary not yet available
+        <div className="prose prose-lg max-w-none">
+          <p className="text-base leading-relaxed text-muted-foreground">
+            {(cluster.articles || [])
+              .slice(0, 3)
+              .map((a) => a.title)
+              .join(' • ')}
+          </p>
+        </div>
+      )}
     </SummaryBase>
   )
 }

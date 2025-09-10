@@ -5,6 +5,8 @@ export interface Article {
   content?: string
   url: string
   urlToImage: string
+  imageWidth?: number
+  imageHeight?: number
   publishedAt: string
   source: {
     name: string

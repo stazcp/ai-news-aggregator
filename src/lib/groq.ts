@@ -4,6 +4,61 @@ import { Article, StoryCluster } from '@/types'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
+// ---- Groq concurrency + retry wrapper ----
+let GROQ_IN_FLIGHT = 0
+const GROQ_QUEUE: Array<() => void> = []
+const GROQ_MAX = parseInt(process.env.GROQ_MAX_CONCURRENCY || '2', 10)
+const GROQ_RETRY_MAX = parseInt(process.env.GROQ_RETRY_MAX || '3', 10)
+const GROQ_RETRY_BASE_MS = parseInt(process.env.GROQ_RETRY_BASE_MS || '800', 10)
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+async function acquireGroqSlot() {
+  if (GROQ_IN_FLIGHT < GROQ_MAX) {
+    GROQ_IN_FLIGHT++
+    return
+  }
+  await new Promise<void>((resolve) => GROQ_QUEUE.push(resolve))
+  GROQ_IN_FLIGHT++
+}
+
+function releaseGroqSlot() {
+  GROQ_IN_FLIGHT = Math.max(0, GROQ_IN_FLIGHT - 1)
+  const next = GROQ_QUEUE.shift()
+  if (next) next()
+}
+
+async function groqCall<T>(opName: string, call: () => Promise<T>): Promise<T> {
+  await acquireGroqSlot()
+  try {
+    let attempt = 0
+    let delay = GROQ_RETRY_BASE_MS
+    for (;;) {
+      try {
+        const res = await call()
+        return res
+      } catch (err: any) {
+        const msg = err?.message || String(err)
+        const status = err?.status || err?.code || err?.error?.code
+        const is429 = /429|rate_limit/i.test(msg) || status === 429 || status === 'rate_limit_exceeded'
+        console.warn(`⚠️ Groq error in ${opName}:`, { status, message: msg })
+        if (is429 && attempt < GROQ_RETRY_MAX) {
+          const jitter = Math.floor(Math.random() * 200)
+          await sleep(delay + jitter)
+          attempt++
+          delay *= 2
+          continue
+        }
+        throw err
+      }
+    }
+  } finally {
+    releaseGroqSlot()
+  }
+}
+
 // Helper function to check if error is a rate limit error
 function isRateLimitError(error: any): boolean {
   if (!error) return false
@@ -22,7 +77,7 @@ function isRateLimitError(error: any): boolean {
 
 export async function summarizeArticle(content: string, maxLength: number = 150): Promise<string> {
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await groqCall('summarizeArticle', () => groq.chat.completions.create({
       messages: [
         {
           role: 'system',
@@ -36,7 +91,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
       model: 'llama-3.3-70b-versatile',
       max_tokens: 100,
       temperature: 0.3,
-    })
+    }))
 
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
@@ -80,7 +135,7 @@ ${contentToSummarize}
   `
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await groqCall('summarizeCluster', () => groq.chat.completions.create({
       messages: [
         { role: 'system', content: 'You are a senior news editor.' },
         { role: 'user', content: prompt },
@@ -88,7 +143,7 @@ ${contentToSummarize}
       model: 'llama-3.3-70b-versatile',
       temperature: 0.4,
       max_tokens: 320,
-    })
+    }))
 
     const summary =
       completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
@@ -144,7 +199,7 @@ ${JSON.stringify(articleSummaries)}
     // First attempt: structured JSON response
     let responseContent: string | undefined
     try {
-      const completion = await groq.chat.completions.create({
+      const completion = await groqCall('clusterArticles.json', () => groq.chat.completions.create({
         messages: [
           {
             role: 'system',
@@ -155,7 +210,7 @@ ${JSON.stringify(articleSummaries)}
         model: 'llama-3.3-70b-versatile',
         temperature: 0.1,
         response_format: { type: 'json_object' },
-      })
+      }))
       responseContent = completion.choices[0]?.message?.content ?? undefined
     } catch (err: any) {
       const message = err?.message || String(err)
@@ -166,7 +221,7 @@ ${JSON.stringify(articleSummaries)}
         const strictPrompt = `Respond ONLY with a JSON object of shape {"clusters": [{"clusterTitle": string, "articleIds": string[]} ...]}. No prose. If unsure, return {"clusters": []}.\nArticles JSON:\n${JSON.stringify(
           articleSummaries
         )}`
-        const retry = await groq.chat.completions.create({
+        const retry = await groqCall('clusterArticles.retry', () => groq.chat.completions.create({
           messages: [
             { role: 'system', content: 'Output valid JSON only. No explanations.' },
             { role: 'user', content: strictPrompt },
@@ -174,7 +229,7 @@ ${JSON.stringify(articleSummaries)}
           model: 'llama-3.3-70b-versatile',
           temperature: 0,
           max_tokens: 800,
-        })
+        }))
         responseContent = retry.choices[0]?.message?.content ?? undefined
       } else {
         throw err
@@ -272,7 +327,7 @@ Cluster JSON follows:
 ${JSON.stringify(brief)}
     `
 
-    const completion = await groq.chat.completions.create({
+    const completion = await groqCall('assessClusterSeverityLLM', () => groq.chat.completions.create({
       messages: [
         { role: 'system', content: 'Return valid JSON only.' },
         { role: 'user', content: prompt },
@@ -281,7 +336,7 @@ ${JSON.stringify(brief)}
       temperature: 0.1,
       response_format: { type: 'json_object' },
       max_tokens: 200,
-    })
+    }))
 
     const content = completion.choices[0]?.message?.content || '{}'
     let obj: any
@@ -358,7 +413,7 @@ ${JSON.stringify(briefs)}
   `
 
   try {
-    const completion = await groq.chat.completions.create({
+    const completion = await groqCall('mergeClustersByLLM', () => groq.chat.completions.create({
       messages: [
         { role: 'system', content: 'You return strict JSON only.' },
         { role: 'user', content: prompt },
@@ -367,7 +422,7 @@ ${JSON.stringify(briefs)}
       temperature: 0.1,
       response_format: { type: 'json_object' },
       max_tokens: 800,
-    })
+    }))
 
     const content = completion.choices[0]?.message?.content || '{}'
     let obj: any
