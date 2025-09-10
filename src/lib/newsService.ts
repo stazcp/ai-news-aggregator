@@ -259,8 +259,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       }
     }
 
+    const PER_FEED_LIMIT = parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
     const articles: Article[] = feed.items
-      .slice(0, 5) // Increased from 2 to 5 articles per feed for better coverage
+      .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
         try {
           const article: Article = {
@@ -436,6 +437,7 @@ export async function fetchAllNews(): Promise<Article[]> {
   }
 
   console.log(`🔄 Sorting ${allArticles.length} articles by publish date`)
+  const GLOBAL_LIMIT = parseInt(process.env.NEWS_GLOBAL_LIMIT || '100', 10)
   const sortedArticles = allArticles
     .filter((article) => article && article.title) // Remove any invalid articles
     .sort((a, b) => {
@@ -445,7 +447,7 @@ export async function fetchAllNews(): Promise<Article[]> {
         return 0 // If date parsing fails, maintain original order
       }
     })
-    .slice(0, 100) // Global limit: only keep top 100 most recent articles to prevent performance issues
+    .slice(0, GLOBAL_LIMIT) // Global limit configurable via env
 
   const articlesWithPlaceholders = sortedArticles.map((article) => {
     try {

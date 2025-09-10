@@ -23,6 +23,13 @@ export interface StoryCluster {
   // Optional, topic-aware summary data provided by parent for client summary generation
   summarySeed?: string
   summaryKey?: string
+  // Scoring and severity metadata (optional)
+  score?: number
+  severity?: {
+    level: number
+    label: string
+    reasons?: string[]
+  }
 }
 
 export interface NewsResponse {

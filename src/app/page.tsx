@@ -66,17 +66,22 @@ export default async function Home({
     } else {
       console.log('📡 No cached data found, fetching fresh news with timeout protection...')
 
-      // Fallback to fresh fetch with timeout protection
-      const fetchTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Homepage fetch timeout after 30 seconds')), 30000)
-      )
-
+      // Fetch fresh news. We avoid a hard global timeout so a single slow feed
+      // doesn't cause the homepage to fail. Each feed already has its own
+      // internal timeouts and failures are handled per‑feed.
       try {
-        allArticles = await Promise.race([fetchAllNews(), fetchTimeout])
+        allArticles = await fetchAllNews()
         console.log(`✅ Fresh news data loaded: ${allArticles.length} articles`)
       } catch (fetchError) {
         console.error('❌ Failed to fetch fresh news data:', fetchError)
-        throw fetchError
+        // Graceful fallback: if fetching fails unexpectedly, try cached data again
+        const fallback = await getCachedData('all-news')
+        if (fallback && fallback.length) {
+          console.warn('⚠️ Using last cached articles due to fetch failure')
+          allArticles = fallback
+        } else {
+          throw fetchError
+        }
       }
     }
 
