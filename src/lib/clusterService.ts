@@ -344,7 +344,8 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
     computed.push({ ...c, severity, score })
   }
-  validClusters = computed
+  // Sort by score BEFORE doing any server-side summarization
+  validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
 
   // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
   const SUM_TOP = parseInt(process.env.CLUSTER_SUMMARIZE_TOP_N || '6', 10)
@@ -359,8 +360,6 @@ export async function getStoryClusters(articles: Article[]): Promise<{
       if (isRateLimitError(e)) break
     }
   }
-
-  validClusters.sort((a, b) => (b.score || 0) - (a.score || 0))
 
   console.log(`✅ Successfully created ${validClusters.length} story clusters (scored and sorted)`) 
   return { clusters: validClusters, rateLimited: false }
