@@ -372,6 +372,11 @@
           "id": "cnn_world",
           "category": "World News",
           "url": "http://rss.cnn.com/rss/edition_world.rss"
+        },
+        {
+          "id": "cnn_business",
+          "category": "Business",
+          "url": "http://rss.cnn.com/rss/money_latest.rss"
         }
       ]
     },
@@ -387,6 +392,11 @@
           "id": "nbc_politics",
           "category": "Politics",
           "url": "http://feeds.nbcnews.com/feeds/nbcpolitics"
+        },
+        {
+          "id": "nbc_business",
+          "category": "Business",
+          "url": "http://feeds.nbcnews.com/feeds/money"
         }
       ]
     },
@@ -441,6 +451,19 @@
           "category": "Technology",
           "url": "https://feeds.bloomberg.com/technology/news.rss"
         }
+      ]
+    },
+    "Fox Business": {
+      "name": "Fox Business",
+      "feeds": [
+        { "id": "foxbusiness_latest", "category": "Business", "url": "https://feeds.foxnews.com/foxbusiness/latest" }
+      ]
+    },
+    "Yahoo Finance": {
+      "name": "Yahoo Finance",
+      "feeds": [
+        { "id": "yahoo_finance_top", "category": "Finance", "url": "https://finance.yahoo.com/news/rssindex" },
+        { "id": "yahoo_finance_topstories", "category": "Finance", "url": "https://finance.yahoo.com/rss/topstories" }
       ]
     },
     "MarketWatch": {
@@ -767,6 +790,11 @@
           "id": "abc_top",
           "category": "US News",
           "url": "http://feeds.abcnews.com/abcnews/topstories"
+        },
+        {
+          "id": "abc_politics",
+          "category": "US Politics",
+          "url": "http://feeds.abcnews.com/abcnews/politicsheadlines"
         }
       ]
     },
