@@ -96,7 +96,7 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
         const isFailed = failedIdx.has(index)
 
         return (
-          <div key={url} className={className}>
+          <div key={correspondingArticle?.id || `fallback-${index}`} className={className}>
             {isFailed ? (
               <div className="w-full h-full bg-muted" />
             ) : correspondingArticle ? (

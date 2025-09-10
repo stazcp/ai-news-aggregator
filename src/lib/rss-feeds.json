@@ -1,4 +1,34 @@
 {
+  "imageHostnames": {
+    "cdnPatterns": [
+      "ichef.bbci.co.uk",
+      "static01.nyt.com",
+      "*.nyt.com",
+      "assets.bwbx.io",
+      "cdn.sanity.io",
+      "images.axios.com",
+      "platform.theverge.com",
+      "images.cointelegraph.com",
+      "cdn.arstechnica.net",
+      "static.scientificamerican.com",
+      "media-cldnry.s-nbcnews.com",
+      "images.mktw.net",
+      "s.france24.com",
+      "img.lemde.fr",
+      "*.lemde.fr",
+      "cdn.decrypt.co",
+      "o.aolcdn.com"
+    ],
+    "imageServices": ["placehold.co", "images.unsplash.com"],
+    "fallbackPatterns": ["*.com", "*.org", "*.net"],
+    "httpFallbacks": [
+      "www.bbc.com",
+      "www.techmeme.com",
+      "rss.cnn.com",
+      "feeds.nbcnews.com",
+      "rss.sciam.com"
+    ]
+  },
   "sources": {
     "BBC": {
       "name": "BBC",
@@ -135,13 +165,13 @@
         }
       ]
     },
-    "The Hill": {
-      "name": "The Hill",
+    "Axios": {
+      "name": "Axios",
       "feeds": [
         {
-          "id": "thehill",
-          "category": "Politics",
-          "url": "https://thehill.com/rss/syndicator/19109"
+          "id": "axios_politics",
+          "category": "US Politics",
+          "url": "https://api.axios.com/feed/politics"
         }
       ]
     },
@@ -310,25 +340,148 @@
         }
       ]
     },
-    "Fox News": {
-      "name": "Fox News",
+    "CBS News": {
+      "name": "CBS News",
       "feeds": [
         {
-          "id": "fox_latest",
+          "id": "cbs_world",
           "category": "World News",
-          "url": "http://feeds.foxnews.com/foxnews/latest"
+          "url": "https://www.cbsnews.com/latest/rss/world"
+        },
+        {
+          "id": "cbs_politics",
+          "category": "US Politics",
+          "url": "https://www.cbsnews.com/latest/rss/politics"
         }
       ]
     },
-    "ABC News": {
-      "name": "ABC News",
+    "Washington Post": {
+      "name": "Washington Post",
       "feeds": [
         {
-          "id": "abc_us",
-          "category": "US News",
-          "url": "http://feeds.abcnews.com/abcnews/usheadlines"
+          "id": "wapo_politics",
+          "category": "Politics",
+          "url": "https://www.washingtonpost.com/arcio/rss/category/politics/"
         }
       ]
+    },
+    "CNN": {
+      "name": "CNN",
+      "feeds": [
+        {
+          "id": "cnn_politics",
+          "category": "Politics",
+          "url": "http://rss.cnn.com/rss/cnn_allpolitics.rss"
+        },
+        {
+          "id": "cnn_world",
+          "category": "World News",
+          "url": "http://rss.cnn.com/rss/edition_world.rss"
+        }
+      ]
+    },
+    "NBC News": {
+      "name": "NBC News",
+      "feeds": [
+        {
+          "id": "nbc_world",
+          "category": "World News",
+          "url": "http://feeds.nbcnews.com/feeds/worldnews"
+        },
+        {
+          "id": "nbc_politics",
+          "category": "Politics",
+          "url": "http://feeds.nbcnews.com/feeds/nbcpolitics"
+        }
+      ]
+    },
+    "France 24": {
+      "name": "France 24 (EN)",
+      "feeds": [
+        {
+          "id": "france24_world",
+          "category": "World News",
+          "url": "https://www.france24.com/en/world/rss"
+        }
+      ]
+    },
+    "POLITICO Europe": {
+      "name": "POLITICO Europe",
+      "feeds": [
+        { "id": "politico_europe", "category": "Politics", "url": "https://www.politico.eu/feed/" }
+      ]
+    },
+    "Times of Israel": {
+      "name": "The Times of Israel",
+      "feeds": [
+        {
+          "id": "timesofisrael",
+          "category": "World News",
+          "url": "https://www.timesofisrael.com/feed/"
+        }
+      ]
+    },
+    "Engadget": {
+      "name": "Engadget",
+      "feeds": [
+        { "id": "engadget", "category": "Technology", "url": "https://www.engadget.com/rss.xml" }
+      ]
+    },
+    "Techmeme": {
+      "name": "Techmeme",
+      "feeds": [
+        { "id": "techmeme", "category": "Technology", "url": "https://www.techmeme.com/feed.xml" }
+      ]
+    },
+    "Bloomberg": {
+      "name": "Bloomberg",
+      "feeds": [
+        {
+          "id": "bloomberg_markets",
+          "category": "Finance",
+          "url": "https://feeds.bloomberg.com/markets/news.rss"
+        },
+        {
+          "id": "bloomberg_technology",
+          "category": "Technology",
+          "url": "https://feeds.bloomberg.com/technology/news.rss"
+        }
+      ]
+    },
+    "MarketWatch": {
+      "name": "MarketWatch",
+      "feeds": [
+        {
+          "id": "marketwatch_top",
+          "category": "Business",
+          "url": "https://feeds.marketwatch.com/marketwatch/topstories/"
+        },
+        {
+          "id": "marketwatch_marketpulse",
+          "category": "Finance",
+          "url": "https://feeds.marketwatch.com/marketwatch/marketpulse/"
+        }
+      ]
+    },
+    "CoinDesk": {
+      "name": "CoinDesk",
+      "feeds": [
+        {
+          "id": "coindesk",
+          "category": "Crypto",
+          "url": "https://www.coindesk.com/arc/outboundfeeds/rss/"
+        }
+      ]
+    },
+    "CoinTelegraph": {
+      "name": "CoinTelegraph",
+      "feeds": [
+        { "id": "cointelegraph", "category": "Crypto", "url": "https://cointelegraph.com/rss" }
+      ]
+    },
+    "Decrypt": {
+      "name": "Decrypt",
+      "feeds": [{ "id": "decrypt", "category": "Crypto", "url": "https://decrypt.co/feed" }]
     }
   }
 }

@@ -6,7 +6,8 @@
     "dev": "NODE_OPTIONS='--inspect' next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test-feeds": "node test-feeds.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",

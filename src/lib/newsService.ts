@@ -5,9 +5,9 @@ import { getCachedData, setCachedData } from './cache'
 import { normalizeImageUrl } from './normalizeImageUrl'
 
 const parser = new Parser({
-  timeout: 5000, // 5 second timeout
+  timeout: 10000, // Increased timeout
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; NewsAggregator/1.0)',
+    'User-Agent': 'Mozilla/5.0 (compatible; RSS Reader)',
   },
   customFields: {
     item: [
@@ -140,13 +140,23 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
   try {
     console.log(`📡 Parsing URL: ${url}`)
 
-    // Add extra timeout wrapper to prevent hanging
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`Request timeout for ${url}`)), 10000) // Increased to 10 seconds
+    // Use simple, reliable headers like the test script
+    const simpleParser = new Parser({
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; RSS Reader)',
+      },
+      customFields: {
+        item: [
+          ['media:content', 'media:content'],
+          ['media:thumbnail', 'media:thumbnail'],
+          ['media:group', 'media:group'],
+          ['image', 'image'],
+        ],
+      },
     })
 
-    const parsePromise = parser.parseURL(url)
-    const feed = await Promise.race([parsePromise, timeoutPromise])
+    const feed = await simpleParser.parseURL(url)
 
     console.log(
       `✅ Successfully parsed feed: "${getFeedTitle(feed, url)}" with ${feed.items?.length || 0} items`
@@ -164,7 +174,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
           const thumbnail = item['media:thumbnail']
           // BBC format: media:thumbnail has $ property with url
           if (thumbnail && typeof thumbnail === 'object') {
-            const thumbnailUrl = thumbnail['$']?.url || thumbnail.$.url || thumbnail.url
+            const thumbnailUrl = thumbnail['$']?.url || thumbnail.$?.url || thumbnail.url
             if (thumbnailUrl && isValidUrl(thumbnailUrl)) {
               const normalizedUrl = normalizeImageUrl(thumbnailUrl, 976)
               console.log(`🖼️ [${getFeedTitle(feed, url)}] Found media:thumbnail: ${normalizedUrl}`)
@@ -203,7 +213,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               const groupThumbnail = mediaGroup['media:thumbnail']
               if (groupThumbnail) {
                 const groupThumbnailUrl =
-                  groupThumbnail['$']?.url || groupThumbnail.$.url || groupThumbnail.url
+                  groupThumbnail['$']?.url || groupThumbnail.$?.url || groupThumbnail.url
                 if (groupThumbnailUrl && isValidUrl(groupThumbnailUrl)) {
                   const normalizedUrl = normalizeImageUrl(groupThumbnailUrl, 976)
                   console.log(
@@ -218,7 +228,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               const groupContent = mediaGroup['media:content']
               if (groupContent) {
                 const groupContentUrl =
-                  groupContent['$']?.url || groupContent.$.url || groupContent.url
+                  groupContent['$']?.url || groupContent.$?.url || groupContent.url
                 if (groupContentUrl && isValidUrl(groupContentUrl)) {
                   const normalizedUrl = normalizeImageUrl(groupContentUrl, 976)
                   console.log(
@@ -263,7 +273,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),
             source: {
               name: getFeedTitle(feed, url),
-              url: feed.link || url,
+              url: (feed && 'link' in feed ? feed.link : null) || url,
             },
             category,
           }
@@ -334,53 +344,75 @@ export async function fetchAllNews(): Promise<Article[]> {
   const failedFeeds: string[] = []
   const successfulFeeds: string[] = []
 
-  // Try to fetch real RSS feeds with Promise.allSettled for better error handling
-  const feedPromises: Promise<{ articles: Article[]; url: string; category: string }>[] = []
+  // Batch RSS feeds to prevent overwhelming servers and avoid connection exhaustion
+  const allFeeds: Array<{ url: string; category: string }> = []
 
   for (const [category, feeds] of Object.entries(RSS_FEEDS)) {
     console.log(`📂 Processing category: ${category} (${feeds.length} feeds)`)
-
     for (const feedUrl of feeds) {
-      // Wrap each feed fetch to track success/failure
-      const promise = fetchRSSFeed(feedUrl, category)
-        .then((articles) => ({ articles, url: feedUrl, category }))
-        .catch((error) => {
-          console.error(`Failed to fetch ${feedUrl}:`, error)
-          return { articles: [], url: feedUrl, category }
-        })
-
-      feedPromises.push(promise)
+      allFeeds.push({ url: feedUrl, category })
     }
   }
 
-  // Wait for all feeds to complete with a reasonable timeout
-  try {
-    console.log(`⏰ Waiting for ${feedPromises.length} RSS feeds to complete...`)
+  console.log(`⏰ Fetching ${allFeeds.length} RSS feeds in batches...`)
 
-    const results = await Promise.allSettled(
-      feedPromises.map((promise) =>
+  // Process feeds in smaller batches to prevent connection exhaustion
+  const BATCH_SIZE = 8 // Reduced from unlimited to 8 concurrent requests
+  const results: Array<{ articles: Article[]; url: string; category: string }> = []
+
+  for (let i = 0; i < allFeeds.length; i += BATCH_SIZE) {
+    const batch = allFeeds.slice(i, i + BATCH_SIZE)
+    console.log(
+      `🔄 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFeeds.length / BATCH_SIZE)} (${batch.length} feeds)`
+    )
+
+    const batchPromises = batch.map(async ({ url, category }) => {
+      try {
+        const articles = await fetchRSSFeed(url, category)
+        return { articles, url, category }
+      } catch (error) {
+        console.error(`Failed to fetch ${url}:`, error)
+        return { articles: [], url, category }
+      }
+    })
+
+    const batchResults = await Promise.allSettled(
+      batchPromises.map((promise) =>
         Promise.race([
           promise,
-          new Promise<{ articles: Article[]; url: string; category: string }>((_, reject) =>
-            setTimeout(() => reject(new Error('Feed timeout')), 15000)
+          new Promise<{ articles: Article[]; url: string; category: string }>(
+            (_, reject) => setTimeout(() => reject(new Error('Feed timeout')), 15000) // Reduced timeout
           ),
         ])
       )
     )
 
-    results.forEach((result, index) => {
+    // Process batch results
+    batchResults.forEach((result, batchIndex) => {
       if (result.status === 'fulfilled') {
-        const { articles, url, category } = result.value
-        if (articles.length > 0) {
-          allArticles.push(...articles)
-          successfulFeeds.push(url)
-        } else {
-          failedFeeds.push(url)
-        }
+        results.push(result.value)
       } else {
-        const feedUrl = Object.values(RSS_FEEDS).flat()[index] || 'unknown'
-        failedFeeds.push(feedUrl)
-        console.warn(`Feed promise rejected for ${feedUrl}:`, result.reason)
+        const { url, category } = batch[batchIndex]
+        console.warn(`Feed promise rejected for ${url}:`, result.reason)
+        results.push({ articles: [], url, category })
+      }
+    })
+
+    // Small delay between batches to be respectful to servers
+    if (i + BATCH_SIZE < allFeeds.length) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+  }
+
+  // Process results
+  try {
+    results.forEach((result) => {
+      const { articles, url, category } = result
+      if (articles.length > 0) {
+        allArticles.push(...articles)
+        successfulFeeds.push(url)
+      } else {
+        failedFeeds.push(url)
       }
     })
 
