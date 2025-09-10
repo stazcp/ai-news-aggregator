@@ -482,6 +482,308 @@
     "Decrypt": {
       "name": "Decrypt",
       "feeds": [{ "id": "decrypt", "category": "Crypto", "url": "https://decrypt.co/feed" }]
+    },
+    "The Guardian": {
+      "name": "The Guardian",
+      "feeds": [
+        { "id": "guardian_world", "category": "World News", "url": "https://www.theguardian.com/world/rss" },
+        { "id": "guardian_us_politics", "category": "US Politics", "url": "https://www.theguardian.com/us-news/us-politics/rss" },
+        { "id": "guardian_technology", "category": "Technology", "url": "https://www.theguardian.com/technology/rss" }
+      ]
+    },
+    "ABC News (AU)": {
+      "name": "ABC News (AU)",
+      "feeds": [
+        { "id": "abc_au_world", "category": "World News", "url": "https://www.abc.net.au/news/feed/51120/rss.xml" }
+      ]
+    },
+    "Der Spiegel International": {
+      "name": "Der Spiegel International",
+      "feeds": [
+        { "id": "spiegel_international", "category": "World News", "url": "https://www.spiegel.de/international/index.rss" }
+      ]
+    },
+    "Al-Monitor": {
+      "name": "Al-Monitor",
+      "feeds": [
+        { "id": "almonitor", "category": "Middle East", "url": "https://www.al-monitor.com/rss.xml" }
+      ]
+    },
+    "Global Voices": {
+      "name": "Global Voices",
+      "feeds": [
+        { "id": "globalvoices", "category": "World News", "url": "https://globalvoices.org/feed/" }
+      ]
+    },
+    "The Conversation": {
+      "name": "The Conversation (Global)",
+      "feeds": [
+        { "id": "conversation_global", "category": "Analysis", "url": "https://theconversation.com/articles.atom" }
+      ]
+    },
+    "The Japan Times": {
+      "name": "The Japan Times",
+      "feeds": [
+        { "id": "japan_times", "category": "World News", "url": "https://www.japantimes.co.jp/feed/" }
+      ]
+    },
+    "Sky News": {
+      "name": "Sky News",
+      "feeds": [
+        { "id": "sky_world", "category": "World News", "url": "https://feeds.skynews.com/feeds/rss/world.xml" }
+      ]
+    },
+    "The Hill": {
+      "name": "The Hill",
+      "feeds": [
+        { "id": "thehill", "category": "US Politics", "url": "https://thehill.com/feed/" }
+      ]
+    },
+    "National Review": {
+      "name": "National Review",
+      "feeds": [
+        { "id": "nationalreview", "category": "US Politics", "url": "https://www.nationalreview.com/feed/" }
+      ]
+    },
+    "Jacobin": {
+      "name": "Jacobin",
+      "feeds": [
+        { "id": "jacobin", "category": "US Politics", "url": "https://jacobin.com/feed" }
+      ]
+    },
+    "The Intercept": {
+      "name": "The Intercept",
+      "feeds": [
+        { "id": "the_intercept", "category": "Investigations", "url": "https://theintercept.com/feed/?lang=en" }
+      ]
+    },
+    "ProPublica": {
+      "name": "ProPublica",
+      "feeds": [
+        { "id": "propublica", "category": "Investigations", "url": "https://www.propublica.org/feeds/propublica-main" }
+      ]
+    },
+    "SBS News (AU)": {
+      "name": "SBS News (AU)",
+      "feeds": [
+        { "id": "sbs_world", "category": "World News", "url": "https://www.sbs.com.au/news/feed" }
+      ]
+    },
+    "9News (AU)": {
+      "name": "9News (AU)",
+      "feeds": [
+        { "id": "nine_news", "category": "World News", "url": "https://www.9news.com.au/rss" }
+      ]
+    },
+    "Fox News": {
+      "name": "Fox News",
+      "feeds": [
+        { "id": "fox_latest", "category": "US News", "url": "https://moxie.foxnews.com/google-publisher/latest.xml" }
+      ]
+    },
+    "The Atlantic": {
+      "name": "The Atlantic",
+      "feeds": [
+        { "id": "atlantic_all", "category": "Analysis", "url": "https://www.theatlantic.com/feed/all/" }
+      ]
+    },
+    "Global News (CA)": {
+      "name": "Global News (CA)",
+      "feeds": [
+        { "id": "globalnews", "category": "World News", "url": "https://globalnews.ca/feed/" }
+      ]
+    },
+    "AllAfrica": {
+      "name": "AllAfrica",
+      "feeds": [
+        { "id": "allafrica_latest", "category": "Africa", "url": "https://allafrica.com/tools/headlines/rdf/latest/headlines.rdf" }
+      ]
+    },
+    "The Independent": {
+      "name": "The Independent (UK)",
+      "feeds": [
+        { "id": "independent_uk", "category": "World News", "url": "https://www.independent.co.uk/news/uk/rss" }
+      ]
+    },
+    "France 24 (Americas)": {
+      "name": "France 24 (Americas)",
+      "feeds": [
+        { "id": "france24_americas", "category": "Latin America", "url": "https://www.france24.com/en/americas/rss" }
+      ]
+    },
+    "Americas Quarterly": {
+      "name": "Americas Quarterly",
+      "feeds": [
+        { "id": "americas_quarterly", "category": "Latin America", "url": "https://americasquarterly.org/feed/" }
+      ]
+    },
+    "Mexico News Daily": {
+      "name": "Mexico News Daily",
+      "feeds": [
+        { "id": "mexico_news_daily", "category": "Latin America", "url": "https://mexiconewsdaily.com/feed/" }
+      ]
+    },
+    "Mother Jones": {
+      "name": "Mother Jones",
+      "feeds": [
+        { "id": "motherjones", "category": "US Politics", "url": "https://www.motherjones.com/feed/" }
+      ]
+    },
+    "The Register": {
+      "name": "The Register",
+      "feeds": [
+        { "id": "theregister", "category": "Technology", "url": "https://www.theregister.com/headlines.atom" }
+      ]
+    },
+    "ZDNet": {
+      "name": "ZDNet",
+      "feeds": [
+        { "id": "zdnet", "category": "Technology", "url": "https://www.zdnet.com/news/rss.xml" }
+      ]
+    },
+    "Gizmodo": {
+      "name": "Gizmodo",
+      "feeds": [
+        { "id": "gizmodo", "category": "Technology", "url": "https://gizmodo.com/rss" }
+      ]
+    },
+    "ICIJ": {
+      "name": "ICIJ",
+      "feeds": [
+        { "id": "icij", "category": "Investigations", "url": "https://www.icij.org/feed/" }
+      ]
+    },
+    "Snopes": {
+      "name": "Snopes",
+      "feeds": [
+        { "id": "snopes", "category": "Fact-Check", "url": "https://www.snopes.com/feed/" }
+      ]
+    },
+    "Raw Story": {
+      "name": "Raw Story",
+      "feeds": [
+        { "id": "rawstory", "category": "US Politics", "url": "https://www.rawstory.com/feed/" }
+      ]
+    },
+    "PolitiFact": {
+      "name": "PolitiFact",
+      "feeds": [
+        { "id": "politifact_factchecks", "category": "Fact-Check", "url": "https://www.politifact.com/rss/factchecks/" }
+      ]
+    },
+    "Euronews": {
+      "name": "Euronews",
+      "feeds": [
+        { "id": "euronews_feedburner", "category": "World News", "url": "https://feeds.feedburner.com/euronews/en/home" }
+      ]
+    },
+    "RNZ": {
+      "name": "RNZ (New Zealand)",
+      "feeds": [
+        { "id": "rnz_world", "category": "World News", "url": "https://www.rnz.co.nz/rss/world" }
+      ]
+    },
+    "The National (UAE)": {
+      "name": "The National (UAE)",
+      "feeds": [
+        { "id": "thenational_arc", "category": "Middle East", "url": "https://www.thenationalnews.com/arc/outboundfeeds/rss/?outputType=xml" }
+      ]
+    },
+    "ABC News (US)": {
+      "name": "ABC News (US)",
+      "feeds": [
+        { "id": "abc_top", "category": "US News", "url": "http://feeds.abcnews.com/abcnews/topstories" }
+      ]
+    },
+    "PBS NewsHour": {
+      "name": "PBS NewsHour",
+      "feeds": [
+        { "id": "pbs_newshour", "category": "US News", "url": "https://www.pbs.org/newshour/feeds/rss/headlines" }
+      ]
+    },
+    "Vox": {
+      "name": "Vox",
+      "feeds": [
+        { "id": "vox_all", "category": "US News", "url": "https://www.vox.com/rss/index.xml" }
+      ]
+    },
+    "FiveThirtyEight": {
+      "name": "FiveThirtyEight",
+      "feeds": [
+        { "id": "fivethirtyeight_all", "category": "US Politics", "url": "https://fivethirtyeight.com/all/feed" }
+      ]
+    },
+    "TIME": {
+      "name": "TIME",
+      "feeds": [
+        { "id": "time_all", "category": "US News", "url": "https://time.com/feed/" }
+      ]
+    },
+    "The New Yorker": {
+      "name": "The New Yorker",
+      "feeds": [
+        { "id": "newyorker_all", "category": "Analysis", "url": "https://www.newyorker.com/feed/everything" }
+      ]
+    },
+    "Fortune": {
+      "name": "Fortune",
+      "feeds": [
+        { "id": "fortune_all", "category": "Business", "url": "https://fortune.com/feed/" }
+      ]
+    },
+    "Deutschlandfunk": {
+      "name": "Deutschlandfunk",
+      "feeds": [
+        { "id": "dlf_news_alt", "category": "Europe", "url": "https://www.deutschlandfunk.de/nachrichten-100.rss" }
+      ]
+    },
+    "Star-Herald (NE)": {
+      "name": "Star-Herald (NE)",
+      "feeds": [
+        { "id": "starherald_all", "category": "US News", "url": "https://starherald.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc" }
+      ]
+    },
+    "TimesDaily": {
+      "name": "TimesDaily",
+      "feeds": [
+        { "id": "timesdaily_all", "category": "US News", "url": "https://www.timesdaily.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc" }
+      ]
+    },
+    "News.law": {
+      "name": "News.law",
+      "feeds": [
+        { "id": "newslaw", "category": "US Legal", "url": "https://www.news.law/feed/" }
+      ]
+    },
+    "Freethought Blogs": {
+      "name": "Freethought Blogs",
+      "feeds": [
+        { "id": "freethoughtblogs", "category": "Opinion", "url": "https://freethoughtblogs.com/feed/" }
+      ]
+    },
+    "Cambio21": {
+      "name": "Cambio21",
+      "feeds": [
+        { "id": "cambio21", "category": "Latin America", "url": "https://www.cambio21.cl/rss" }
+      ]
+    },
+    "The Journal Record": {
+      "name": "The Journal Record",
+      "feeds": [
+        { "id": "journalrecord", "category": "Business", "url": "https://journalrecord.com/feed/" }
+      ]
+    },
+    "US News & World Report": {
+      "name": "US News & World Report",
+      "feeds": [
+        { "id": "usnews_top", "category": "US News", "url": "https://www.usnews.com/rss/news" }
+      ]
+    },
+    "LA Times": {
+      "name": "Los Angeles Times",
+      "feeds": [
+        { "id": "latimes_all", "category": "US News", "url": "https://www.latimes.com/rss2.0.xml" }
+      ]
     }
   }
 }
