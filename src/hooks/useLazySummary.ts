@@ -11,6 +11,7 @@ interface UseLazySummaryArgs {
   cluster?: StoryCluster
   eager?: boolean
   variant?: 'article' | 'cluster'
+  mode?: 'auto' | 'manual'
 }
 
 export function useLazySummary({
@@ -19,6 +20,7 @@ export function useLazySummary({
   cluster,
   eager = false,
   variant = 'article',
+  mode = 'auto',
 }: UseLazySummaryArgs) {
   const searchParams = useSearchParams()
   const activeTopic = (searchParams?.get('topic') || '').trim()
@@ -37,9 +39,19 @@ export function useLazySummary({
     triggerOnce: true,
   })
 
+  // Helper to strip any HTML tags from summaries that may come from fallbacks
+  const stripHtml = (input: string): string =>
+    (input || '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
   // Reset local state when target identity changes to avoid stale summaries
   useEffect(() => {
-    const initialSummary = variant === 'cluster' ? cluster?.summary || '' : ''
+    const initialSummaryRaw = variant === 'cluster' ? cluster?.summary || '' : ''
+    const initialSummary = stripHtml(initialSummaryRaw)
     setSummary(initialSummary)
     setError(null)
     setHasRequested(variant === 'cluster' ? !!cluster?.summary : false)
@@ -86,8 +98,11 @@ export function useLazySummary({
         ? (cluster?.articles?.length ?? 0) > 0
         : !!content && content.length > 100
     const hasServerClusterSummary = variant === 'cluster' && !!cluster?.summary
+    if (mode === 'manual') {
+      return lengthOk && hasRequested && topicMatches && !hasServerClusterSummary
+    }
     return lengthOk && (eager || isIntersecting) && topicMatches && !hasServerClusterSummary
-  }, [variant, cluster, content, eager, isIntersecting, topicMatches])
+  }, [variant, cluster, content, eager, isIntersecting, topicMatches, mode, hasRequested])
 
   const {
     data,
@@ -126,7 +141,7 @@ export function useLazySummary({
     if (queryError) {
       setError(queryError instanceof Error ? queryError.message : 'Failed to load summary')
     } else if (typeof data === 'string') {
-      setSummary(data)
+      setSummary(stripHtml(data))
     }
   }, [isFetching, queryError, data])
 
@@ -137,6 +152,11 @@ export function useLazySummary({
     // or rely on retry button to re-trigger by intersection; here we do nothing extra
   }
 
+  const requestSummary = () => {
+    setError(null)
+    setHasRequested(true)
+  }
+
   return {
     elementRef,
     isIntersecting,
@@ -145,5 +165,6 @@ export function useLazySummary({
     error,
     handleRetry,
     topicMatches,
+    requestSummary,
   }
 }
