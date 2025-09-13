@@ -12,12 +12,16 @@ interface ArticleCardProps {
   article: Article
   showSummary?: boolean
   eager?: boolean // For eager loading of summaries
+  onNoImage?: (id: string) => void
+  imageVariant?: 'default' | 'thumb'
 }
 
 export default function ArticleCard({
   article,
   showSummary = true,
   eager = false,
+  onNoImage,
+  imageVariant = 'default',
 }: ArticleCardProps) {
   const [imageError, setImageError] = useState(false)
 
@@ -31,8 +35,9 @@ export default function ArticleCard({
   // Render compact card for articles without images or failed/too-small images
   if (!hasValidImage) {
     return (
-      <Card className="group flex flex-col overflow-hidden transition-all duration-300 hover:border-accent hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5 min-h-[280px]">
-        <CardContent className="p-4 flex flex-col flex-grow">
+      <Card className="group flex flex-col overflow-hidden transition-all duration-300 hover:border-accent hover:shadow-lg hover:shadow-blue-500/5 hover:-translate-y-0.5">
+        {/* Compact content: no flex-grow so the card doesn't stretch to image-card height */}
+        <CardContent className="p-4 flex flex-col">
           <ArticleHeader
             category={article.category}
             sourceName={article.source.name}
@@ -56,12 +61,16 @@ export default function ArticleCard({
   // Render full-size card for articles with images
   return (
     <Card className="group flex flex-col overflow-hidden transition-all duration-300 hover:border-accent hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1">
-      <div className="relative h-56 lg:h-64">
+      <div className={`relative ${imageVariant === 'thumb' ? 'h-36 lg:h-40' : 'h-56 lg:h-64'}`}>
         <ArticleImage
           src={article.urlToImage || ''}
           alt={article.title}
           className="object-cover transition-transform duration-300 group-hover:scale-105"
           onError={() => setImageError(true)}
+          onNoImage={() => {
+            setImageError(true)
+            onNoImage?.(article.id)
+          }}
         />
       </div>
 

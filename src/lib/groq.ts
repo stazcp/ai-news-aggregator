@@ -68,14 +68,18 @@ function isRateLimitError(error: any): boolean {
 
   return (
     errorMessage.includes('rate_limit_exceeded') ||
+    errorMessage.toLowerCase().includes('spend_limit_reached') ||
+    errorMessage.toLowerCase().includes('spend limit') ||
     errorMessage.includes('429') ||
     errorCode === 'rate_limit_exceeded' ||
+    errorCode === 'spend_limit_reached' ||
     error.status === 429 ||
     errorMessage.includes('Rate limit reached')
   )
 }
 
 export async function summarizeArticle(content: string, maxLength: number = 150): Promise<string> {
+  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
   try {
     const completion = await groqCall('summarizeArticle', () => groq.chat.completions.create({
       messages: [
@@ -96,8 +100,17 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
     if (isRateLimitError(error)) {
-      console.warn('⚠️ Rate limit hit during article summarization')
-      throw error // Re-throw rate limit errors to be handled upstream
+      console.warn('⚠️ Rate/Spend limit during article summarization — using fallback summary')
+      if (!ALLOW_FALLBACK) throw error
+      // Fallback: simple heuristic summary from first sentence(s), strip any HTML
+      const text = (content || '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      const cut = text.indexOf('.')
+      return (cut > 40 ? text.slice(0, cut + 1) : text.slice(0, Math.min(maxLength, 200))) || ''
     }
     console.error('Error summarizing article', error)
     return 'Summary not available'
@@ -105,6 +118,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
 }
 
 export async function summarizeCluster(articles: Article[]): Promise<string> {
+  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
   const cacheKey = `cluster-summary-${articles
     .map((a) => a.id)
     .sort()
@@ -151,8 +165,12 @@ ${contentToSummarize}
     return summary
   } catch (error) {
     if (isRateLimitError(error)) {
-      console.warn('⚠️ Rate limit hit during cluster summarization')
-      throw error // Re-throw rate limit errors to be handled upstream
+      console.warn('⚠️ Rate/Spend limit during cluster summarization')
+      if (!ALLOW_FALLBACK) throw error
+      // Fallback: basic synthesized line from titles
+      const titles = articles.map((a) => a.title).filter(Boolean)
+      const head = titles.slice(0, 3).join(' • ')
+      return head || ''
     }
     console.error('Error summarizing cluster:', error)
     return 'An error occurred while generating the cluster summary.'

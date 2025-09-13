@@ -168,11 +168,33 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       },
     })
 
-    const feed = await simpleParser.parseURL(url)
+    let effectiveUrl = url
+    let feed
+    try {
+      feed = await simpleParser.parseURL(effectiveUrl)
+    } catch (e: any) {
+      const msg = e?.message || ''
+      try {
+        const host = new URL(effectiveUrl).hostname
+        const allowList: string[] = (rssConfig as any)?.imageHostnames?.httpFallbacks || []
+        const isAllowed = allowList.some((h) => host === h || host.endsWith(h.replace(/^\*\./, '')))
+        const looksHtml = /Non-whitespace before first tag|Status code 406|Status code 403/i.test(msg)
+        if (looksHtml && isAllowed && effectiveUrl.startsWith('https://')) {
+          const httpUrl = effectiveUrl.replace(/^https:/, 'http:')
+          log('warn', `⚠️ HTTPS feed failed (${host}); retrying over HTTP: ${httpUrl}`)
+          effectiveUrl = httpUrl
+          feed = await simpleParser.parseURL(effectiveUrl)
+        } else {
+          throw e
+        }
+      } catch (inner) {
+        throw e
+      }
+    }
 
     log(
       'info',
-      `✅ Parsed: "${getFeedTitle(feed, url)}" items=${feed.items?.length || 0}`
+      `✅ Parsed: "${getFeedTitle(feed, effectiveUrl)}" items=${feed.items?.length || 0}`
     )
 
     if (!feed.items || feed.items.length === 0) {

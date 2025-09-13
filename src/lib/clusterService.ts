@@ -55,43 +55,49 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
 
   // 2) Refine each seed with the LLM to name the cluster and adjust membership
   const allClusters: StoryCluster[] = []
-  for (let si = 0; si < seeds.length; si++) {
-    const seed = seeds[si]
-    const seedArticles = articles.filter((a) => seed.articleIds.includes(a.id))
+  try {
+    for (let si = 0; si < seeds.length; si++) {
+      const seed = seeds[si]
+      const seedArticles = articles.filter((a) => seed.articleIds.includes(a.id))
 
-    // If a seed is very large, split into overlapping chunks to keep token usage sane
-    const SEED_CHUNK = parseInt(process.env.CLUSTER_SEED_CHUNK || '25', 10)
-    const SEED_OVERLAP = parseInt(process.env.CLUSTER_SEED_OVERLAP || '5', 10)
-    if (seedArticles.length > SEED_CHUNK) {
-      for (let i = 0; i < seedArticles.length; i += Math.max(1, SEED_CHUNK - SEED_OVERLAP)) {
-        const chunk = seedArticles.slice(i, i + SEED_CHUNK)
-        console.log(`🤖 Refining seed ${si + 1}/${seeds.length} chunk (${chunk.length})`)
+      // If a seed is very large, split into overlapping chunks to keep token usage sane
+      const SEED_CHUNK = parseInt(process.env.CLUSTER_SEED_CHUNK || '25', 10)
+      const SEED_OVERLAP = parseInt(process.env.CLUSTER_SEED_OVERLAP || '5', 10)
+      if (seedArticles.length > SEED_CHUNK) {
+        for (let i = 0; i < seedArticles.length; i += Math.max(1, SEED_CHUNK - SEED_OVERLAP)) {
+          const chunk = seedArticles.slice(i, i + SEED_CHUNK)
+          console.log(`🤖 Refining seed ${si + 1}/${seeds.length} chunk (${chunk.length})`)
+          try {
+            const refined = await clusterArticles(chunk)
+            allClusters.push(...refined)
+          } catch (error) {
+            if (isRateLimitError(error)) {
+              console.warn('⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.')
+              // Fallback: return seeds as clusters
+              return seeds
+            }
+            console.error('Error refining seed chunk:', error)
+          }
+          await new Promise((r) => setTimeout(r, 800))
+        }
+      } else {
+        console.log(`🤖 Refining seed ${si + 1}/${seeds.length} (${seedArticles.length} articles)`) 
         try {
-          const refined = await clusterArticles(chunk)
+          const refined = await clusterArticles(seedArticles)
           allClusters.push(...refined)
         } catch (error) {
           if (isRateLimitError(error)) {
-            console.warn('⚠️ Rate limit during refinement; stopping.')
-            throw new Error('RATE_LIMIT_EXCEEDED')
+            console.warn('⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.')
+            return seeds
           }
-          console.error('Error refining seed chunk:', error)
+          console.error('Error refining seed:', error)
         }
         await new Promise((r) => setTimeout(r, 800))
       }
-    } else {
-      console.log(`🤖 Refining seed ${si + 1}/${seeds.length} (${seedArticles.length} articles)`) 
-      try {
-        const refined = await clusterArticles(seedArticles)
-        allClusters.push(...refined)
-      } catch (error) {
-        if (isRateLimitError(error)) {
-          console.warn('⚠️ Rate limit during refinement; stopping.')
-          throw new Error('RATE_LIMIT_EXCEEDED')
-        }
-        console.error('Error refining seed:', error)
-      }
-      await new Promise((r) => setTimeout(r, 800))
     }
+  } catch (e) {
+    console.warn('⚠️ Unexpected error during refinement; falling back to seeds.', e)
+    return seeds
   }
 
   printSamples('LLM refined (pre-merge)', allClusters)
@@ -109,8 +115,8 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
         allClusters.push(...extra)
       } catch (error) {
         if (isRateLimitError(error)) {
-          console.warn('⚠️ Rate limit during uncovered refinement; stopping.')
-          throw new Error('RATE_LIMIT_EXCEEDED')
+          console.warn('⚠️ Rate limit during uncovered refinement; skipping uncovered step.')
+          break
         }
         console.error('Error refining uncovered articles:', error)
       }
@@ -154,21 +160,35 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       const mergedLLM = await mergeClustersByLLM(finalRaw, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
-      // Optional expansion to reach 10–20 sources per event
+      // Optional expansion to reach 10–20 sources per event (severity-aware)
       const EXPAND = (process.env.CLUSTER_EXPAND || 'true').toLowerCase() !== 'false'
       if (EXPAND) {
-        const sim = parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.46')
-        const maxAdd = parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '30', 10)
-        const hours = parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '96', 10)
-        const strict = (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
-        const expanded = mergedLLM.map((c) =>
-          expandClusterMembership(articles, c, {
+        const baseSim = parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.46')
+        const baseMaxAdd = parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '30', 10)
+        const baseHours = parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '96', 10)
+        const baseStrict = (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
+
+        const expanded = mergedLLM.map((c) => {
+          // Use heuristic severity to relax expansion for critical events
+          const sev = computeSeverity(c)
+          let sim = baseSim
+          let maxAdd = baseMaxAdd
+          let hours = baseHours
+          let strict = baseStrict
+          if (sev.label === 'Mass Casualty/Deaths' || sev.label === 'War/Conflict') {
+            // Cast a wider net for high-severity events to catch paraphrases/outlet wording
+            sim = Math.min(sim, 0.42)
+            maxAdd = Math.max(maxAdd, 50)
+            hours = Math.max(hours, 120)
+            strict = false // allow cross-category pull (e.g., US News vs Crime)
+          }
+          return expandClusterMembership(articles, c, {
             simThreshold: sim,
             maxAdd,
             timeWindowHours: hours,
             categoryStrict: strict,
           })
-        )
+        })
         printSamples('After expansion', expanded)
         return expanded
       }

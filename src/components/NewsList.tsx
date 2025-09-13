@@ -13,19 +13,31 @@ interface NewsListProps {
 
 export default function NewsList({ storyClusters, unclusteredArticles }: NewsListProps) {
   // Separate articles with and without images for better layout
-  const articlesWithImages = unclusteredArticles.filter(
-    (article) =>
+  const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
+  const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
+
+  const articlesWithImages = unclusteredArticles.filter((article) => {
+    // Only promote to Featured when we have a valid image URL AND known sufficient dimensions.
+    const hasUrl =
       article.urlToImage &&
       !article.urlToImage.includes('placehold.co') &&
       article.urlToImage.trim() !== ''
-  )
+    if (!hasUrl) return false
+    if (!article.imageWidth || !article.imageHeight) return false
+    return article.imageWidth >= MIN_W && article.imageHeight >= MIN_H
+  })
 
-  const articlesWithoutImages = unclusteredArticles.filter(
-    (article) =>
+  const articlesWithoutImages = unclusteredArticles.filter((article) => {
+    const missingUrl =
       !article.urlToImage ||
       article.urlToImage.includes('placehold.co') ||
       article.urlToImage.trim() === ''
-  )
+    const unknownDims = !article.imageWidth || !article.imageHeight
+    const tooSmall =
+      !!article.imageWidth && !!article.imageHeight &&
+      (article.imageWidth < MIN_W || article.imageHeight < MIN_H)
+    return missingUrl || unknownDims || tooSmall
+  })
 
   return (
     <div className="space-y-12">

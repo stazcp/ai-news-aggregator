@@ -4,7 +4,7 @@ import NextImage from 'next/image'
 import { StoryCluster, Article } from '@/types'
 import { useEffect, useMemo, useState } from 'react'
 
-const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
+const ImageCollage = ({ cluster, onChangeCount }: { cluster: StoryCluster; onChangeCount?: (count: number) => void }) => {
   if (!cluster.imageUrls || cluster.imageUrls.length === 0) {
     return null
   }
@@ -27,6 +27,9 @@ const ImageCollage = ({ cluster }: { cluster: StoryCluster }) => {
   )
   const [urls, setUrls] = useState<string[]>(initialUrls)
   useEffect(() => setUrls(initialUrls), [initialUrls])
+  useEffect(() => {
+    onChangeCount?.(urls.length)
+  }, [urls, onChangeCount])
 
   // Load intrinsic aspect ratios for the first few images to drive layout decisions
   const [aspectRatios, setAspectRatios] = useState<number[]>([])

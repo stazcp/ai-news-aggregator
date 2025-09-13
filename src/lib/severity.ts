@@ -73,10 +73,10 @@ export function scoreCluster(
     severityBoosts?: Record<string, number>
   }
 ): number {
-  const wArticles = options?.wArticles ?? 0.6
-  const wDomains = options?.wDomains ?? 0.8
-  const wImages = options?.wImages ?? 0.4
-  const wRecency = options?.wRecency ?? 0.3
+  const wArticles = options?.wArticles ?? Number(process.env.SCORE_W_ARTICLES ?? 0.6)
+  const wDomains = options?.wDomains ?? Number(process.env.SCORE_W_DOMAINS ?? 0.8)
+  const wImages = options?.wImages ?? Number(process.env.SCORE_W_IMAGES ?? 0.4)
+  const wRecency = options?.wRecency ?? Number(process.env.SCORE_W_RECENCY ?? 0.3)
   const severityBoosts = options?.severityBoosts ?? {
     'War/Conflict': 10,
     'Mass Casualty/Deaths': 7,
@@ -100,7 +100,10 @@ export function scoreCluster(
       .filter(Boolean)
   ).size
   const images = (c.imageUrls || []).length
-  const imageBonus = images >= 2 ? 2 : images >= 1 ? 1 : -1
+  const BONUS_GE2 = Number(process.env.SCORE_IMAGE_BONUS_GE2 ?? 2)
+  const BONUS_GE1 = Number(process.env.SCORE_IMAGE_BONUS_GE1 ?? 1)
+  const PENALTY_NONE = Number(process.env.SCORE_IMAGE_PENALTY_NONE ?? -2)
+  const imageBonus = images >= 2 ? BONUS_GE2 : images >= 1 ? BONUS_GE1 : PENALTY_NONE
 
   // Recency: boost clusters whose latest is within ~24h
   let recency = 0
@@ -125,4 +128,3 @@ export function scoreCluster(
 
   return base + boost
 }
-
