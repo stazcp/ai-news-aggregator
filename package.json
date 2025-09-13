@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "test-feeds": "node test-feeds.js"
   },
   "dependencies": {
@@ -26,12 +29,16 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.15.30",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint-config-prettier": "^10.1.5",
+    "jest": "^30.1.3",
+    "jest-environment-node": "^30.1.2",
     "prettier": "^3.5.3",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.1",
     "tw-animate-css": "^1.3.4",
     "typescript": "^5"
   }
