@@ -17,7 +17,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
 
   const sourceCount = cluster.articles.length
   const latestArticle = cluster.articles[0] // Assuming articles are sorted by date
-  const hasImages = !!cluster?.imageUrls?.length
+  const [hasImages, setHasImages] = React.useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
 
   return (
     <section className="mb-16 border-b border-border pb-16 last:border-b-0">
@@ -45,7 +45,10 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {hasImages ? (
           <div className="lg:col-span-1">
-            <ImageCollage cluster={cluster} />
+            <ImageCollage
+              cluster={cluster}
+              onChangeCount={(count) => setHasImages(count > 0)}
+            />
           </div>
         ) : (
           <SourceArticleList articles={cluster.articles} />

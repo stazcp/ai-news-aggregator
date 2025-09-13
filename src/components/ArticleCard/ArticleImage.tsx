@@ -8,9 +8,10 @@ interface ArticleImageProps {
   alt: string
   className?: string
   onError?: () => void
+  onNoImage?: () => void
 }
 
-export default function ArticleImage({ src, alt, className = '', onError }: ArticleImageProps) {
+export default function ArticleImage({ src, alt, className = '', onError, onNoImage }: ArticleImageProps) {
   const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '480')
   const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '300')
   const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
@@ -20,6 +21,7 @@ export default function ArticleImage({ src, alt, className = '', onError }: Arti
     console.warn(`Failed to load image for article: ${alt}`)
     setTooSmall(true)
     onError?.()
+    onNoImage?.()
   }
 
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
@@ -29,6 +31,7 @@ export default function ArticleImage({ src, alt, className = '', onError }: Arti
     // Only enforce if we have valid dimensions
     if (nw > 0 && nh > 0 && (nw < MIN_W || nh < MIN_H)) {
       setTooSmall(true)
+      onNoImage?.()
     }
   }
 

@@ -28,14 +28,8 @@ export function SummaryBase({
   showContainer = true,
 }: SummaryBaseProps) {
   if (error) {
-    return (
-      <div ref={elementRef} className={`space-y-4 ${showContainer ? '' : ''}`}>
-        {headerBadge}
-        <div className="prose prose-lg max-w-none">
-          <p className="text-sm text-red-400">Failed to generate AI summary.</p>
-        </div>
-      </div>
-    )
+    // Hide the entire summary block on error (e.g., AI spend/limit outage)
+    return <div ref={elementRef} />
   }
 
   if (isLoading) {
