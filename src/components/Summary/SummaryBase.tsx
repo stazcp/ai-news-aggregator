@@ -41,16 +41,16 @@ export function SummaryBase({
     )
   }
 
+  // If there is no summary content yet, always show the placeholder so
+  // manual/on-demand controls remain visible when in viewport. Auto mode
+  // will render the loading state above when intersecting.
   if (!children) {
-    if (!isIntersecting && !eager) {
-      return (
-        <div ref={elementRef} className={`space-y-4 ${showContainer ? '' : ''}`}>
-          {headerBadge}
-          <div className="prose prose-lg max-w-none">{placeholderContent}</div>
-        </div>
-      )
-    }
-    return null
+    return (
+      <div ref={elementRef} className={`space-y-4 ${showContainer ? '' : ''}`}>
+        {headerBadge}
+        <div className="prose prose-lg max-w-none">{placeholderContent}</div>
+      </div>
+    )
   }
 
   return (
