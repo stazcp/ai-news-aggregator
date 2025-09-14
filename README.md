@@ -180,6 +180,7 @@ The app is highly configurable through environment variables:
 - `GET /api/news` - Fetch all news articles
 - `GET /api/summarize` - Generate AI summary for articles
 - `GET /api/clear-cache` - Clear application cache
+- `GET /api/warmup` - Background job endpoint to keep caches warm (invoked daily via Vercel cron)
 - `GET /api/resolve-image` - Resolve and normalize image URLs
 
 ## 📈 Performance
@@ -196,6 +197,7 @@ The app is highly configurable through environment variables:
 1. Connect your GitHub repository to Vercel
 2. Add your `GROQ_API_KEY` environment variable
 3. Deploy automatically on every push
+4. Configure a daily Cron Job hitting `/api/warmup` to keep caches warm
 
 ### Other Platforms
 
