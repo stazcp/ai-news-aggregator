@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   let articles: Article[] = await getCachedData(cacheKey)
   if (!articles) {
     articles = await fetchAllNews()
-    await setCachedData(cacheKey, articles, 300) // 5 min cache
+    await setCachedData(cacheKey, articles, 60 * 60 * 24) // 24h cache
   }
 
   // Filter and paginate

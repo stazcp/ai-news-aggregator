@@ -567,9 +567,9 @@ export async function fetchAllNews(): Promise<Article[]> {
 
   log('info', `✅ Final articles: ${articlesWithPlaceholders.length}`)
 
-  // Cache the results for 15 minutes to reduce server load
+  // Cache the results for 24 hours to reduce server load and avoid cold starts
   if (articlesWithPlaceholders.length > 0) {
-    await setCachedData('all-news', articlesWithPlaceholders, 900) // 15 minutes
+    await setCachedData('all-news', articlesWithPlaceholders, 60 * 60 * 24) // 24 hours
     log('info', `💾 Cached ${articlesWithPlaceholders.length} articles`)
   }
 

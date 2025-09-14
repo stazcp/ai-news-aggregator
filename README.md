@@ -180,6 +180,7 @@ The app is highly configurable through environment variables:
 - `GET /api/news` - Fetch all news articles
 - `GET /api/summarize` - Generate AI summary for articles
 - `GET /api/clear-cache` - Clear application cache
+- `GET /api/warmup` - Background job endpoint to keep caches warm
 - `GET /api/resolve-image` - Resolve and normalize image URLs
 
 ## 📈 Performance
