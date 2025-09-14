@@ -10,6 +10,8 @@ import { filterByTopic, getParamString } from '@/lib/utils'
 
 export const revalidate = 1800 // 30 minutes instead of 10 to reduce server load
 
+const DAY_IN_SECONDS = 60 * 60 * 24
+
 // Composed homepage renderer
 function renderHomepage(
   storyClusters: StoryCluster[],
@@ -109,14 +111,14 @@ export default async function Home({
 
     if (rateLimitMessage) {
       console.log(`⚠️ ${rateLimitMessage}`)
-      // Cache rate limit result for only 2 minutes to allow faster retries
-      await setCachedData('homepage-result', homepageResult, 120) // 2 min cache for rate limit scenarios
+      // Cache rate limit result for a full day to avoid recomputation
+      await setCachedData('homepage-result', homepageResult, DAY_IN_SECONDS) // 24h cache
     } else {
       console.log(
         `✅ Processed ${storyClusters.length} story clusters and ${unclusteredArticles.length} individual articles`
       )
-      // Cache successful result for longer
-      await setCachedData('homepage-result', homepageResult, 600) // 10 min cache for successful results
+      // Cache successful result for a day
+      await setCachedData('homepage-result', homepageResult, DAY_IN_SECONDS) // 24h cache for successful results
     }
     return renderHomepage(storyClusters, unclusteredArticles, rateLimitMessage, topics)
   } catch (error) {
