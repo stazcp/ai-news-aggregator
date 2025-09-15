@@ -48,8 +48,10 @@ describe('/api/cron/daily-refresh', () => {
   })
 
   describe('GET - Authentication', () => {
-    it('should accept Vercel cron request with Bearer token', async () => {
-      const request = createRequest('Bearer vercel-cron-token-12345')
+    it('should accept request with correct CRON_SECRET', async () => {
+      process.env.CRON_SECRET = 'my-secure-secret-token'
+
+      const request = createRequest('Bearer my-secure-secret-token')
       const response = await GET(request)
       const data = await response.json()
 
@@ -59,75 +61,82 @@ describe('/api/cron/daily-refresh', () => {
       expect(mockRefreshCacheInBackground).toHaveBeenCalledTimes(1)
     })
 
-    it('should accept manual request with correct CRON_SECRET', async () => {
-      process.env.CRON_SECRET = 'my-secret-token'
+    it('should reject request when CRON_SECRET is not configured', async () => {
+      delete process.env.CRON_SECRET
 
-      const request = createRequest('Bearer my-secret-token')
+      const request = createRequest('Bearer any-token')
       const response = await GET(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.message).toBe('Daily cache refresh completed successfully')
-      expect(mockRefreshCacheInBackground).toHaveBeenCalledTimes(1)
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('CRON_SECRET not configured - cron job cannot run securely')
+      expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
     })
 
     it('should reject request with no authorization header', async () => {
+      process.env.CRON_SECRET = 'test-secret'
+
       const request = createRequest()
       const response = await GET(request)
       const data = await response.json()
 
       expect(response.status).toBe(401)
       expect(data.success).toBe(false)
-      expect(data.error).toBe('Unauthorized - cron requests must include proper authorization')
+      expect(data.error).toBe('Unauthorized - invalid cron secret')
       expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
     })
 
     it('should reject request with empty authorization header', async () => {
+      process.env.CRON_SECRET = 'test-secret'
+
       const request = createRequest('')
       const response = await GET(request)
       const data = await response.json()
 
       expect(response.status).toBe(401)
       expect(data.success).toBe(false)
-      expect(data.error).toBe('Unauthorized - cron requests must include proper authorization')
+      expect(data.error).toBe('Unauthorized - invalid cron secret')
       expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
     })
 
-    it('should reject request with non-Bearer authorization', async () => {
-      const request = createRequest('Basic dXNlcjpwYXNz')
-      const response = await GET(request)
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data.success).toBe(false)
-      expect(data.error).toBe('Unauthorized - cron requests must include proper authorization')
-      expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
-    })
-
-    it('should accept Bearer token even if CRON_SECRET is set (treats as Vercel cron)', async () => {
+    it('should reject request with wrong CRON_SECRET', async () => {
       process.env.CRON_SECRET = 'correct-secret'
 
       const request = createRequest('Bearer wrong-secret')
       const response = await GET(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.message).toBe('Daily cache refresh completed successfully')
-      expect(mockRefreshCacheInBackground).toHaveBeenCalledTimes(1)
+      expect(response.status).toBe(401)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Unauthorized - invalid cron secret')
+      expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
     })
 
-    it('should accept any Bearer token when CRON_SECRET is not set (Vercel cron mode)', async () => {
-      delete process.env.CRON_SECRET
+    it('should reject request with non-Bearer authorization', async () => {
+      process.env.CRON_SECRET = 'test-secret'
 
-      const request = createRequest('Bearer any-vercel-token')
+      const request = createRequest('Basic dXNlcjpwYXNz')
       const response = await GET(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(mockRefreshCacheInBackground).toHaveBeenCalledTimes(1)
+      expect(response.status).toBe(401)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Unauthorized - invalid cron secret')
+      expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
+    })
+
+    it('should reject arbitrary Bearer tokens', async () => {
+      process.env.CRON_SECRET = 'secure-token'
+
+      const request = createRequest('Bearer arbitrary-attacker-token')
+      const response = await GET(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(data.success).toBe(false)
+      expect(data.error).toBe('Unauthorized - invalid cron secret')
+      expect(mockRefreshCacheInBackground).not.toHaveBeenCalled()
     })
   })
 
@@ -253,10 +262,7 @@ describe('/api/cron/daily-refresh', () => {
       const data = await response.json()
 
       expect(data).toHaveProperty('success', false)
-      expect(data).toHaveProperty(
-        'error',
-        'Unauthorized - cron requests must include proper authorization'
-      )
+      expect(data).toHaveProperty('error', 'Unauthorized - invalid cron secret')
       expect(data).toHaveProperty('timestamp')
       expect(new Date(data.timestamp).getTime()).toBeGreaterThan(Date.now() - 5000)
     })
@@ -297,26 +303,26 @@ describe('/api/cron/daily-refresh', () => {
       expect(consoleSpy).toHaveBeenCalledWith('📅 Daily cron job triggered')
     })
 
-    it('should log authorization success for Vercel cron', async () => {
-      delete process.env.CRON_SECRET
-      const request = createRequest('Bearer vercel-token')
-      await GET(request)
-
-      expect(consoleSpy).toHaveBeenCalledWith('✅ Cron request authorized', '(Vercel cron)')
-    })
-
-    it('should log authorization success for manual call', async () => {
+    it('should log authorization success for valid CRON_SECRET', async () => {
       const request = createRequest('Bearer test-secret')
       await GET(request)
 
-      expect(consoleSpy).toHaveBeenCalledWith('✅ Cron request authorized', '(manual with secret)')
+      expect(consoleSpy).toHaveBeenCalledWith('✅ Cron request authorized with valid CRON_SECRET')
     })
 
-    it('should log authorization success for Vercel cron when CRON_SECRET is set', async () => {
-      const request = createRequest('Bearer some-other-token')
+    it('should log configuration error when CRON_SECRET missing', async () => {
+      // Mock console.error instead of console.log for this test
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
+
+      delete process.env.CRON_SECRET
+      const request = createRequest('Bearer any-token')
       await GET(request)
 
-      expect(consoleSpy).toHaveBeenCalledWith('✅ Cron request authorized', '(Vercel cron)')
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '❌ CRON_SECRET environment variable not configured'
+      )
+
+      consoleErrorSpy.mockRestore()
     })
   })
 })

@@ -4,10 +4,15 @@ import { refreshCacheInBackground } from '@/lib/backgroundRefresh'
 /**
  * Daily cache refresh cron job endpoint
  *
- * This endpoint is called by Vercel cron jobs daily at 6 AM UTC.
- * Vercel automatically adds an authorization header for security.
+ * SECURITY: Requires CRON_SECRET environment variable to be configured.
+ * Vercel automatically includes CRON_SECRET as Bearer token for cron jobs.
  *
- * Manual calls can also be made with: Authorization: Bearer ${CRON_SECRET}
+ * This endpoint is called by Vercel cron jobs daily at 6 AM UTC.
+ * Manual calls require: Authorization: Bearer ${CRON_SECRET}
+ *
+ * Setup:
+ * 1. Set CRON_SECRET environment variable in Vercel (min 16 chars)
+ * 2. Configure cron job in vercel.json
  *
  * Configured in vercel.json:
  * {
@@ -28,36 +33,38 @@ export async function GET(request: Request): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  // Check authorization - accept any Bearer token (Vercel provides unpredictable tokens)
-  // or manual calls with CRON_SECRET if configured
-  let isAuthorized = false
-  let authType = ''
-
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
-    // Manual call with correct secret
-    isAuthorized = true
-    authType = '(manual with secret)'
-  } else if (authHeader && authHeader.startsWith('Bearer ')) {
-    // Vercel cron job (has Bearer token)
-    isAuthorized = true
-    authType = '(Vercel cron)'
+  // Security: Require CRON_SECRET for all requests
+  // Vercel automatically includes CRON_SECRET as Bearer token for cron jobs
+  if (!cronSecret) {
+    console.error('❌ CRON_SECRET environment variable not configured')
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'CRON_SECRET not configured - cron job cannot run securely',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    )
   }
 
-  if (!isAuthorized) {
-    console.error('❌ Unauthorized cron request - missing or invalid authorization')
-    console.log('📋 Request headers:', Object.fromEntries(request.headers.entries()))
+  // Validate authorization header exactly matches CRON_SECRET
+  const expectedAuth = `Bearer ${cronSecret}`
+  if (authHeader !== expectedAuth) {
+    console.error('❌ Unauthorized cron request - invalid or missing authorization token')
+    console.log('📋 Expected:', expectedAuth.substring(0, 20) + '...')
+    console.log('📋 Received:', authHeader?.substring(0, 20) + '...' || 'none')
 
     return NextResponse.json(
       {
         success: false,
-        error: 'Unauthorized - cron requests must include proper authorization',
+        error: 'Unauthorized - invalid cron secret',
         timestamp: new Date().toISOString(),
       },
       { status: 401 }
     )
   }
 
-  console.log('✅ Cron request authorized', authType)
+  console.log('✅ Cron request authorized with valid CRON_SECRET')
 
   const startTime = Date.now()
   console.log('🚀 Starting daily cache refresh...')
