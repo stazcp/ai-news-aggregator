@@ -128,10 +128,13 @@ export default function HomeClient({ initialData }: HomeClientProps) {
       <RefreshStatusBar />
 
       <div className="relative">
-        {/* Subtle skeleton overlay when fetching fresh data */}
+        {/* Subtle loading indicator when fetching fresh data - non-blocking */}
         {isFetching && data && (
-          <div className="absolute inset-0 z-10 bg-white/50 dark:bg-gray-900/50 backdrop-blur-[1px]">
-            <NewsListSkeleton />
+          <div className="fixed top-20 right-4 z-40 bg-blue-500/10 dark:bg-blue-400/10 backdrop-blur-sm border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 shadow-sm pointer-events-none">
+            <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+              <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+              Updating content...
+            </div>
           </div>
         )}
 
