@@ -179,7 +179,7 @@ describe('useRefreshStatus', () => {
     await waitFor(() => {
       // Check that homepage-data was invalidated (should be called once after clearing)
       const homepageDataCalls = invalidateQueriesSpy.mock.calls.filter(
-        (call) => call[0].queryKey && call[0].queryKey[0] === 'homepage-data'
+        (call) => call[0]?.queryKey && call[0].queryKey[0] === 'homepage-data'
       )
       expect(homepageDataCalls).toHaveLength(1)
     })
