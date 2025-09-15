@@ -3,3 +3,5 @@
 
 // Mock environment variables for tests
 process.env.NODE_ENV = 'test'
+process.env.GROQ_API_KEY = 'test-groq-key'
+process.env.DISABLE_REDIS = 'true' // Use memory cache for tests
