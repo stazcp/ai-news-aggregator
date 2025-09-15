@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface RefreshStatusData {
   status: 'idle' | 'refreshing' | 'error'
@@ -13,6 +13,7 @@ interface RefreshStatusData {
 
 export function useRefreshStatus() {
   const queryClient = useQueryClient()
+  const lastCompletedTimestamp = useRef<number | null>(null)
 
   const { data: refreshStatus, error } = useQuery({
     queryKey: ['refresh-status'],
@@ -67,12 +68,21 @@ export function useRefreshStatus() {
   useEffect(() => {
     if (refreshStatus) {
       // When refresh completes, invalidate homepage data to trigger refetch
+      // Only do this ONCE per completion to avoid repeated invalidations
       if (refreshStatus.justCompleted && refreshStatus.status === 'idle') {
-        console.log('🎉 Refresh just completed, invalidating homepage data')
-        queryClient.invalidateQueries({
-          queryKey: ['homepage-data'],
-          refetchType: 'active', // Actively refetch if query is being used
-        })
+        const currentTimestamp = refreshStatus.timestamp
+
+        // Only invalidate if this is a NEW completion (different timestamp)
+        if (lastCompletedTimestamp.current !== currentTimestamp) {
+          console.log('🎉 Refresh just completed, invalidating homepage data')
+          queryClient.invalidateQueries({
+            queryKey: ['homepage-data'],
+            refetchType: 'active', // Actively refetch if query is being used
+          })
+
+          // Remember this completion to avoid duplicate invalidations
+          lastCompletedTimestamp.current = currentTimestamp
+        }
       }
 
       // Log status changes for debugging
