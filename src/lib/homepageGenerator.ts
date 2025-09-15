@@ -78,14 +78,16 @@ export async function generateTopStorySummaries(
   // Generate cluster summaries
   const clusterPromises = topClusters.map(async (cluster) => {
     try {
-      await generateAndCacheSummary(cluster.id, cluster.articles, true, cluster.clusterTitle)
+      // Generate unique ID from cluster's article IDs
+      const clusterId = (cluster.articleIds || []).slice(0, 10).sort().join('-')
+      await generateAndCacheSummary(clusterId, cluster.articles || [], true, cluster.clusterTitle)
       completed++
       if (progressCallback) {
         await progressCallback(completed, total)
       }
       console.log(`✅ Generated summary for cluster: ${cluster.clusterTitle}`)
     } catch (error) {
-      console.error(`❌ Failed to generate cluster summary for ${cluster.id}:`, error)
+      console.error(`❌ Failed to generate cluster summary for ${cluster.clusterTitle}:`, error)
       completed++ // Still count as completed to keep progress accurate
       if (progressCallback) {
         await progressCallback(completed, total)
@@ -96,7 +98,7 @@ export async function generateTopStorySummaries(
   // Generate article summaries
   const articlePromises = topArticles.map(async (article) => {
     try {
-      await generateAndCacheSummary(article.id, article.content, false)
+      await generateAndCacheSummary(article.id, article.content || '', false)
       completed++
       if (progressCallback) {
         await progressCallback(completed, total)
@@ -167,9 +169,13 @@ export async function enrichClustersWithSummaries(
   storyClusters: StoryCluster[]
 ): Promise<StoryCluster[]> {
   return Promise.all(
-    storyClusters.map(async (cluster) => ({
-      ...cluster,
-      summary: (await getCachedData(`Summary-${cluster.id}`)) || undefined,
-    }))
+    storyClusters.map(async (cluster) => {
+      // Generate unique ID from cluster's article IDs (same as in generateTopStorySummaries)
+      const clusterId = (cluster.articleIds || []).slice(0, 10).sort().join('-')
+      return {
+        ...cluster,
+        summary: (await getCachedData(`Summary-${clusterId}`)) || undefined,
+      }
+    })
   )
 }
