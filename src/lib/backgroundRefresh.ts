@@ -21,7 +21,7 @@ export async function refreshCacheInBackground(): Promise<void> {
   }
 
   try {
-    // Mark refresh as in progress
+    // Mark refresh as in progress with reasonable timeout
     await setCachedData(
       'refresh-in-progress',
       {
@@ -30,8 +30,8 @@ export async function refreshCacheInBackground(): Promise<void> {
         progress: 0,
         timestamp: Date.now(),
       },
-      3600
-    ) // 1 hour timeout
+      1800 // 30 minutes timeout (reduced from 1 hour)
+    )
 
     console.log('🔄 Background refresh starting...')
 
@@ -69,18 +69,19 @@ export async function refreshCacheInBackground(): Promise<void> {
     await setCachedData('homepage-result', finalHomepageResult, 86400) // 24 hours
     await setCachedData('last-cache-update', new Date().toISOString(), 86400)
 
-    // Mark refresh as complete
-    await updateRefreshStatus('Fresh stories ready!', 100)
-    console.log('✅ Background refresh complete')
+    // Mark refresh as complete with short TTL (3 minutes for client to see completion)
+    await setCachedData(
+      'refresh-in-progress',
+      {
+        stage: 'Fresh stories ready!',
+        progress: 100,
+        timestamp: Date.now(),
+        startTime: Date.now(), // Set completion time
+      },
+      180 // 3 minutes TTL - enough time for clients to see completion, then auto-clears
+    )
 
-    // Clean up progress indicator after 3 seconds
-    setTimeout(async () => {
-      try {
-        await setCachedData('refresh-in-progress', null, 1) // Expire immediately
-      } catch (error) {
-        console.error('Failed to clear refresh progress:', error)
-      }
-    }, 3000)
+    console.log('✅ Background refresh complete - status will auto-clear in 3 minutes')
   } catch (error) {
     console.error('❌ Background refresh failed:', error)
     await setCachedData(
@@ -91,21 +92,26 @@ export async function refreshCacheInBackground(): Promise<void> {
         progress: 0,
         timestamp: Date.now(),
       },
-      300
-    ) // 5 minutes before retry
+      180 // 3 minutes before retry (reduced from 5 minutes)
+    )
   }
 }
 
 async function updateRefreshStatus(stage: string, progress: number): Promise<void> {
   try {
+    // Get existing status to preserve startTime
+    const existingStatus = await getCachedData('refresh-in-progress')
+
     await setCachedData(
       'refresh-in-progress',
       {
         stage,
         progress,
         timestamp: Date.now(),
+        // Preserve original startTime for accurate age calculations
+        startTime: existingStatus?.startTime || Date.now(),
       },
-      3600
+      1800 // 30 minutes timeout (consistent with initial timeout)
     )
   } catch (error) {
     console.error('Failed to update refresh status:', error)
