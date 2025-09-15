@@ -28,11 +28,22 @@ export async function GET(request: Request): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
 
-  // Check if it's a Vercel cron job (has authorization header) or manual call with secret
-  const isVercelCron = authHeader && authHeader.startsWith('Bearer ')
-  const isManualWithSecret = cronSecret && authHeader === `Bearer ${cronSecret}`
+  // Check authorization - accept any Bearer token (Vercel provides unpredictable tokens)
+  // or manual calls with CRON_SECRET if configured
+  let isAuthorized = false
+  let authType = ''
 
-  if (!isVercelCron && !isManualWithSecret) {
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    // Manual call with correct secret
+    isAuthorized = true
+    authType = '(manual with secret)'
+  } else if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Vercel cron job (has Bearer token)
+    isAuthorized = true
+    authType = '(Vercel cron)'
+  }
+
+  if (!isAuthorized) {
     console.error('❌ Unauthorized cron request - missing or invalid authorization')
     console.log('📋 Request headers:', Object.fromEntries(request.headers.entries()))
 
@@ -46,7 +57,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     )
   }
 
-  console.log('✅ Cron request authorized', isVercelCron ? '(Vercel cron)' : '(manual with secret)')
+  console.log('✅ Cron request authorized', authType)
 
   const startTime = Date.now()
   console.log('🚀 Starting daily cache refresh...')
