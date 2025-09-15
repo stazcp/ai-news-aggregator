@@ -135,13 +135,6 @@ const ImageCollage = ({
                   sizes="(min-width: 1024px) 33vw, 100vw"
                   priority={index === 0}
                   onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
-                  onLoad={(e) => {
-                    const el = e.currentTarget as HTMLImageElement
-                    const nw = el?.naturalWidth || 0
-                    const nh = el?.naturalHeight || 0
-                    if (nw > 0 && nh > 0 && (nw < MIN_W || nh < MIN_H))
-                      setUrls((prev) => prev.filter((u) => u !== url))
-                  }}
                 />
                 {/* Overlay with source name on hover */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
@@ -180,11 +173,8 @@ const ImageCollage = ({
                 priority={index === 0}
                 onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
                 onLoad={(e) => {
-                  const el = e.currentTarget as HTMLImageElement
-                  const nw = el?.naturalWidth || 0
-                  const nh = el?.naturalHeight || 0
-                  if (nw > 0 && nh > 0 && (nw < MIN_W || nh < MIN_H))
-                    setUrls((prev) => prev.filter((u) => u !== url))
+                  // Don't filter images by size in clusters - they're already pre-filtered
+                  // and we want to show what we have on mobile
                 }}
               />
             )}
