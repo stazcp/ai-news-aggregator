@@ -115,7 +115,6 @@ const ImageCollage = ({
         const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
         const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
         const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
-
         const correspondingArticle = articlesByUrl.get(url)
 
         return (
