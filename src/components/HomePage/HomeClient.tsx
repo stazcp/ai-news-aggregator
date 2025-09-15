@@ -1,21 +1,26 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { StoryCluster, Article } from '@/types'
 import HomeLayout from './HomeLayout'
 import HomeHeader from './HomeHeader'
 import NewsList from '@/components/NewsList'
+import RefreshStatusBar from '@/components/RefreshStatusBar'
+import { NewsListSkeleton } from '@/components/ui/Skeleton'
 import { filterByTopic } from '@/lib/utils'
+import { useHomepageData, useHomepageDataAge, HomepageData } from '@/hooks/useHomepageData'
 
 interface HomeClientProps {
-  storyClusters: StoryCluster[]
-  unclusteredArticles: Article[]
-  topics: string[]
-  rateLimitMessage: string | null
+  initialData?: HomepageData
 }
 
-export default function HomeClient({ storyClusters, unclusteredArticles, topics, rateLimitMessage }: HomeClientProps) {
+export default function HomeClient({ initialData }: HomeClientProps) {
   const [topic, setTopic] = useState<string>('')
+
+  // Use React Query for homepage data with initial SSR data
+  const { data: homepageData, isLoading, error, isFetching } = useHomepageData(initialData)
+
+  // Get data age info for UI indicators
+  const dataAge = useHomepageDataAge()
 
   // Initialize from URL once, but do not trigger server navigation on changes
   useEffect(() => {
@@ -26,57 +31,134 @@ export default function HomeClient({ storyClusters, unclusteredArticles, topics,
     } catch {}
   }, [])
 
-  // Compute which topics actually have content
+  // Use React Query data if available, fallback to initial data
+  const data = homepageData || initialData
+
+  // Compute which topics actually have content (same logic as before)
   const available = useMemo(() => {
+    if (!data?.topics || !data?.storyClusters || !data?.unclusteredArticles) {
+      return []
+    }
+
+    const { storyClusters, unclusteredArticles, topics } = data
     const scored: Array<{ topic: string; score: number }> = []
 
     const ACTIVITY_W = Number(process.env.NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT ?? '1')
     const RECENCY_W = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_WEIGHT ?? '1')
-    const HALF_LIFE_HOURS = Number(
-      process.env.NEXT_PUBLIC_TOPIC_RECENCY_HALF_LIFE_HOURS ?? '24'
-    )
+    const HALF_LIFE_HOURS = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_HALF_LIFE_HOURS ?? '24')
 
     const recencyWeight = (publishedAt: string | undefined) => {
       if (!publishedAt) return 0
       try {
         const hours = Math.max(0, (Date.now() - new Date(publishedAt).getTime()) / 36e5)
         const halfLife = HALF_LIFE_HOURS > 0 ? HALF_LIFE_HOURS : 24
-        return Math.exp(-hours / halfLife) // 1 now, ~0.37 at half-life hours
+        return Math.exp(-hours / halfLife)
       } catch {
         return 0
       }
     }
+
     for (const t of topics) {
       const { clusters, unclustered } = filterByTopic(storyClusters, unclusteredArticles, t)
       const clusterArticles = (clusters || []).reduce(
         (sum, c) => sum + (c.articles?.length || 0),
         0
       )
-      // Recency score sums freshness of each article (max ~ total)
-      const recency = (clusters || []).reduce((sum, c) => {
-        return sum + (c.articles || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
-      }, 0) + (unclustered || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
+      const recency =
+        (clusters || []).reduce((sum, c) => {
+          return sum + (c.articles || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
+        }, 0) + (unclustered || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
 
       const total = clusterArticles + (unclustered?.length || 0)
-      const score = ACTIVITY_W * total + RECENCY_W * recency // combine activity and freshness
+      const score = ACTIVITY_W * total + RECENCY_W * recency
       if (total > 0) scored.push({ topic: t, score })
     }
-    // Sort by activity (descending)
+
     scored.sort((a, b) => b.score - a.score)
     return scored.map((s) => s.topic)
-  }, [topics, storyClusters, unclusteredArticles])
+  }, [data])
 
-  const filtered = useMemo(() => filterByTopic(storyClusters, unclusteredArticles, topic || undefined), [storyClusters, unclusteredArticles, topic])
+  const filtered = useMemo(() => {
+    if (!data?.storyClusters || !data?.unclusteredArticles) {
+      return { clusters: [], unclustered: [] }
+    }
+    return filterByTopic(data.storyClusters, data.unclusteredArticles, topic || undefined)
+  }, [data, topic])
+
+  // Show error state if no data and there's an error
+  if (error && !data) {
+    return (
+      <HomeLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="text-6xl mb-4">📰</div>
+            <h1 className="text-2xl font-bold text-red-600 mb-2">Unable to load news</h1>
+            <p className="text-muted-foreground mb-4">
+              We're having trouble loading the latest stories. Please check your connection and try
+              again.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </HomeLayout>
+    )
+  }
+
+  // Show skeleton loading state only if no data at all
+  if (isLoading && !data) {
+    return (
+      <HomeLayout>
+        <NewsListSkeleton />
+      </HomeLayout>
+    )
+  }
+
+  if (!data) return null
+
+  const { storyClusters, unclusteredArticles, topics, rateLimitMessage } = data
 
   return (
     <HomeLayout>
-      <HomeHeader
-        rateLimitMessage={rateLimitMessage}
-        topics={available}
-        activeTopic={topic}
-        onTopicChange={setTopic}
-      />
-      <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
+      {/* Refresh status bar - shows when background updates are happening */}
+      <RefreshStatusBar />
+
+      <div className="relative">
+        {/* Subtle skeleton overlay when fetching fresh data */}
+        {isFetching && data && (
+          <div className="absolute inset-0 z-10 bg-white/50 dark:bg-gray-900/50 backdrop-blur-[1px]">
+            <NewsListSkeleton />
+          </div>
+        )}
+
+        <HomeHeader
+          rateLimitMessage={rateLimitMessage}
+          topics={available}
+          activeTopic={topic}
+          onTopicChange={setTopic}
+        />
+
+        <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
+
+        {/* Last updated timestamp */}
+        {data.lastUpdated && (
+          <div className="text-center text-xs text-muted-foreground mt-8 pb-4 border-t pt-4 mx-4">
+            <p>Last updated: {new Date(data.lastUpdated).toLocaleString()}</p>
+            {dataAge && (
+              <p className="mt-1">
+                Content age:{' '}
+                {dataAge.ageInHours < 1
+                  ? `${Math.round(dataAge.ageInHours * 60)} minutes`
+                  : `${dataAge.ageInHours.toFixed(1)} hours`}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </HomeLayout>
   )
 }
