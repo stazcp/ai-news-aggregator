@@ -4,7 +4,13 @@ import NextImage from 'next/image'
 import { StoryCluster, Article } from '@/types'
 import { useEffect, useMemo, useState } from 'react'
 
-const ImageCollage = ({ cluster, onChangeCount }: { cluster: StoryCluster; onChangeCount?: (count: number) => void }) => {
+const ImageCollage = ({
+  cluster,
+  onChangeCount,
+}: {
+  cluster: StoryCluster
+  onChangeCount?: (count: number) => void
+}) => {
   if (!cluster.imageUrls || cluster.imageUrls.length === 0) {
     return null
   }
@@ -106,8 +112,8 @@ const ImageCollage = ({ cluster, onChangeCount }: { cluster: StoryCluster; onCha
         const layoutClass = layoutForIndex(index)
         let className = 'w-full h-full' + layoutClass
         const srcToUse = url
-        const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '480')
-        const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '300')
+        const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
+        const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
         const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
 
         const correspondingArticle = articlesByUrl.get(url)
