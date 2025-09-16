@@ -42,7 +42,8 @@ async function groqCall<T>(opName: string, call: () => Promise<T>): Promise<T> {
       } catch (err: any) {
         const msg = err?.message || String(err)
         const status = err?.status || err?.code || err?.error?.code
-        const is429 = /429|rate_limit/i.test(msg) || status === 429 || status === 'rate_limit_exceeded'
+        const is429 =
+          /429|rate_limit/i.test(msg) || status === 429 || status === 'rate_limit_exceeded'
         console.warn(`⚠️ Groq error in ${opName}:`, { status, message: msg })
         if (is429 && attempt < GROQ_RETRY_MAX) {
           const jitter = Math.floor(Math.random() * 200)
@@ -81,21 +82,24 @@ function isRateLimitError(error: any): boolean {
 export async function summarizeArticle(content: string, maxLength: number = 150): Promise<string> {
   const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
   try {
-    const completion = await groqCall('summarizeArticle', () => groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional news summarizer. Create concise, informative summaries.',
-        },
-        {
-          role: 'user',
-          content: `Summarize this article in ${maxLength} characters or less. Focus on the key facts and main points:\n\n${content}`,
-        },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      max_tokens: 100,
-      temperature: 0.3,
-    }))
+    const completion = await groqCall('summarizeArticle', () =>
+      groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a professional news summarizer. Create concise, informative summaries.',
+          },
+          {
+            role: 'user',
+            content: `Summarize this article in ${maxLength} characters or less. Focus on the key facts and main points:\n\n${content}`,
+          },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 100,
+        temperature: 0.3,
+      })
+    )
 
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
@@ -149,15 +153,17 @@ ${contentToSummarize}
   `
 
   try {
-    const completion = await groqCall('summarizeCluster', () => groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'You are a senior news editor.' },
-        { role: 'user', content: prompt },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.4,
-      max_tokens: 320,
-    }))
+    const completion = await groqCall('summarizeCluster', () =>
+      groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'You are a senior news editor.' },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.4,
+        max_tokens: 320,
+      })
+    )
 
     const summary =
       completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
@@ -217,18 +223,21 @@ ${JSON.stringify(articleSummaries)}
     // First attempt: structured JSON response
     let responseContent: string | undefined
     try {
-      const completion = await groqCall('clusterArticles.json', () => groq.chat.completions.create({
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that only responds with valid, well-formed JSON.',
-          },
-          { role: 'user', content: prompt },
-        ],
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.1,
-        response_format: { type: 'json_object' },
-      }))
+      const completion = await groqCall('clusterArticles.json', () =>
+        groq.chat.completions.create({
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are a helpful assistant that only responds with valid, well-formed JSON.',
+            },
+            { role: 'user', content: prompt },
+          ],
+          model: 'llama-3.3-70b-versatile',
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        })
+      )
       responseContent = completion.choices[0]?.message?.content ?? undefined
     } catch (err: any) {
       const message = err?.message || String(err)
@@ -239,15 +248,17 @@ ${JSON.stringify(articleSummaries)}
         const strictPrompt = `Respond ONLY with a JSON object of shape {"clusters": [{"clusterTitle": string, "articleIds": string[]} ...]}. No prose. If unsure, return {"clusters": []}.\nArticles JSON:\n${JSON.stringify(
           articleSummaries
         )}`
-        const retry = await groqCall('clusterArticles.retry', () => groq.chat.completions.create({
-          messages: [
-            { role: 'system', content: 'Output valid JSON only. No explanations.' },
-            { role: 'user', content: strictPrompt },
-          ],
-          model: 'llama-3.3-70b-versatile',
-          temperature: 0,
-          max_tokens: 800,
-        }))
+        const retry = await groqCall('clusterArticles.retry', () =>
+          groq.chat.completions.create({
+            messages: [
+              { role: 'system', content: 'Output valid JSON only. No explanations.' },
+              { role: 'user', content: strictPrompt },
+            ],
+            model: 'llama-3.3-70b-versatile',
+            temperature: 0,
+            max_tokens: 800,
+          })
+        )
         responseContent = retry.choices[0]?.message?.content ?? undefined
       } else {
         throw err
@@ -345,16 +356,18 @@ Cluster JSON follows:
 ${JSON.stringify(brief)}
     `
 
-    const completion = await groqCall('assessClusterSeverityLLM', () => groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'Return valid JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      max_tokens: 200,
-    }))
+    const completion = await groqCall('assessClusterSeverityLLM', () =>
+      groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'Return valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        max_tokens: 200,
+      })
+    )
 
     const content = completion.choices[0]?.message?.content || '{}'
     let obj: any
@@ -363,7 +376,10 @@ ${JSON.stringify(brief)}
     } catch {
       const s = content.indexOf('{')
       const e = content.lastIndexOf('}')
-      obj = s >= 0 && e > s ? JSON.parse(content.slice(s, e + 1)) : { level: 0, label: 'Other', reasons: [] }
+      obj =
+        s >= 0 && e > s
+          ? JSON.parse(content.slice(s, e + 1))
+          : { level: 0, label: 'Other', reasons: [] }
     }
     const out = {
       level: Number(obj?.level) || 0,
@@ -391,12 +407,8 @@ export async function mergeClustersByLLM(
 
   // Build compact briefs for each cluster to keep token usage bounded
   const briefs = clusters.map((c, index) => {
-    const arts = (c.articleIds || [])
-      .map((id) => articleMap.get(id))
-      .filter(Boolean) as Article[]
-    const topTitles = arts
-      .slice(0, 3)
-      .map((a) => `${a.source?.name || ''}: ${a.title}`)
+    const arts = (c.articleIds || []).map((id) => articleMap.get(id)).filter(Boolean) as Article[]
+    const topTitles = arts.slice(0, 3).map((a) => `${a.source?.name || ''}: ${a.title}`)
     const dates = arts.map((a) => a.publishedAt).filter(Boolean)
     const range = dates.length
       ? `${new Date(Math.min(...dates.map((d) => new Date(d).getTime()))).toISOString()}–${new Date(
@@ -412,7 +424,10 @@ export async function mergeClustersByLLM(
     }
   })
 
-  const cacheKey = `llm-merge-${briefs.map((b) => b.title).join('|').slice(0, 900)}`
+  const cacheKey = `llm-merge-${briefs
+    .map((b) => b.title)
+    .join('|')
+    .slice(0, 900)}`
   const cached = await getCachedData(cacheKey)
   if (cached) return cached
 
@@ -431,16 +446,18 @@ ${JSON.stringify(briefs)}
   `
 
   try {
-    const completion = await groqCall('mergeClustersByLLM', () => groq.chat.completions.create({
-      messages: [
-        { role: 'system', content: 'You return strict JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.1,
-      response_format: { type: 'json_object' },
-      max_tokens: 800,
-    }))
+    const completion = await groqCall('mergeClustersByLLM', () =>
+      groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'You return strict JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        max_tokens: 800,
+      })
+    )
 
     const content = completion.choices[0]?.message?.content || '{}'
     let obj: any
@@ -460,11 +477,7 @@ ${JSON.stringify(briefs)}
       const idxs: number[] = Array.isArray(g?.indices) ? g.indices : []
       if (!idxs.length) continue
       idxs.forEach((i) => used.add(i))
-      const unionIds = Array.from(
-        new Set(
-          idxs.flatMap((i) => clusters[i]?.articleIds || [])
-        )
-      )
+      const unionIds = Array.from(new Set(idxs.flatMap((i) => clusters[i]?.articleIds || [])))
       const titleCandidates = idxs
         .map((i) => clusters[i]?.clusterTitle || '')
         .filter(Boolean)
