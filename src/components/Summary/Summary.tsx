@@ -53,7 +53,7 @@ export default function Summary({
               size="sm"
               variant="outline"
               onClick={requestSummary}
-              className="relative overflow-hidden bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-blue-100 hover:border-purple-300 hover:text-purple-800 transition-all duration-300 hover:shadow-md hover:shadow-purple-100 dark:from-purple-950/30 dark:to-blue-950/30 dark:border-purple-800 dark:text-purple-300 dark:hover:from-purple-900/40 dark:hover:to-blue-900/40 dark:hover:border-purple-700 dark:hover:text-purple-200 dark:hover:shadow-purple-900/20"
+              className="cursor-pointer relative overflow-hidden bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-blue-100 hover:border-purple-300 hover:text-purple-800 transition-all duration-300 hover:shadow-md hover:shadow-purple-100 dark:from-purple-950/30 dark:to-blue-950/30 dark:border-purple-800 dark:text-purple-300 dark:hover:from-purple-900/40 dark:hover:to-blue-900/40 dark:hover:border-purple-700 dark:hover:text-purple-200 dark:hover:shadow-purple-900/20"
             >
               <span className="relative z-10">
                 <span className="font-medium">✨ Summarize with AI</span>

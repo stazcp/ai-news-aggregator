@@ -42,7 +42,6 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
           <ArticleCard
             key={a.id}
             article={a}
-            showSummary={index < 4}
             eager={false}
             imageVariant={v === 'thumb' ? 'thumb' : 'default'}
           />

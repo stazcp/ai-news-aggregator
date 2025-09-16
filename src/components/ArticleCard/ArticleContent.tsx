@@ -3,14 +3,12 @@ import Summary from '@/components/Summary/Summary'
 
 interface ArticleContentProps {
   article: Article
-  showSummary?: boolean
   eager?: boolean
   variant?: 'compact' | 'full'
 }
 
 export default function ArticleContent({
   article,
-  showSummary = true,
   eager = false,
   variant = 'full',
 }: ArticleContentProps) {
@@ -32,14 +30,15 @@ export default function ArticleContent({
 
       <p className={descriptionClasses}>{article.description}</p>
 
-      {showSummary && (
-        <Summary
-          articleId={article.id}
-          content={article.content ?? ''}
-          eager={eager}
-          className={summaryClasses}
-        />
-      )}
+      <Summary
+        articleId={article.id}
+        // Provide richer payload so manual summaries can run even when content is missing/short
+        content={[article.title, article.description || '', article.content || '']
+          .filter(Boolean)
+          .join('\n\n')}
+        eager={eager}
+        className={summaryClasses}
+      />
     </>
   )
 }
