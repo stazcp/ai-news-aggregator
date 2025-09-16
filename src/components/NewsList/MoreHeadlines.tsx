@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import React, { useState } from 'react'
 import { Article } from '@/types'
 import ArticleCard from '@/components/ArticleCard'
 
@@ -10,9 +12,9 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
   if (!articles.length) return null
 
   // Track articles that lose their image at render time; demote them to the bottom
-  const [demoted, setDemoted] = React.useState<Set<string>>(new Set())
+  const [demoted, setDemoted] = useState<Set<string>>(new Set())
   const handleNoImage = (id: string) => {
-    setDemoted((prev) => {
+    setDemoted((prev: Set<string>) => {
       if (prev.has(id)) return prev
       const next = new Set(prev)
       next.add(id)
@@ -29,7 +31,8 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
   const thumb: Article[] = []
   const none: Article[] = []
   for (const a of articles) {
-    const hasUrl = a.urlToImage && a.urlToImage.trim() !== '' && !a.urlToImage.includes('placehold.co')
+    const hasUrl =
+      a.urlToImage && a.urlToImage.trim() !== '' && !a.urlToImage.includes('placehold.co')
     const w = a.imageWidth || 0
     const h = a.imageHeight || 0
     if (hasUrl && w >= MIN_W && h >= MIN_H) big.push(a)
