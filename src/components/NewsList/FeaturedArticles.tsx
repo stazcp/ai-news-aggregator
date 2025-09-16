@@ -38,7 +38,6 @@ export default function FeaturedArticles({ articles }: FeaturedArticlesProps) {
           <ArticleCard
             key={article.id}
             article={article}
-            showSummary={true}
             eager={index < 2}
             onNoImage={handleNoImage}
           />
@@ -52,7 +51,6 @@ export default function FeaturedArticles({ articles }: FeaturedArticlesProps) {
             <ArticleCard
               key={article.id}
               article={article}
-              showSummary={false}
               eager={false}
             />
           ))}

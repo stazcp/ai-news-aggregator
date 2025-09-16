@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import React, { useState } from 'react'
 import { Article } from '@/types'
 import ArticleCard from '@/components/ArticleCard'
 
@@ -9,6 +11,17 @@ interface MoreHeadlinesProps {
 export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
   if (!articles.length) return null
 
+  // Track articles that lose their image at render time; demote them to the bottom
+  const [demoted, setDemoted] = useState<Set<string>>(new Set())
+  const handleNoImage = (id: string) => {
+    setDemoted((prev: Set<string>) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
+
   const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
   const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
   const THUMB_W = Number(process.env.NEXT_PUBLIC_THUMB_IMAGE_WIDTH ?? '160')
@@ -18,18 +31,23 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
   const thumb: Article[] = []
   const none: Article[] = []
   for (const a of articles) {
-    const hasUrl = a.urlToImage && a.urlToImage.trim() !== '' && !a.urlToImage.includes('placehold.co')
+    const hasUrl =
+      a.urlToImage && a.urlToImage.trim() !== '' && !a.urlToImage.includes('placehold.co')
     const w = a.imageWidth || 0
     const h = a.imageHeight || 0
     if (hasUrl && w >= MIN_W && h >= MIN_H) big.push(a)
     else if (hasUrl && ((w >= THUMB_W && h >= THUMB_H) || (!w && !h))) thumb.push(a)
     else none.push(a)
   }
-  const ordered: Array<{ a: Article; v: 'default' | 'thumb' | 'none' }> = [
+  const baseOrdered: Array<{ a: Article; v: 'default' | 'thumb' | 'none' }> = [
     ...big.map((a) => ({ a, v: 'default' as const })),
     ...thumb.map((a) => ({ a, v: 'thumb' as const })),
     ...none.map((a) => ({ a, v: 'none' as const })),
   ]
+  // Demote any items reported as image-failed to the bottom, keeping the rest order
+  const withImg = baseOrdered.filter(({ a, v }) => v !== 'none' && !demoted.has(a.id))
+  const noImg = baseOrdered.filter(({ a, v }) => v === 'none' || demoted.has(a.id))
+  const ordered = [...withImg, ...noImg]
 
   return (
     <section>
@@ -42,9 +60,9 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
           <ArticleCard
             key={a.id}
             article={a}
-            showSummary={index < 4}
             eager={false}
             imageVariant={v === 'thumb' ? 'thumb' : 'default'}
+            onNoImage={handleNoImage}
           />
         ))}
       </div>

@@ -93,10 +93,12 @@ export function useLazySummary({
   }, [variant, cluster?.clusterTitle, articleId])
 
   const enabled = useMemo(() => {
+    // Allow shorter thresholds when user explicitly requests (manual mode),
+    // but still require some content to avoid 400 from the API.
     const lengthOk =
       variant === 'cluster'
         ? (cluster?.articles?.length ?? 0) > 0
-        : !!content && content.length > 100
+        : !!content && (mode === 'manual' ? content.length > 30 : content.length > 100)
     const hasServerClusterSummary = variant === 'cluster' && !!cluster?.summary
     if (mode === 'manual') {
       return lengthOk && hasRequested && topicMatches && !hasServerClusterSummary

@@ -10,7 +10,6 @@ import ArticleFooter from './ArticleCard/ArticleFooter'
 
 interface ArticleCardProps {
   article: Article
-  showSummary?: boolean
   eager?: boolean // For eager loading of summaries
   onNoImage?: (id: string) => void
   imageVariant?: 'default' | 'thumb'
@@ -18,7 +17,6 @@ interface ArticleCardProps {
 
 export default function ArticleCard({
   article,
-  showSummary = true,
   eager = false,
   onNoImage,
   imageVariant = 'default',
@@ -47,7 +45,6 @@ export default function ArticleCard({
 
           <ArticleContent
             article={article}
-            showSummary={showSummary}
             eager={eager}
             variant="compact"
           />
@@ -82,7 +79,7 @@ export default function ArticleCard({
           variant="full"
         />
 
-        <ArticleContent article={article} showSummary={showSummary} eager={eager} variant="full" />
+        <ArticleContent article={article} eager={eager} variant="full" />
 
         <ArticleFooter url={article.url} variant="full" />
       </CardContent>
