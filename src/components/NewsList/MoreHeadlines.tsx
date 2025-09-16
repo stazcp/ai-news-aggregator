@@ -9,6 +9,17 @@ interface MoreHeadlinesProps {
 export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
   if (!articles.length) return null
 
+  // Track articles that lose their image at render time; demote them to the bottom
+  const [demoted, setDemoted] = React.useState<Set<string>>(new Set())
+  const handleNoImage = (id: string) => {
+    setDemoted((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+  }
+
   const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
   const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
   const THUMB_W = Number(process.env.NEXT_PUBLIC_THUMB_IMAGE_WIDTH ?? '160')
@@ -25,11 +36,15 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
     else if (hasUrl && ((w >= THUMB_W && h >= THUMB_H) || (!w && !h))) thumb.push(a)
     else none.push(a)
   }
-  const ordered: Array<{ a: Article; v: 'default' | 'thumb' | 'none' }> = [
+  const baseOrdered: Array<{ a: Article; v: 'default' | 'thumb' | 'none' }> = [
     ...big.map((a) => ({ a, v: 'default' as const })),
     ...thumb.map((a) => ({ a, v: 'thumb' as const })),
     ...none.map((a) => ({ a, v: 'none' as const })),
   ]
+  // Demote any items reported as image-failed to the bottom, keeping the rest order
+  const withImg = baseOrdered.filter(({ a, v }) => v !== 'none' && !demoted.has(a.id))
+  const noImg = baseOrdered.filter(({ a, v }) => v === 'none' || demoted.has(a.id))
+  const ordered = [...withImg, ...noImg]
 
   return (
     <section>
@@ -44,6 +59,7 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
             article={a}
             eager={false}
             imageVariant={v === 'thumb' ? 'thumb' : 'default'}
+            onNoImage={handleNoImage}
           />
         ))}
       </div>
