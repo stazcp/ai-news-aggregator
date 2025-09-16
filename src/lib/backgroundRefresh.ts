@@ -14,6 +14,17 @@ interface RefreshProgress {
 }
 
 export async function refreshCacheInBackground(): Promise<void> {
+  // Skip background refresh in local development unless explicitly enabled
+  const ALLOW_LOCAL = /^(1|true|yes)$/i.test(
+    process.env.ALLOW_LOCAL_BACKGROUND_REFRESH || ''
+  )
+  if (process.env.NODE_ENV === 'development' && !ALLOW_LOCAL) {
+    console.log(
+      '⏭️ Skipping background refresh in development (set ALLOW_LOCAL_BACKGROUND_REFRESH=1 to enable)'
+    )
+    return
+  }
+
   const isAlreadyRefreshing = await getCachedData('refresh-in-progress')
   if (isAlreadyRefreshing) {
     console.log('🔄 Refresh already in progress, skipping')

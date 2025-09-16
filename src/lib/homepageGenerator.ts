@@ -2,7 +2,7 @@ import { fetchAllNews } from './newsService'
 import { getStoryClusters, getUnclusteredArticles } from './clusterService'
 import { setCachedData, getCachedData } from './cache'
 import { computeTrendingTopics, computeCategoryFallbackTopics } from './topics'
-import { summarizeArticle } from './groq'
+import { summarizeArticle, summarizeCluster } from './groq'
 import { StoryCluster, Article } from '@/types'
 
 export interface HomepageData {
@@ -139,13 +139,8 @@ async function generateAndCacheSummary(
     let summary: string
 
     if (isCluster && Array.isArray(content)) {
-      // For clusters, create a comprehensive summary from multiple articles
-      const combinedContent = content
-        .map((article) => `${article.title}\n${article.description || article.content}`)
-        .join('\n\n---\n\n')
-
-      const clusterPrompt = `Please create a comprehensive summary of this news story based on multiple sources:\n\nStory: ${clusterTitle}\n\nSource Content:\n${combinedContent}`
-      summary = await summarizeArticle(clusterPrompt)
+      // Use the cluster-specific summarizer for multi-sentence cohesive summaries
+      summary = await summarizeCluster(content)
     } else if (typeof content === 'string') {
       // Regular article summary
       summary = await summarizeArticle(content)
@@ -174,7 +169,8 @@ export async function enrichClustersWithSummaries(
       const clusterId = (cluster.articleIds || []).slice(0, 10).sort().join('-')
       return {
         ...cluster,
-        summary: (await getCachedData(`Summary-${clusterId}`)) || undefined,
+        // Preserve existing server-generated summary; otherwise, hydrate from cache if available
+        summary: cluster.summary || (await getCachedData(`Summary-${clusterId}`)) || undefined,
       }
     })
   )
