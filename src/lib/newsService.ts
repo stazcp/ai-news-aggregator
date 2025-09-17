@@ -2,6 +2,7 @@ import Parser from 'rss-parser'
 import { Article } from '@/types'
 import rssConfig from './rss-feeds.json'
 import { getCachedData, setCachedData } from './cache'
+import { inferImageDimsFromUrl } from './imageProviders'
 import { normalizeImageUrl } from './normalizeImageUrl'
 
 // Simple log gating for feed operations
@@ -333,14 +334,21 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
         try {
-          const dims = getImageDimensions(item)
+          const imageUrl = getImage(item) || ''
+          let dims = getImageDimensions(item)
+          if ((!dims.width && !dims.height) && imageUrl) {
+            const inferred = inferImageDimsFromUrl(imageUrl)
+            if (inferred.width || inferred.height) {
+              dims = inferred
+            }
+          }
           const article: Article = {
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}-${index}`,
             title: item.title?.trim() || 'Untitled Article',
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content: item.content?.trim() || item.contentSnippet?.trim() || '',
             url: item.link?.trim() || '',
-            urlToImage: getImage(item) || '',
+            urlToImage: imageUrl,
             imageWidth: dims.width,
             imageHeight: dims.height,
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),

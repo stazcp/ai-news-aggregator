@@ -2,6 +2,7 @@
 
 import NextImage from 'next/image'
 import { StoryCluster, Article } from '@/types'
+import { inferImageDimsFromUrl } from '@/lib/imageProviders'
 import { useEffect, useMemo, useState } from 'react'
 
 const ImageCollage = ({
@@ -27,10 +28,19 @@ const ImageCollage = ({
   }, [cluster.articles])
 
   // Keep a live list of usable URLs; when an image fails or is too small, remove it
-  const initialUrls = useMemo(
-    () => (cluster.imageUrls || []).filter(Boolean).slice(0, 4),
-    [cluster.imageUrls]
-  )
+  const initialUrls = useMemo(() => {
+    const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
+    const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
+    return (cluster.imageUrls || [])
+      .filter(Boolean)
+      .filter((url) => {
+        const d = inferImageDimsFromUrl(url)
+        if (typeof d.width === 'number' && d.width < MIN_W) return false
+        if (typeof d.height === 'number' && d.height < MIN_H) return false
+        return true
+      })
+      .slice(0, 4)
+  }, [cluster.imageUrls])
   const [urls, setUrls] = useState<string[]>(initialUrls)
   useEffect(() => setUrls(initialUrls), [initialUrls])
   useEffect(() => {
@@ -173,8 +183,13 @@ const ImageCollage = ({
                 priority={index === 0}
                 onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
                 onLoad={(e) => {
-                  // Don't filter images by size in clusters - they're already pre-filtered
-                  // and we want to show what we have on mobile
+                  // Client-side guard: if we detect intrinsically small images, drop them from the collage
+                  const img = e.currentTarget as HTMLImageElement
+                  const nw = img?.naturalWidth || 0
+                  const nh = img?.naturalHeight || 0
+                  if ((nw > 0 && nw < MIN_W) || (nh > 0 && nh < MIN_H)) {
+                    setUrls((prev) => prev.filter((u) => u !== url))
+                  }
                 }}
               />
             )}

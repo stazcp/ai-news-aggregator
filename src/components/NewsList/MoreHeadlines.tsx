@@ -56,7 +56,7 @@ export default function MoreHeadlines({ articles }: MoreHeadlinesProps) {
         More Headlines
       </h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 gap-4 items-start">
-        {ordered.map(({ a, v }, index) => (
+        {ordered.map(({ a, v }) => (
           <ArticleCard
             key={a.id}
             article={a}
