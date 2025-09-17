@@ -380,8 +380,13 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               dims = { width: fromContent.width, height: fromContent.height }
             }
           }
+          // Generate unique ID: category + title hash + source hash + index
+          // This ensures uniqueness even when titles are identical across sources
+          const sourceHash = simpleHash(getFeedTitle(feed, url))
+          const titleHash = simpleHash(item.title?.trim() || 'untitled')
+
           const article: Article = {
-            id: `${category.replace(/\s+/g, '-').toLowerCase()}-${simpleHash(item.title?.trim() || 'untitled')}`,
+            id: `${category.replace(/\s+/g, '-').toLowerCase()}-${titleHash}-${sourceHash}-${index}`,
             title: item.title?.trim() || 'Untitled Article',
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content: item.content?.trim() || item.contentSnippet?.trim() || '',
