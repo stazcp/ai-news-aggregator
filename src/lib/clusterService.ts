@@ -1,4 +1,5 @@
 import { Article, StoryCluster } from '@/types'
+import { inferImageDimsFromUrl } from './imageProviders'
 import { clusterArticles, summarizeCluster, mergeClustersByLLM } from './groq'
 import { computeSeverity, scoreCluster } from './severity'
 import { assessClusterSeverityLLM } from './groq'
@@ -291,11 +292,17 @@ async function enrichClusters(
       const validImageArticles = articlesInCluster.filter((a) => {
         const urlOk = a.urlToImage && !a.urlToImage.includes('placehold.co')
         if (!urlOk) return false
-        // If dimensions are provided, enforce minimums
-        if (a.imageWidth && a.imageHeight) {
-          return a.imageWidth >= MINW && a.imageHeight >= MINH
+        // Prefer explicit dims; if missing, infer from known providers (Guardian/BBC)
+        let w = a.imageWidth
+        let h = a.imageHeight
+        if (!w || !h) {
+          const inferred = inferImageDimsFromUrl(a.urlToImage)
+          w = w || inferred.width
+          h = h || inferred.height
         }
-        // Unknown dimensions: allow
+        // Enforce minimums when we know at least one dimension
+        if (typeof w === 'number' && w > 0 && w < MINW) return false
+        if (typeof h === 'number' && h > 0 && h < MINH) return false
         return true
       })
       // Unique image URLs only to avoid duplicate keys and empty slots
