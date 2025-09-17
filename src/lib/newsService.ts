@@ -4,6 +4,7 @@ import rssConfig from './rss-feeds.json'
 import { getCachedData, setCachedData } from './cache'
 import { inferImageDimsFromUrl } from './imageProviders'
 import { normalizeImageUrl } from './normalizeImageUrl'
+import { simpleHash } from './utils'
 
 // Simple log gating for feed operations
 const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()
@@ -75,6 +76,33 @@ function extractImageFromContent(content: string | undefined): string | null {
     return imgMatch ? imgMatch[1] : null
   } catch (error) {
     console.warn('Error extracting image from content:', error)
+    return null
+  }
+}
+
+// Extended: extract URL plus width/height attributes from the first <img> tag in HTML content
+function extractImageFromContentWithDims(
+  content: string | undefined
+): { url: string; width?: number; height?: number } | null {
+  if (!content) return null
+  try {
+    const tagMatch = content.match(/<img[^>]*>/i)
+    if (!tagMatch) return null
+    const tag = tagMatch[0]
+    const srcMatch = tag.match(/src=["']([^"']+)["']/i)
+    if (!srcMatch) return null
+    const url = srcMatch[1]
+    const wMatch = tag.match(/\bwidth=["']?(\d+)["']?/i)
+    const hMatch = tag.match(/\bheight=["']?(\d+)["']?/i)
+    const width = wMatch ? Number(wMatch[1]) : undefined
+    const height = hMatch ? Number(hMatch[1]) : undefined
+    return {
+      url,
+      width: Number.isFinite(width) ? width : undefined,
+      height: Number.isFinite(height) ? height : undefined,
+    }
+  } catch (error) {
+    console.warn('Error extracting image with dims from content:', error)
     return null
   }
 }
@@ -179,7 +207,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         const host = new URL(effectiveUrl).hostname
         const allowList: string[] = (rssConfig as any)?.imageHostnames?.httpFallbacks || []
         const isAllowed = allowList.some((h) => host === h || host.endsWith(h.replace(/^\*\./, '')))
-        const looksHtml = /Non-whitespace before first tag|Status code 406|Status code 403/i.test(msg)
+        const looksHtml = /Non-whitespace before first tag|Status code 406|Status code 403/i.test(
+          msg
+        )
         if (looksHtml && isAllowed && effectiveUrl.startsWith('https://')) {
           const httpUrl = effectiveUrl.replace(/^https:/, 'http:')
           log('warn', `⚠️ HTTPS feed failed (${host}); retrying over HTTP: ${httpUrl}`)
@@ -193,10 +223,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       }
     }
 
-    log(
-      'info',
-      `✅ Parsed: "${getFeedTitle(feed, effectiveUrl)}" items=${feed.items?.length || 0}`
-    )
+    log('info', `✅ Parsed: "${getFeedTitle(feed, effectiveUrl)}" items=${feed.items?.length || 0}`)
 
     if (!feed.items || feed.items.length === 0) {
       console.warn(`⚠️ No items found in feed: ${url}`)
@@ -278,14 +305,17 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         }
 
         // Priority 5: Extract from HTML content
-        const extractedImage = extractImageFromContent(item.content || item.contentSnippet)
-        if (extractedImage && isValidUrl(extractedImage)) {
-          const normalizedUrl = normalizeImageUrl(extractedImage, 976)
+        const extracted = extractImageFromContentWithDims(item.content || item.contentSnippet)
+        if (extracted?.url && isValidUrl(extracted.url)) {
+          const normalizedUrl = normalizeImageUrl(extracted.url, 976)
           log('debug', `🖼️ [${getFeedTitle(feed, url)}] extracted ${normalizedUrl}`)
           return normalizedUrl
         }
 
-        log('debug', `🚫 [${getFeedTitle(feed, url)}] No image for: ${item.title?.substring(0, 50)}...`)
+        log(
+          'debug',
+          `🚫 [${getFeedTitle(feed, url)}] No image for: ${item.title?.substring(0, 50)}...`
+        )
         return null
       } catch (error) {
         console.warn(`Warning: Error getting image for item: ${item.title}`, error)
@@ -293,7 +323,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       }
     }
 
-    const getImageDimensions = (item: (typeof feed.items)[0]): { width?: number; height?: number } => {
+    const getImageDimensions = (
+      item: (typeof feed.items)[0]
+    ): { width?: number; height?: number } => {
       try {
         // media:thumbnail
         if (item['media:thumbnail']) {
@@ -336,14 +368,20 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         try {
           const imageUrl = getImage(item) || ''
           let dims = getImageDimensions(item)
-          if ((!dims.width && !dims.height) && imageUrl) {
+          if (!dims.width && !dims.height && imageUrl) {
             const inferred = inferImageDimsFromUrl(imageUrl)
             if (inferred.width || inferred.height) {
               dims = inferred
             }
           }
+          if (!dims.width && !dims.height) {
+            const fromContent = extractImageFromContentWithDims(item.content || item.contentSnippet)
+            if (fromContent?.width || fromContent?.height) {
+              dims = { width: fromContent.width, height: fromContent.height }
+            }
+          }
           const article: Article = {
-            id: `${category.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}-${index}`,
+            id: `${category.replace(/\s+/g, '-').toLowerCase()}-${simpleHash(item.title?.trim() || 'untitled')}`,
             title: item.title?.trim() || 'Untitled Article',
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content: item.content?.trim() || item.contentSnippet?.trim() || '',
@@ -452,7 +490,10 @@ export async function fetchAllNews(): Promise<Article[]> {
 
   for (let i = 0; i < allFeeds.length; i += BATCH_SIZE) {
     const batch = allFeeds.slice(i, i + BATCH_SIZE)
-    log('info', `🔄 Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFeeds.length / BATCH_SIZE)} (${batch.length})`)
+    log(
+      'info',
+      `🔄 Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allFeeds.length / BATCH_SIZE)} (${batch.length})`
+    )
 
     const batchPromises = batch.map(async ({ url, category }) => {
       try {
@@ -504,7 +545,10 @@ export async function fetchAllNews(): Promise<Article[]> {
       }
     })
 
-    log('info', `📊 Feed Results: ok=${successfulFeeds.length} fail=${failedFeeds.length} items=${allArticles.length}`)
+    log(
+      'info',
+      `📊 Feed Results: ok=${successfulFeeds.length} fail=${failedFeeds.length} items=${allArticles.length}`
+    )
 
     if (failedFeeds.length > 0) {
       log('warn', `  Failed feed URLs:`, failedFeeds.slice(0, 5))

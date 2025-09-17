@@ -1,7 +1,7 @@
 import { fetchAllNews } from './newsService'
 import { getStoryClusters, getUnclusteredArticles } from './clusterService'
 import { setCachedData, getCachedData } from './cache'
-import { computeTrendingTopics, computeCategoryFallbackTopics } from './topics'
+import { TOPIC_KEYWORDS } from './topics'
 import { summarizeArticle, summarizeCluster } from './groq'
 import { StoryCluster, Article } from '@/types'
 
@@ -32,10 +32,9 @@ export async function generateFreshHomepage(): Promise<HomepageData> {
 
     // Get unclustered articles and topics
     const unclusteredArticles = getUnclusteredArticles(articles, storyClusters)
-    const computed = computeTrendingTopics(articles, storyClusters, 10)
-    const topics = computed.length
-      ? computed
-      : computeCategoryFallbackTopics(articles, storyClusters, 10)
+    // Predefined topics derived from TOPIC_KEYWORDS; the client will score/order and
+    // hide those without content. The UI already renders the special 'Trending' pill first.
+    const topics = Object.keys(TOPIC_KEYWORDS)
 
     const homepageData: HomepageData = {
       storyClusters,

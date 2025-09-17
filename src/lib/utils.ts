@@ -1,10 +1,24 @@
 import { Article, StoryCluster } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { TOPIC_KEYWORDS, computeKeywordScore } from './topics'
+import { computeKeywordScore } from './topics'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/**
+ * Simple hash function for generating deterministic IDs from strings
+ * Uses bit shifting and character codes to create collision-resistant hashes
+ */
+export function simpleHash(input: string): string {
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i)
+    hash = (hash << 5) - hash + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36) // Convert to base36 string
 }
 
 export const getParamString = (v: string | string[] | undefined): string | undefined => {
@@ -23,6 +37,7 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
   Politics: ['Politics', 'US Politics'],
   Climate: ['Environment', 'Climate'],
   Health: ['Health'],
+  Crypto: ['Crypto', 'Cryptocurrency'],
 }
 
 function categoryMatches(topic: string, category?: string): boolean {
