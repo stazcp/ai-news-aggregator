@@ -2,6 +2,23 @@
 import { Article, StoryCluster } from '@/types'
 
 export const TOPIC_KEYWORDS: Record<string, string[]> = {
+  Crypto: [
+    'crypto',
+    'cryptocurrency',
+    'bitcoin',
+    'btc',
+    'ethereum',
+    'eth',
+    'blockchain',
+    'defi',
+    'stablecoin',
+    'token',
+    'web3',
+    'nft',
+    'solana',
+    'binance',
+    'coinbase',
+  ],
   'Artificial Intelligence': [
     'ai',
     'artificial intelligence',
@@ -184,4 +201,23 @@ export function computeCategoryFallbackTopics(
     .sort((a, b) => b[1] - a[1])
     .map(([name]) => name)
     .slice(0, limit)
+}
+
+/**
+ * Lists all distinct categories present across articles and clusters (no limit).
+ */
+export function listAllCategoriesPresent(
+  articles: Article[],
+  clusters: StoryCluster[]
+): string[] {
+  const set = new Set<string>()
+  for (const a of articles) {
+    if (a?.category) set.add(a.category)
+  }
+  for (const c of clusters) {
+    for (const a of c.articles || []) {
+      if (a?.category) set.add(a.category)
+    }
+  }
+  return Array.from(set)
 }

@@ -78,7 +78,7 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
               <Button
                 variant="outline"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full"
+                className="w-full cursor-pointer"
               >
                 {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
               </Button>

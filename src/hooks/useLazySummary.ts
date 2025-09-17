@@ -99,9 +99,11 @@ export function useLazySummary({
       variant === 'cluster'
         ? (cluster?.articles?.length ?? 0) > 0
         : !!content && (mode === 'manual' ? content.length > 30 : content.length > 100)
+
     const hasServerClusterSummary = variant === 'cluster' && !!cluster?.summary
+
     if (mode === 'manual') {
-      return lengthOk && hasRequested && topicMatches && !hasServerClusterSummary
+      return lengthOk && hasRequested && !hasServerClusterSummary
     }
     return lengthOk && (eager || isIntersecting) && topicMatches && !hasServerClusterSummary
   }, [variant, cluster, content, eager, isIntersecting, topicMatches, mode, hasRequested])
