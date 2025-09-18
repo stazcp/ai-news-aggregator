@@ -4,7 +4,7 @@ import { matchesTopic } from '@/lib/topics'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { StoryCluster } from '@/types'
 import { useQuery } from '@tanstack/react-query'
-import { getClusterSummaryId } from '@/lib/summaryCache'
+import { getClusterSummaryId } from '@/lib/ai/summaryCache'
 
 interface UseLazySummaryArgs {
   articleId?: string
@@ -79,7 +79,7 @@ export function useLazySummary({
 
   const contentPayload = useMemo(() => {
     if (variant === 'cluster' && cluster) {
-      return cluster.articles
+      return cluster?.articles ?? []
     }
     return content || ''
   }, [variant, cluster, content])

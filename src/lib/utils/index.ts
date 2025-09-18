@@ -1,7 +1,7 @@
 import { Article, StoryCluster } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { computeKeywordScore } from './topics'
+import { computeKeywordScore } from '../topics'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -123,11 +123,7 @@ export function buildCategorySummaryPayload(
   const topicLabel = label.trim() || 'Trending'
   if (!clusters.length && !unclustered.length) return null
 
-  const {
-    maxClusters = 4,
-    maxArticlesPerCluster = 3,
-    maxStandaloneArticles = 4,
-  } = options || {}
+  const { maxClusters = 4, maxArticlesPerCluster = 3, maxStandaloneArticles = 4 } = options || {}
 
   const seen = new Set<string>()
   const orderedArticles: Article[] = []

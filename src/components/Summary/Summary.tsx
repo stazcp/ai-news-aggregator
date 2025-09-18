@@ -36,6 +36,8 @@ export default function Summary({
 
   const containerClasses = `rounded-lg border ${className}`
 
+  console.log('summary', summary)
+
   return (
     <SummaryBase
       elementRef={elementRef}
@@ -43,7 +45,7 @@ export default function Summary({
       error={error}
       isIntersecting={isIntersecting && topicMatches}
       eager={eager}
-      className={`${containerClasses} ${summary ? 'bg-accent/10' : ''}`}
+      className={`${containerClasses} ${summary ? 'bg-accent/10' : ''} ${!!summary ? 'p-2' : ''}`}
       loadingContent={<LoadingSpinner variant="article" />}
       placeholderContent={
         ON_DEMAND ? (

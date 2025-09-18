@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData, setCachedData } from '@/lib/cache'
-import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/groq'
-import { getSummaryCacheKey } from '@/lib/summaryCache'
+import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
+import { getSummaryCacheKey } from '@/lib/ai/summaryCache'
 
 export async function POST(request: Request) {
   try {

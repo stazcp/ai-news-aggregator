@@ -1,15 +1,15 @@
-import { refreshCacheInBackground, getRefreshStatus } from '../backgroundRefresh'
+import { refreshCacheInBackground, getRefreshStatus } from '../homepage/backgroundRefresh'
 import { getCachedData, setCachedData } from '../cache'
 import {
   generateFreshHomepage,
   generateTopStorySummaries,
   enrichClustersWithSummaries,
-} from '../homepageGenerator'
+} from '../homepage/homepageGenerator'
 
 // Mock all dependencies
 jest.mock('../cache')
-jest.mock('../homepageGenerator')
-jest.mock('../groq') // Mock GROQ to prevent API calls
+jest.mock('../homepage/homepageGenerator')
+jest.mock('../ai/groq') // Mock GROQ to prevent API calls
 
 const mockGetCachedData = getCachedData as jest.MockedFunction<typeof getCachedData>
 const mockSetCachedData = setCachedData as jest.MockedFunction<typeof setCachedData>

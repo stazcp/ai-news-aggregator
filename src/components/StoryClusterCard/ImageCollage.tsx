@@ -2,8 +2,8 @@
 
 import NextImage from 'next/image'
 import { StoryCluster, Article } from '@/types'
-import { inferImageDimsFromUrl } from '@/lib/imageProviders'
 import { useEffect, useMemo, useState } from 'react'
+import { inferImageDimsFromUrl } from '@/lib/images/imageProviders'
 
 const ImageCollage = ({
   cluster,

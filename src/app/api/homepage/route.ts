@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData } from '@/lib/cache'
-import { refreshCacheInBackground } from '@/lib/backgroundRefresh'
-import { generateFreshHomepage, HomepageData as BaseHomepageData } from '@/lib/homepageGenerator'
+import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
+import { generateFreshHomepage, HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
 
 interface HomepageData extends BaseHomepageData {
   fromCache: boolean

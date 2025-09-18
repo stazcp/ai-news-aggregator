@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { fetchAllNews } from '@/lib/newsService'
+import { fetchAllNews } from '@/lib/news/newsService'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { Article } from '@/types'
 

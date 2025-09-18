@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
-import { HomepageData as BaseHomepageData } from '@/lib/homepageGenerator'
+import { HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
 
 export interface HomepageData extends BaseHomepageData {
   fromCache: boolean

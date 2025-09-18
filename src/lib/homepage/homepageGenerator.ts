@@ -1,9 +1,9 @@
-import { fetchAllNews } from './newsService'
-import { getStoryClusters, getUnclusteredArticles } from './clusterService'
-import { setCachedData, getCachedData } from './cache'
-import { TOPIC_KEYWORDS } from './topics'
-import { summarizeArticle, summarizeCluster } from './groq'
-import { getSummaryCacheKey, SummaryPurpose, getClusterSummaryId } from './summaryCache'
+import { fetchAllNews } from '../news/newsService'
+import { getStoryClusters, getUnclusteredArticles } from '../clustering/clusterService'
+import { setCachedData, getCachedData } from '../cache'
+import { TOPIC_KEYWORDS } from '../topics'
+import { summarizeArticle, summarizeCluster } from '../ai/groq'
+import { getSummaryCacheKey, SummaryPurpose, getClusterSummaryId } from '../ai/summaryCache'
 import { StoryCluster, Article } from '@/types'
 
 export interface HomepageData {
