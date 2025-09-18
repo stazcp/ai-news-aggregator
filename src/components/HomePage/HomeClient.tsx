@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import HomeLayout from './HomeLayout'
 import HomeHeader from './HomeHeader'
 import NewsList from '@/components/NewsList'
+import CategorySummary from '@/components/Summary/CategorySummary'
 import RefreshStatusBar from '@/components/RefreshStatusBar'
 import { NewsListSkeleton } from '@/components/ui/Skeleton'
 import { filterByTopic } from '@/lib/utils'
@@ -143,6 +144,12 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           topics={available}
           activeTopic={topic}
           onTopicChange={setTopic}
+        />
+
+        <CategorySummary
+          topic={topic || undefined}
+          clusters={filtered.clusters}
+          unclustered={filtered.unclustered}
         />
 
         <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
