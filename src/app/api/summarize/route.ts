@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData, setCachedData } from '@/lib/cache'
-import { summarizeArticle, summarizeCategoryDigest } from '@/lib/groq'
+import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/groq'
+import { getSummaryCacheKey } from '@/lib/summaryCache'
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
         ? 'category'
         : 'article'
 
-    const cacheKey = `Summary-${summaryPurpose}-${articleId}`
+    const cacheKey = getSummaryCacheKey(summaryPurpose, articleId)
     const summaryType = summaryPurpose
 
     // Log AI resource usage for optimization tracking
@@ -32,9 +33,7 @@ export async function POST(request: Request) {
       console.log(`⚡ [AI Generation] Generating new ${summaryType} summary for: ${articleId}`)
 
       if (summaryPurpose === 'cluster' && clusterTitle) {
-        // For clusters, create a more comprehensive summary
-        const clusterPrompt = `Please create a comprehensive summary of this news story based on multiple sources:\n\nStory: ${clusterTitle}\n\nSource Content:\n${content}`
-        summary = await summarizeArticle(clusterPrompt)
+        summary = await summarizeCluster(content)
       } else if (summaryPurpose === 'category') {
         summary = await summarizeCategoryDigest(content)
       } else {
@@ -43,7 +42,8 @@ export async function POST(request: Request) {
       }
 
       // Cache for longer time for clusters since they're more expensive to generate
-      const cacheTime = summaryPurpose === 'cluster' ? 7200 : summaryPurpose === 'category' ? 5400 : 3600
+      const cacheTime =
+        summaryPurpose === 'cluster' ? 7200 : summaryPurpose === 'category' ? 5400 : 3600
       await setCachedData(cacheKey, summary, cacheTime)
 
       console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)

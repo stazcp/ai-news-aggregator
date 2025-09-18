@@ -4,6 +4,7 @@ import { matchesTopic } from '@/lib/topics'
 import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { StoryCluster } from '@/types'
 import { useQuery } from '@tanstack/react-query'
+import { getClusterSummaryId } from '@/lib/summaryCache'
 
 interface UseLazySummaryArgs {
   articleId?: string
@@ -78,23 +79,17 @@ export function useLazySummary({
 
   const contentPayload = useMemo(() => {
     if (variant === 'cluster' && cluster) {
-      return (
-        cluster.articles
-          ?.map(
-            (article: { title: string; description?: string; content?: string }) =>
-              `${article.title}\n${article.description || article.content || ''}`
-          )
-          .join('\n\n---\n\n') || ''
-      )
+      return cluster.articles
     }
     return content || ''
   }, [variant, cluster, content])
 
   const idForCache = useMemo(() => {
-    return variant === 'cluster'
-      ? `cluster-${cluster?.clusterTitle || 'unknown'}`
-      : articleId || 'unknown'
-  }, [variant, cluster?.clusterTitle, articleId])
+    if (variant === 'cluster' && cluster) {
+      return getClusterSummaryId(cluster)
+    }
+    return articleId || 'unknown'
+  }, [variant, cluster, articleId])
 
   const enabled = useMemo(() => {
     // Allow shorter thresholds when user explicitly requests (manual mode),
