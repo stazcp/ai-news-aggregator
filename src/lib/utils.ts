@@ -100,3 +100,117 @@ export const filterByTopic = (
       ),
   }
 }
+
+export interface CategorySummaryPayload {
+  id: string
+  content: string
+  articleCount: number
+}
+
+/**
+ * Build a normalized payload for category-level summaries using top clusters and headlines.
+ */
+export function buildCategorySummaryPayload(
+  label: string,
+  clusters: StoryCluster[],
+  unclustered: Article[],
+  options?: {
+    maxClusters?: number
+    maxArticlesPerCluster?: number
+    maxStandaloneArticles?: number
+  }
+): CategorySummaryPayload | null {
+  const topicLabel = label.trim() || 'Trending'
+  if (!clusters.length && !unclustered.length) return null
+
+  const {
+    maxClusters = 4,
+    maxArticlesPerCluster = 3,
+    maxStandaloneArticles = 4,
+  } = options || {}
+
+  const seen = new Set<string>()
+  const orderedArticles: Article[] = []
+  const addArticle = (article: Article | undefined) => {
+    if (!article?.id) return
+    if (seen.has(article.id)) return
+    seen.add(article.id)
+    orderedArticles.push(article)
+  }
+
+  const sanitize = (input: string | undefined, fallback = ''): string =>
+    (input || fallback)
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  const truncate = (input: string, max = 260) =>
+    input.length <= max ? input : `${input.slice(0, max - 3)}...`
+
+  const clusterSections: string[] = []
+  const topClusters = clusters.slice(0, Math.max(0, maxClusters))
+
+  topClusters.forEach((cluster, index) => {
+    const lines: string[] = []
+    lines.push(`${index + 1}. ${cluster.clusterTitle}`)
+
+    const articles = (cluster.articles || []).slice(0, Math.max(1, maxArticlesPerCluster))
+    articles.forEach((article) => {
+      addArticle(article)
+      const snippet = truncate(
+        sanitize(article.description || article.content || '', 'No description provided.'),
+        220
+      )
+      const source = article.source?.name ? ` (${article.source.name})` : ''
+      lines.push(`- ${article.title}${source}: ${snippet}`)
+    })
+
+    if (cluster.summary) {
+      lines.push(`Summary cue: ${truncate(sanitize(cluster.summary), 280)}`)
+    }
+
+    clusterSections.push(lines.join('\n'))
+  })
+
+  const standaloneLines: string[] = []
+  for (const article of unclustered) {
+    if (standaloneLines.length >= Math.max(0, maxStandaloneArticles)) break
+    const before = seen.size
+    addArticle(article)
+    if (seen.size === before) continue
+    const snippet = truncate(
+      sanitize(article.description || article.content || '', 'No description provided.'),
+      220
+    )
+    const source = article.source?.name ? ` (${article.source.name})` : ''
+    standaloneLines.push(`- ${article.title}${source}: ${snippet}`)
+  }
+
+  if (orderedArticles.length === 0) return null
+
+  const sections: string[] = []
+  sections.push(`Topic: ${topicLabel}`)
+
+  if (clusterSections.length) {
+    sections.push('Top story groups:\n' + clusterSections.join('\n\n'))
+  }
+
+  if (standaloneLines.length) {
+    sections.push('Additional headlines:\n' + standaloneLines.join('\n'))
+  }
+
+  const content = sections.join('\n\n')
+
+  if (!content || content.length < 40) return null
+
+  const signature = orderedArticles.map((a) => a.id).join('|')
+  const cacheId = `category-${simpleHash(`${topicLabel}|${signature}`)}`
+
+  return {
+    id: cacheId,
+    content,
+    articleCount: orderedArticles.length,
+  }
+}

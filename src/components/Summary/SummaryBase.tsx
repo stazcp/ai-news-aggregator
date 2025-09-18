@@ -27,6 +27,10 @@ export function SummaryBase({
   children,
   showContainer = true,
 }: SummaryBaseProps) {
+  const baseClasses = ['space-y-4']
+  if (className) baseClasses.push(className)
+  const containerClass = baseClasses.join(' ').trim()
+
   if (error) {
     // Hide the entire summary block on error (e.g., AI spend/limit outage)
     return <div ref={elementRef} />
@@ -34,7 +38,7 @@ export function SummaryBase({
 
   if (isLoading) {
     return (
-      <div ref={elementRef} className={`space-y-4 ${showContainer ? '' : ''}`}>
+      <div ref={elementRef} className={containerClass}>
         {headerBadge}
         <div className="prose prose-lg max-w-none">{loadingContent}</div>
       </div>
@@ -46,7 +50,7 @@ export function SummaryBase({
   // will render the loading state above when intersecting.
   if (!children) {
     return (
-      <div ref={elementRef} className={`space-y-4 ${showContainer ? '' : ''}`}>
+      <div ref={elementRef} className={containerClass}>
         {headerBadge}
         <div className="prose prose-lg max-w-none">{placeholderContent}</div>
       </div>
@@ -54,7 +58,7 @@ export function SummaryBase({
   }
 
   return (
-    <div ref={elementRef} className={`${className}`}>
+    <div ref={elementRef} className={containerClass}>
       {children}
     </div>
   )

@@ -12,6 +12,7 @@ interface UseLazySummaryArgs {
   eager?: boolean
   variant?: 'article' | 'cluster'
   mode?: 'auto' | 'manual'
+  purpose?: 'article' | 'cluster' | 'category'
 }
 
 export function useLazySummary({
@@ -21,9 +22,12 @@ export function useLazySummary({
   eager = false,
   variant = 'article',
   mode = 'auto',
+  purpose,
 }: UseLazySummaryArgs) {
   const searchParams = useSearchParams()
   const activeTopic = (searchParams?.get('topic') || '').trim()
+  const effectivePurpose = purpose || (variant === 'cluster' ? 'cluster' : 'article')
+
   const [summary, setSummary] = useState<string>(
     variant === 'cluster' ? cluster?.summary || '' : ''
   )
@@ -113,7 +117,7 @@ export function useLazySummary({
     isFetching,
     error: queryError,
   } = useQuery({
-    queryKey: ['summary', variant, idForCache, contentPayload.length],
+    queryKey: ['summary', variant, effectivePurpose, idForCache, contentPayload.length],
     enabled,
     initialData: variant === 'cluster' ? cluster?.summary : undefined,
     staleTime: variant === 'cluster' ? 7200_000 : 3600_000,
@@ -126,8 +130,9 @@ export function useLazySummary({
               content: contentPayload,
               isCluster: true,
               clusterTitle: cluster?.clusterTitle,
+              purpose: effectivePurpose,
             }
-          : { articleId: idForCache, content: contentPayload }
+          : { articleId: idForCache, content: contentPayload, purpose: effectivePurpose }
 
       const response = await fetch('/api/summarize', {
         method: 'POST',

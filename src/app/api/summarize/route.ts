@@ -1,17 +1,23 @@
 import { NextResponse } from 'next/server'
 import { getCachedData, setCachedData } from '@/lib/cache'
-import { summarizeArticle } from '@/lib/groq'
+import { summarizeArticle, summarizeCategoryDigest } from '@/lib/groq'
 
 export async function POST(request: Request) {
   try {
-    const { articleId, content, isCluster, clusterTitle } = await request.json()
+    const { articleId, content, isCluster, clusterTitle, purpose } = await request.json()
 
     if (!content) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const cacheKey = `Summary-${articleId}`
-    const summaryType = isCluster ? 'cluster' : 'article'
+    const summaryPurpose: 'article' | 'cluster' | 'category' = isCluster
+      ? 'cluster'
+      : purpose === 'category'
+        ? 'category'
+        : 'article'
+
+    const cacheKey = `Summary-${summaryPurpose}-${articleId}`
+    const summaryType = summaryPurpose
 
     // Log AI resource usage for optimization tracking
     console.log(`🤖 [AI Summary Request] Type: ${summaryType}, ID: ${articleId}`)
@@ -25,17 +31,19 @@ export async function POST(request: Request) {
     if (!summary) {
       console.log(`⚡ [AI Generation] Generating new ${summaryType} summary for: ${articleId}`)
 
-      if (isCluster && clusterTitle) {
+      if (summaryPurpose === 'cluster' && clusterTitle) {
         // For clusters, create a more comprehensive summary
         const clusterPrompt = `Please create a comprehensive summary of this news story based on multiple sources:\n\nStory: ${clusterTitle}\n\nSource Content:\n${content}`
         summary = await summarizeArticle(clusterPrompt)
+      } else if (summaryPurpose === 'category') {
+        summary = await summarizeCategoryDigest(content)
       } else {
         // Regular article summary
         summary = await summarizeArticle(content)
       }
 
       // Cache for longer time for clusters since they're more expensive to generate
-      const cacheTime = isCluster ? 7200 : 3600 // 2 hours for clusters, 1 hour for articles
+      const cacheTime = summaryPurpose === 'cluster' ? 7200 : summaryPurpose === 'category' ? 5400 : 3600
       await setCachedData(cacheKey, summary, cacheTime)
 
       console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)

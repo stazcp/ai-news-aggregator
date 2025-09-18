@@ -183,6 +183,45 @@ ${contentToSummarize}
   }
 }
 
+export async function summarizeCategoryDigest(content: string): Promise<string> {
+  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
+
+  const prompt = `You are an experienced news editor. Craft a compact two-to-three sentence digest (70-110 words) that captures the main developments spanning these topic highlights. Blend insights across sources, prioritize the newest and most consequential facts, and mention distinct angles when relevant. Avoid marketing language, bullet lists, and source callouts. Here are the notes to synthesize:\n\n${content}`
+
+  try {
+    const completion = await groqCall('summarizeCategory', () =>
+      groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a concise but thorough news editor who writes balanced digests.',
+          },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.35,
+        max_tokens: 220,
+      })
+    )
+
+    return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
+  } catch (error) {
+    if (isRateLimitError(error)) {
+      console.warn('⚠️ Rate/Spend limit during category summarization')
+      if (!ALLOW_FALLBACK) throw error
+      const fallback = content
+        .split('\n')
+        .filter((line) => line.trim().startsWith('- '))
+        .map((line) => line.replace(/^-\s*/, '').trim())
+        .filter(Boolean)
+        .slice(0, 3)
+      return fallback.join(' • ') || 'Summary not available'
+    }
+    console.error('Error summarizing category digest:', error)
+    return 'Summary not available'
+  }
+}
+
 export async function clusterArticles(articles: Article[]): Promise<StoryCluster[]> {
   const articleSummaries = articles.map((a) => ({
     id: a.id,
