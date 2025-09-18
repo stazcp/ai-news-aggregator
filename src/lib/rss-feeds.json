@@ -396,7 +396,7 @@
         {
           "id": "nbc_business",
           "category": "Business",
-          "url": "http://feeds.nbcnews.com/feeds/money"
+          "url": "https://feeds.nbcnews.com/nbcnews/public/business"
         }
       ]
     },
@@ -501,6 +501,34 @@
       "name": "Decrypt",
       "feeds": [{ "id": "decrypt", "category": "Crypto", "url": "https://decrypt.co/feed" }]
     },
+    "Blockworks": {
+      "name": "Blockworks",
+      "feeds": [
+        { "id": "blockworks", "category": "Crypto", "url": "https://blockworks.co/feed" }
+      ]
+    },
+    "Bitcoin Magazine": {
+      "name": "Bitcoin Magazine",
+      "feeds": [
+        {
+          "id": "bitcoinmagazine",
+          "category": "Crypto",
+          "url": "https://bitcoinmagazine.com/.rss/full/"
+        }
+      ]
+    },
+    "Coinspeaker": {
+      "name": "Coinspeaker",
+      "feeds": [
+        { "id": "coinspeaker", "category": "Crypto", "url": "https://www.coinspeaker.com/feed/" }
+      ]
+    },
+    "Crypto.news": {
+      "name": "Crypto.news",
+      "feeds": [
+        { "id": "cryptonews", "category": "Crypto", "url": "https://crypto.news/feed/" }
+      ]
+    },
     "The Guardian": {
       "name": "The Guardian",
       "feeds": [
@@ -541,13 +569,13 @@
         }
       ]
     },
-    "Al-Monitor": {
-      "name": "Al-Monitor",
+    "Middle East Eye": {
+      "name": "Middle East Eye",
       "feeds": [
         {
-          "id": "almonitor",
+          "id": "middleeasteye",
           "category": "Middle East",
-          "url": "https://www.al-monitor.com/rss.xml"
+          "url": "https://www.middleeasteye.net/rss"
         }
       ]
     },
