@@ -40,15 +40,23 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
 
   const mode: 'manual' = 'manual'
 
-  const { elementRef, isIntersecting, summary, isLoading, error, topicMatches, requestSummary } =
-    useLazySummary({
-      articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
-      content: payload?.content || '',
-      eager: false,
-      variant: 'article',
-      mode,
-      purpose: 'category',
-    })
+  const {
+    elementRef,
+    isIntersecting,
+    summary,
+    isLoading,
+    error,
+    topicMatches,
+    requestSummary,
+    handleRetry,
+  } = useLazySummary({
+    articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
+    content: payload?.content || '',
+    eager: false,
+    variant: 'article',
+    mode,
+    purpose: 'category',
+  })
 
   // Hide the block when there is no meaningful content to summarize.
   if (!payload) {
@@ -71,9 +79,9 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
 
   const placeholderContent = (
     <div className="inline-flex items-center gap-2">
-      <Badge variant="outline" className="hidden sm:inline-flex text-xs">
+      {/* <Badge variant="outline" className="hidden sm:inline-flex text-xs">
         {summaryTitle}
-      </Badge>
+      </Badge> */}
       <Button
         size="sm"
         variant="outline"
@@ -82,6 +90,23 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
       >
         <span className="relative z-10 font-medium">✨ Summarize Page</span>
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
+      </Button>
+    </div>
+  )
+
+  const errorContent = (
+    <div className="inline-flex items-center gap-2">
+      <Badge variant="outline" className="hidden sm:inline-flex text-xs text-destructive">
+        Summary failed
+      </Badge>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleRetry}
+        className="relative overflow-hidden border border-destructive/20 text-destructive hover:bg-destructive/10 transition-all duration-300 cursor-pointer"
+      >
+        <span className="relative z-10 font-medium">🔄 Retry Summary</span>
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-destructive/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
       </Button>
     </div>
   )
@@ -97,6 +122,7 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
         className={containerClass}
         loadingContent={<LoadingSpinner variant="cluster" articleCount={payload.articleCount} />}
         placeholderContent={placeholderContent}
+        errorContent={errorContent}
       >
         {summary ? (
           isCollapsed ? (
