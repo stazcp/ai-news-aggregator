@@ -10,6 +10,7 @@ interface SummaryBaseProps {
   headerBadge?: ReactNode
   loadingContent: ReactNode
   placeholderContent: ReactNode
+  errorContent?: ReactNode
   children?: ReactNode
   showContainer?: boolean
 }
@@ -24,6 +25,7 @@ export function SummaryBase({
   headerBadge,
   loadingContent,
   placeholderContent,
+  errorContent,
   children,
   showContainer = true,
 }: SummaryBaseProps) {
@@ -32,7 +34,15 @@ export function SummaryBase({
   const containerClass = baseClasses.join(' ').trim()
 
   if (error) {
-    // Hide the entire summary block on error (e.g., AI spend/limit outage)
+    // Show error content if provided, otherwise hide the entire summary block
+    if (errorContent) {
+      return (
+        <div ref={elementRef} className={containerClass}>
+          {headerBadge}
+          <div className="prose prose-lg max-w-none">{errorContent}</div>
+        </div>
+      )
+    }
     return <div ref={elementRef} />
   }
 
