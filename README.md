@@ -6,6 +6,7 @@ An intelligent news aggregation platform that uses AI to cluster, summarize, and
 
 - **AI-Powered Clustering**: Groups related articles about the same events using advanced TF-IDF and LLM techniques
 - **Smart Summaries**: Generates concise AI summaries for each story cluster
+- **On‑Demand Summaries (Compact UI)**: When enabled, a small "Summarize with AI" button is shown and the summary card fits tightly to its contents until a summary is generated
 - **Multi-Source Aggregation**: Fetches news from 50+ RSS feeds across various categories
 - **Real-time Updates**: Caches data for performance while keeping content fresh
 - **Topic Filtering**: Filter news by trending topics and categories
@@ -118,6 +119,11 @@ npm install
 # Required: Groq API key for AI clustering and summarization
 GROQ_API_KEY=your_groq_api_key_here
 
+# Optional: Summaries UX
+# When true (default), summaries are requested manually via a compact button
+# and the summary card shrinks to fit its content until the summary is loaded.
+NEXT_PUBLIC_SUMMARY_ON_DEMAND=true
+
 # Optional: Clustering configuration
 PRECLUSTER_THRESHOLD=0.42          # Similarity threshold for pre-clustering
 PRECLUSTER_MIN_SIZE=2              # Minimum articles per cluster
@@ -175,6 +181,10 @@ The app is highly configurable through environment variables:
 - `CLUSTER_EXPAND_MAX_ADD`: Maximum articles to add per cluster
 - `CLUSTER_EXPAND_TIME_HOURS`: Time window for cluster expansion
 
+### **Summaries UX**
+
+- `NEXT_PUBLIC_SUMMARY_ON_DEMAND` (boolean): When `true` (default), summaries are triggered manually via a button. The summary card uses content-based width until the summary is available; when `false`, summaries load automatically on intersection.
+
 ## 🔧 API Endpoints
 
 - `GET /api/news` - Fetch all news articles
@@ -224,3 +234,12 @@ This project is licensed under the MIT License.
 - **Next.js** team for the excellent framework
 - **RSS feed providers** for making their content available
 - **Open source community** for the various libraries used
+
+## 🧭 Roadmap
+
+- **Premium follow‑up Q&A on AI summaries**: Allow authenticated premium users to ask follow‑up questions about a cluster or article summary.
+  - UI: Inline Q&A input beneath each summary with streaming responses; preserves compact state until expanded.
+  - Context: Pass the generated summary and cluster/article context to the LLM for grounded Q&A.
+  - Controls: Rate limiting, token usage caps, and moderation.
+  - Auth/Z: Gate via plan check; store short conversation history for continuity.
+  - Observability: Log Q&A usage and feedback for iterative improvements.
