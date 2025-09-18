@@ -416,13 +416,13 @@
         { "id": "politico_europe", "category": "Politics", "url": "https://www.politico.eu/feed/" }
       ]
     },
-    "Times of Israel": {
-      "name": "The Times of Israel",
+    "Israel National News": {
+      "name": "Israel National News",
       "feeds": [
         {
-          "id": "timesofisrael",
+          "id": "israelnationalnews",
           "category": "World News",
-          "url": "https://www.timesofisrael.com/feed/"
+          "url": "https://www.israelnationalnews.com/Rss.aspx"
         }
       ]
     },
@@ -569,13 +569,13 @@
         }
       ]
     },
-    "Middle East Eye": {
-      "name": "Middle East Eye",
+    "Guardian Middle East": {
+      "name": "The Guardian (Middle East)",
       "feeds": [
         {
-          "id": "middleeasteye",
+          "id": "guardian_middleeast",
           "category": "Middle East",
-          "url": "https://www.middleeasteye.net/rss"
+          "url": "https://www.theguardian.com/world/middleeast/rss"
         }
       ]
     },

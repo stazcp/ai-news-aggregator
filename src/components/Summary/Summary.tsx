@@ -36,8 +36,6 @@ export default function Summary({
 
   const containerClasses = `rounded-lg border ${className}`
 
-  console.log('summary', summary)
-
   return (
     <SummaryBase
       elementRef={elementRef}
