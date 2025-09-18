@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { refreshCacheInBackground } from '@/lib/backgroundRefresh'
+import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
 
 /**
  * Daily cache refresh cron job endpoint

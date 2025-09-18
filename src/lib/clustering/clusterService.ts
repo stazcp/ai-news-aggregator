@@ -1,8 +1,8 @@
 import { Article, StoryCluster } from '@/types'
-import { inferImageDimsFromUrl } from './imageProviders'
-import { clusterArticles, summarizeCluster, mergeClustersByLLM } from './groq'
+import { inferImageDimsFromUrl } from '../images/imageProviders'
+import { clusterArticles, summarizeCluster, mergeClustersByLLM } from '../ai/groq'
 import { computeSeverity, scoreCluster } from './severity'
-import { assessClusterSeverityLLM } from './groq'
+import { assessClusterSeverityLLM } from '../ai/groq'
 import {
   preClusterArticles,
   mergeClustersByOverlap,

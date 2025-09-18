@@ -1,10 +1,10 @@
 import Parser from 'rss-parser'
 import { Article } from '@/types'
 import rssConfig from './rss-feeds.json'
-import { getCachedData, setCachedData } from './cache'
-import { inferImageDimsFromUrl } from './imageProviders'
-import { normalizeImageUrl } from './normalizeImageUrl'
-import { simpleHash } from './utils'
+import { getCachedData, setCachedData } from '../cache'
+import { inferImageDimsFromUrl } from '../images/imageProviders'
+import { normalizeImageUrl } from '../images/normalizeImageUrl'
+import { simpleHash } from '../utils'
 
 // Simple log gating for feed operations
 const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()

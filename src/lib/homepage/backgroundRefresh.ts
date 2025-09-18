@@ -1,4 +1,4 @@
-import { getCachedData, setCachedData } from './cache'
+import { getCachedData, setCachedData } from '../cache'
 import {
   generateFreshHomepage,
   generateTopStorySummaries,

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getRefreshStatus } from '@/lib/backgroundRefresh'
+import { getRefreshStatus } from '@/lib/homepage/backgroundRefresh'
 
 interface RefreshStatusResponse {
   status: 'idle' | 'refreshing' | 'error'

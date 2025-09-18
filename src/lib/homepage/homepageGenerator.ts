@@ -1,8 +1,9 @@
-import { fetchAllNews } from './newsService'
-import { getStoryClusters, getUnclusteredArticles } from './clusterService'
-import { setCachedData, getCachedData } from './cache'
-import { TOPIC_KEYWORDS } from './topics'
-import { summarizeArticle, summarizeCluster } from './groq'
+import { fetchAllNews } from '../news/newsService'
+import { getStoryClusters, getUnclusteredArticles } from '../clustering/clusterService'
+import { setCachedData, getCachedData } from '../cache'
+import { TOPIC_KEYWORDS } from '../topics'
+import { summarizeArticle, summarizeCluster } from '../ai/groq'
+import { getSummaryCacheKey, SummaryPurpose, getClusterSummaryId } from '../ai/summaryCache'
 import { StoryCluster, Article } from '@/types'
 
 export interface HomepageData {
@@ -77,8 +78,7 @@ export async function generateTopStorySummaries(
   // Generate cluster summaries
   const clusterPromises = topClusters.map(async (cluster) => {
     try {
-      // Generate unique ID from cluster's article IDs
-      const clusterId = (cluster.articleIds || []).slice(0, 10).sort().join('-')
+      const clusterId = getClusterSummaryId(cluster)
       await generateAndCacheSummary(clusterId, cluster.articles || [], true, cluster.clusterTitle)
       completed++
       if (progressCallback) {
@@ -126,7 +126,8 @@ async function generateAndCacheSummary(
   isCluster: boolean,
   clusterTitle?: string
 ): Promise<void> {
-  const cacheKey = `Summary-${articleId}`
+  const purpose: SummaryPurpose = isCluster ? 'cluster' : 'article'
+  const cacheKey = getSummaryCacheKey(purpose, articleId)
   const existing = await getCachedData(cacheKey)
 
   if (existing) {
@@ -165,11 +166,12 @@ export async function enrichClustersWithSummaries(
   return Promise.all(
     storyClusters.map(async (cluster) => {
       // Generate unique ID from cluster's article IDs (same as in generateTopStorySummaries)
-      const clusterId = (cluster.articleIds || []).slice(0, 10).sort().join('-')
+      const clusterId = getClusterSummaryId(cluster)
       return {
         ...cluster,
         // Preserve existing server-generated summary; otherwise, hydrate from cache if available
-        summary: cluster.summary || (await getCachedData(`Summary-${clusterId}`)) || undefined,
+        summary:
+          cluster.summary || (await getCachedData(getSummaryCacheKey('cluster', clusterId))) || undefined,
       }
     })
   )
