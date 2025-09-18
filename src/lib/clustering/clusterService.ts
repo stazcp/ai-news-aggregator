@@ -229,6 +229,14 @@ async function enrichClusters(
         continue // Skip invalid clusters
       }
 
+      const hasUsefulImage = (a: Article | undefined) => {
+        if (!a) return false
+        const url = a.urlToImage || ''
+        if (!url) return false
+        if (url.includes('placehold.co')) return false
+        return true
+      }
+
       // Dedupe articles within a cluster (same story from multiple categories or mirrors)
       const seen = new Set<string>()
       const canonical = (a: Article) => {
@@ -267,6 +275,17 @@ async function enrichClusters(
         return true
       })
 
+      // Prefer articles with real images before applying domain caps so collages have content
+      const dedupedArticles = [...articlesInCluster]
+      articlesInCluster = articlesInCluster.sort((a, b) => {
+        const aHasImage = hasUsefulImage(a) ? 0 : 1
+        const bHasImage = hasUsefulImage(b) ? 0 : 1
+        if (aHasImage !== bHasImage) return aHasImage - bHasImage
+        const timeDiff =
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        return timeDiff
+      })
+
       // Prefer diversity: cap per-domain to avoid single-source dominance
       const perDomainMax = 2
       const domainCounts = new Map<string, number>()
@@ -289,7 +308,10 @@ async function enrichClusters(
       const summary = DO_SUMMARY_DURING_ENRICH ? await summarizeCluster(articlesInCluster) : ''
       const MINW = parseInt(process.env.MIN_IMAGE_WIDTH || '320', 10)
       const MINH = parseInt(process.env.MIN_IMAGE_HEIGHT || '200', 10)
-      const validImageArticles = articlesInCluster.filter((a) => {
+      const imageSourceArticles = articlesInCluster.some(hasUsefulImage)
+        ? articlesInCluster
+        : dedupedArticles
+      const validImageArticles = imageSourceArticles.filter((a) => {
         const urlOk = a.urlToImage && !a.urlToImage.includes('placehold.co')
         if (!urlOk) return false
         // Prefer explicit dims; if missing, infer from known providers (Guardian/BBC)
