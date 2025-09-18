@@ -40,12 +40,19 @@ function inferBBC(u: URL): ImageDims | null {
   return null
 }
 
+function inferTechmeme(u: URL): ImageDims | null {
+  // Techmeme feed often embeds small thumbnails; treat as thumbnail unless explicit dims present
+  if (!u.hostname.toLowerCase().endsWith('techmeme.com')) return null
+  // No reliable width in URL; assume conservative width to avoid full-size placements
+  return { width: 120 }
+}
+
 export function inferImageDimsFromUrl(url: string): ImageDims {
   if (!url) return {}
   try {
     const u = new URL(url)
     // Try known providers first
-    return inferGuardian(u) ?? inferBBC(u) ?? {}
+    return inferGuardian(u) ?? inferBBC(u) ?? inferTechmeme(u) ?? {}
   } catch {
     return {}
   }

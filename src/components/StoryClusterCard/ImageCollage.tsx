@@ -34,13 +34,20 @@ const ImageCollage = ({
     return (cluster.imageUrls || [])
       .filter(Boolean)
       .filter((url) => {
+        // Prefer server-provided article dims when available
+        const a = articlesByUrl.get(url)
+        const aw = a?.imageWidth
+        const ah = a?.imageHeight
+        if (typeof aw === 'number' && aw > 0 && aw < MIN_W) return false
+        if (typeof ah === 'number' && ah > 0 && ah < MIN_H) return false
+        // Fallback: infer from known providers (Guardian, BBC)
         const d = inferImageDimsFromUrl(url)
         if (typeof d.width === 'number' && d.width < MIN_W) return false
         if (typeof d.height === 'number' && d.height < MIN_H) return false
         return true
       })
       .slice(0, 4)
-  }, [cluster.imageUrls])
+  }, [cluster.imageUrls, articlesByUrl])
   const [urls, setUrls] = useState<string[]>(initialUrls)
   useEffect(() => setUrls(initialUrls), [initialUrls])
   useEffect(() => {
