@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 import { GET, POST } from '../route'
 
 // Mock the background refresh function
-jest.mock('../../../../../lib/backgroundRefresh', () => ({
+jest.mock('../../../../../lib/homepage/backgroundRefresh', () => ({
   refreshCacheInBackground: jest.fn(),
 }))
 
 // Get the mocked function for assertions
-import { refreshCacheInBackground } from '../../../../../lib/backgroundRefresh'
+import { refreshCacheInBackground } from '../../../../../lib/homepage/backgroundRefresh'
 const mockRefreshCacheInBackground = refreshCacheInBackground as jest.MockedFunction<
   typeof refreshCacheInBackground
 >

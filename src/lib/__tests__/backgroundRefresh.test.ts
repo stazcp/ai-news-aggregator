@@ -354,7 +354,7 @@ describe('backgroundRefresh', () => {
       // Mock no existing status
       mockGetCachedData.mockResolvedValue(null)
 
-      const { refreshCacheInBackground } = await import('../backgroundRefresh')
+      const { refreshCacheInBackground } = await import('../homepage/backgroundRefresh')
 
       mockGetCachedData
         .mockResolvedValueOnce(null) // Initial check - not in progress
