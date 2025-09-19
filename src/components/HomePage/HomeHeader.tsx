@@ -1,3 +1,5 @@
+'use client'
+
 import React from 'react'
 import TrendingTopicsBar from '../TopBar/TrendingTopicsBar'
 import { Button } from '../ui/button'
