@@ -8,7 +8,8 @@ import CategorySummary from '@/components/Summary/CategorySummary'
 import RefreshStatusBar from '@/components/RefreshStatusBar'
 import { NewsListSkeleton, HomeHeaderSkeleton, CategorySummarySkeleton } from '@/components/ui'
 import { filterByTopic } from '@/lib/utils'
-import { useHomepageData, useHomepageDataAge, HomepageData } from '@/hooks/useHomepageData'
+import { useHomepageData, HomepageData } from '@/hooks/useHomepageData'
+import { computeTopics } from './utils'
 
 interface HomeClientProps {
   initialData?: HomepageData
@@ -22,7 +23,15 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   const { data: homepageData, isLoading, error, isFetching } = useHomepageData(initialData)
 
   // Get data age info for UI indicators
-  const dataAge = useHomepageDataAge()
+  const dataAge = useMemo(() => {
+    if (!homepageData?.lastUpdated) return null
+    const lastUpdate = new Date(homepageData.lastUpdated)
+    const ageInHours = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60)
+    return {
+      lastUpdated: lastUpdate,
+      ageInHours,
+    }
+  }, [homepageData?.lastUpdated])
 
   // Initialize from URL once, but do not trigger server navigation on changes
   useEffect(() => {
@@ -36,49 +45,8 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   // Use React Query data if available, fallback to initial data
   const data = homepageData || initialData
 
-  // Compute which topics actually have content (same logic as before)
-  const available = useMemo(() => {
-    if (!data?.topics || !data?.storyClusters || !data?.unclusteredArticles) {
-      return []
-    }
-
-    const { storyClusters, unclusteredArticles, topics } = data
-    const scored: Array<{ topic: string; score: number }> = []
-
-    const ACTIVITY_W = Number(process.env.NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT ?? '1')
-    const RECENCY_W = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_WEIGHT ?? '1')
-    const HALF_LIFE_HOURS = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_HALF_LIFE_HOURS ?? '24')
-
-    const recencyWeight = (publishedAt: string | undefined) => {
-      if (!publishedAt) return 0
-      try {
-        const hours = Math.max(0, (Date.now() - new Date(publishedAt).getTime()) / 36e5)
-        const halfLife = HALF_LIFE_HOURS > 0 ? HALF_LIFE_HOURS : 24
-        return Math.exp(-hours / halfLife)
-      } catch {
-        return 0
-      }
-    }
-
-    for (const t of topics) {
-      const { clusters, unclustered } = filterByTopic(storyClusters, unclusteredArticles, t)
-      const clusterArticles = (clusters || []).reduce(
-        (sum, c) => sum + (c.articles?.length || 0),
-        0
-      )
-      const recency =
-        (clusters || []).reduce((sum, c) => {
-          return sum + (c.articles || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
-        }, 0) + (unclustered || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
-
-      const total = clusterArticles + (unclustered?.length || 0)
-      const score = ACTIVITY_W * total + RECENCY_W * recency
-      if (total > 0) scored.push({ topic: t, score })
-    }
-
-    scored.sort((a, b) => b.score - a.score)
-    return scored.map((s) => s.topic)
-  }, [data])
+  // Compute which topics actually have content
+  const availableTopics = useMemo(() => computeTopics(data), [data])
 
   const filtered = useMemo(() => {
     if (!data?.storyClusters || !data?.unclusteredArticles) {
@@ -125,8 +93,6 @@ export default function HomeClient({ initialData }: HomeClientProps) {
 
   if (!data) return null
 
-  const { storyClusters, unclusteredArticles, topics, rateLimitMessage } = data
-
   const handleTopicChange = (nextTopic: string) => {
     setIsSummaryOpen(false)
     setTopic(nextTopic)
@@ -152,8 +118,8 @@ export default function HomeClient({ initialData }: HomeClientProps) {
         )}
 
         <HomeHeader
-          rateLimitMessage={rateLimitMessage}
-          topics={available}
+          rateLimitMessage={data.rateLimitMessage}
+          topics={availableTopics}
           activeTopic={topic}
           onTopicChange={handleTopicChange}
           openSummary={handleOpenSummary}
