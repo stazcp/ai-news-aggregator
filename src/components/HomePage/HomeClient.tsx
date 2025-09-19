@@ -153,13 +153,14 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           closeSummary={handleCloseSummary}
         />
 
-        <CategorySummary
-          topic={topic || undefined}
-          clusters={filtered.clusters}
-          unclustered={filtered.unclustered}
-          isSummaryOpen={isSummaryOpen}
-          onClose={handleCloseSummary}
-        />
+        {isSummaryOpen && (
+          <CategorySummary
+            topic={topic || undefined}
+            clusters={filtered.clusters}
+            unclustered={filtered.unclustered}
+            onClose={handleCloseSummary}
+          />
+        )}
 
         <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
 
