@@ -7,7 +7,7 @@ interface HomeHeaderProps {
   topics: string[]
   activeTopic?: string
   onTopicChange?: (topic: string) => void
-  requestSummary?: () => void
+  openSummary: () => void
 }
 
 export default function HomeHeader({
@@ -15,8 +15,20 @@ export default function HomeHeader({
   topics,
   activeTopic,
   onTopicChange,
-  requestSummary,
+  openSummary,
 }: HomeHeaderProps) {
+  const openSummaryButton = (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={openSummary}
+      className="relative overflow-hidden border border-border text-foreground hover:bg-muted transition-all duration-300"
+    >
+      <span className="relative z-10 font-medium">✨ Summarize</span>
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
+    </Button>
+  )
+
   return (
     <header className="text-center mb-12">
       <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
@@ -30,21 +42,13 @@ export default function HomeHeader({
           <p className="text-sm text-yellow-300">⚠️ {rateLimitMessage}</p>
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-6 flex-wrap">
         <TrendingTopicsBar
           topics={topics}
           activeTopic={activeTopic}
           onTopicChange={onTopicChange}
+          additionalActions={openSummaryButton}
         />
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={requestSummary}
-          className="relative overflow-hidden border border-border text-foreground hover:bg-muted transition-all duration-300"
-        >
-          <span className="relative z-10 font-medium">✨ Summarize</span>
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
-        </Button>
       </div>
     </header>
   )

@@ -8,12 +8,14 @@ interface TrendingTopicsBarProps {
   topics: string[]
   activeTopic?: string
   onTopicChange?: (topic: string) => void
+  additionalActions?: React.ReactNode
 }
 
 export default function TrendingTopicsBar({
   topics,
   activeTopic,
   onTopicChange,
+  additionalActions,
 }: TrendingTopicsBarProps) {
   const router = useRouter()
   const params = useSearchParams()
@@ -59,6 +61,7 @@ export default function TrendingTopicsBar({
           {t}
         </Button>
       ))}
+      {additionalActions}
     </div>
   )
 }

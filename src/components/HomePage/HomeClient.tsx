@@ -16,7 +16,7 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialData }: HomeClientProps) {
   const [topic, setTopic] = useState<string>('')
-  const categorySummaryRef = useRef<CategorySummaryRef>(null)
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false)
 
   // Use React Query for homepage data with initial SSR data
   const { data: homepageData, isLoading, error, isFetching } = useHomepageData(initialData)
@@ -124,8 +124,9 @@ export default function HomeClient({ initialData }: HomeClientProps) {
 
   const { storyClusters, unclusteredArticles, topics, rateLimitMessage } = data
 
-  // Function to request summary from CategorySummary component
-  const handleRequestSummary = () => categorySummaryRef.current?.requestSummary()
+  const handleOpenSummary = () => setIsSummaryOpen(true)
+
+  const handleCloseSummary = () => setIsSummaryOpen(false)
 
   return (
     <HomeLayout>
@@ -148,14 +149,15 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           topics={available}
           activeTopic={topic}
           onTopicChange={setTopic}
-          requestSummary={handleRequestSummary}
+          openSummary={handleOpenSummary}
         />
 
         <CategorySummary
-          ref={categorySummaryRef}
           topic={topic || undefined}
           clusters={filtered.clusters}
           unclustered={filtered.unclustered}
+          isSummaryOpen={isSummaryOpen}
+          onClose={handleCloseSummary}
         />
 
         <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />

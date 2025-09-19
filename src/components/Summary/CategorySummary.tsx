@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useImperativeHandle } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Article, StoryCluster } from '@/types'
 import { buildCategorySummaryPayload, simpleHash } from '@/lib/utils'
 import { useLazySummary } from '@/hooks/useLazySummary'
@@ -10,14 +10,21 @@ interface CategorySummaryProps {
   topic?: string
   clusters: StoryCluster[]
   unclustered: Article[]
-  ref?: React.Ref<CategorySummaryRef>
+  isSummaryOpen: boolean
+  onClose: () => void
 }
 
 export interface CategorySummaryRef {
   requestSummary: () => void
 }
 
-export function CategorySummary({ topic, clusters, unclustered, ref }: CategorySummaryProps) {
+export function CategorySummary({
+  topic,
+  clusters,
+  unclustered,
+  isSummaryOpen,
+  onClose,
+}: CategorySummaryProps) {
   const isTrending = !topic
   const summaryTitle = isTrending ? 'Summary of the Day' : `${topic} Highlights`
   const buttonLabel = isTrending ? "Summarize today's news" : `Summarize ${topic}`
@@ -58,24 +65,11 @@ export function CategorySummary({ topic, clusters, unclustered, ref }: CategoryS
     articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
     content: payload?.content || '',
     eager: false,
+    disabled: !isSummaryOpen,
     variant: 'article',
     mode,
     purpose: 'category',
   })
-
-  const handleRequestSummary = () => {
-    setIsCollapsed(false)
-    requestSummary()
-  }
-
-  // Expose requestSummary function to parent components via ref
-  useImperativeHandle(
-    ref,
-    () => ({
-      requestSummary: handleRequestSummary,
-    }),
-    [handleRequestSummary]
-  )
 
   // Hide the block when there is no meaningful content to summarize.
   if (!payload) {
@@ -83,18 +77,15 @@ export function CategorySummary({ topic, clusters, unclustered, ref }: CategoryS
   }
 
   const articleCountLabel = `${payload.articleCount} article${payload.articleCount === 1 ? '' : 's'} analyzed`
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
-    setIsCollapsed(false)
-  }, [summary])
-
-  if (isCollapsed) return null
+    if (isSummaryOpen) requestSummary()
+  }, [isSummaryOpen, requestSummary])
 
   const hasSummary = Boolean(summary)
   const containerClass = !hasSummary
     ? 'flex justify-end'
-    : isCollapsed
+    : !isSummaryOpen
       ? 'flex justify-end'
       : 'rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm'
 
@@ -128,7 +119,7 @@ export function CategorySummary({ topic, clusters, unclustered, ref }: CategoryS
         errorContent={errorContent}
       >
         {summary
-          ? !isCollapsed && (
+          ? isSummaryOpen && (
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -140,7 +131,7 @@ export function CategorySummary({ topic, clusters, unclustered, ref }: CategoryS
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setIsCollapsed(true)}
+                      onClick={onClose}
                       className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
                     >
                       Hide summary
