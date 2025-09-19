@@ -3,24 +3,26 @@ import { Article, StoryCluster } from '@/types'
 import { buildCategorySummaryPayload, simpleHash } from '@/lib/utils'
 import { useLazySummary } from '@/hooks/useLazySummary'
 import { SummaryBase } from './SummaryBase'
-import { AISummaryTitle, LoadingSpinner, Badge } from '@/components/ui'
+import { AISummaryTitle, Badge, CategorySummaryContentSkeleton } from '@/components/ui'
 import { Button } from '@/components/ui/button'
 
 interface CategorySummaryProps {
   topic?: string
   clusters: StoryCluster[]
   unclustered: Article[]
+  isSummaryOpen: boolean
   onClose: () => void
 }
 
-export interface CategorySummaryRef {
-  requestSummary: () => void
-}
-
-export function CategorySummary({ topic, clusters, unclustered, onClose }: CategorySummaryProps) {
+export function CategorySummary({
+  topic,
+  clusters,
+  unclustered,
+  isSummaryOpen,
+  onClose,
+}: CategorySummaryProps) {
   const isTrending = !topic
   const summaryTitle = isTrending ? 'Summary of the Day' : `${topic} Highlights`
-  const buttonLabel = isTrending ? "Summarize today's news" : `Summarize ${topic}`
   const slugSource = topic?.trim() || 'trending'
   const slug =
     slugSource
@@ -58,26 +60,27 @@ export function CategorySummary({ topic, clusters, unclustered, onClose }: Categ
     articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
     content: payload?.content || '',
     eager: false,
+    disabled: !isSummaryOpen,
     variant: 'article',
     mode,
     purpose: 'category',
   })
 
-  // Hide the block when there is no meaningful content to summarize.
   if (!payload) {
     return null
   }
 
-  const articleCountLabel = `${payload.articleCount} article${payload.articleCount === 1 ? '' : 's'} analyzed`
-
   useEffect(() => {
-    requestSummary()
-  }, [requestSummary])
+    if (isSummaryOpen) {
+      requestSummary()
+    }
+  }, [isSummaryOpen, requestSummary])
 
-  const hasSummary = Boolean(summary)
-  const containerClass = !hasSummary
-    ? 'flex justify-end'
-    : 'rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm'
+  if (!isSummaryOpen) {
+    return null
+  }
+
+  const articleCountLabel = `${payload.articleCount} article${payload.articleCount === 1 ? '' : 's'} analyzed`
 
   const errorContent = (
     <div className="inline-flex items-center gap-2">
@@ -104,11 +107,11 @@ export function CategorySummary({ topic, clusters, unclustered, onClose }: Categ
         error={error}
         isIntersecting={isIntersecting && topicMatches}
         eager={false}
-        className={containerClass}
-        loadingContent={<LoadingSpinner variant="cluster" articleCount={payload.articleCount} />}
+        className="rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm"
+        loadingContent={<CategorySummaryContentSkeleton />}
         errorContent={errorContent}
       >
-        {summary && (
+        {summary ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -134,7 +137,7 @@ export function CategorySummary({ topic, clusters, unclustered, onClose }: Categ
               <span>{articleCountLabel}</span>
             </div>
           </div>
-        )}
+        ) : null}
       </SummaryBase>
     </section>
   )
