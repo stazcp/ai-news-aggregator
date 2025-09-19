@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import HomeLayout from './HomeLayout'
 import HomeHeader from './HomeHeader'
 import NewsList from '@/components/NewsList'
-import CategorySummary from '@/components/Summary/CategorySummary'
+import CategorySummary, { CategorySummaryRef } from '@/components/Summary/CategorySummary'
 import RefreshStatusBar from '@/components/RefreshStatusBar'
 import { NewsListSkeleton } from '@/components/ui/Skeleton'
 import { filterByTopic } from '@/lib/utils'
@@ -16,6 +16,7 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialData }: HomeClientProps) {
   const [topic, setTopic] = useState<string>('')
+  const categorySummaryRef = useRef<CategorySummaryRef>(null)
 
   // Use React Query for homepage data with initial SSR data
   const { data: homepageData, isLoading, error, isFetching } = useHomepageData(initialData)
@@ -123,6 +124,9 @@ export default function HomeClient({ initialData }: HomeClientProps) {
 
   const { storyClusters, unclusteredArticles, topics, rateLimitMessage } = data
 
+  // Function to request summary from CategorySummary component
+  const handleRequestSummary = () => categorySummaryRef.current?.requestSummary()
+
   return (
     <HomeLayout>
       {/* Refresh status bar - shows when background updates are happening */}
@@ -144,9 +148,11 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           topics={available}
           activeTopic={topic}
           onTopicChange={setTopic}
+          requestSummary={handleRequestSummary}
         />
 
         <CategorySummary
+          ref={categorySummaryRef}
           topic={topic || undefined}
           clusters={filtered.clusters}
           unclustered={filtered.unclustered}

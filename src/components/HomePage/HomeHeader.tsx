@@ -1,14 +1,22 @@
 import React from 'react'
 import TrendingTopicsBar from '../TopBar/TrendingTopicsBar'
+import { Button } from '../ui/button'
 
 interface HomeHeaderProps {
   rateLimitMessage?: string | null
   topics: string[]
   activeTopic?: string
   onTopicChange?: (topic: string) => void
+  requestSummary?: () => void
 }
 
-export default function HomeHeader({ rateLimitMessage, topics, activeTopic, onTopicChange }: HomeHeaderProps) {
+export default function HomeHeader({
+  rateLimitMessage,
+  topics,
+  activeTopic,
+  onTopicChange,
+  requestSummary,
+}: HomeHeaderProps) {
   return (
     <header className="text-center mb-12">
       <h1 className="text-5xl font-extrabold tracking-tight text-[var(--foreground)] sm:text-6xl md:text-7xl">
@@ -22,7 +30,22 @@ export default function HomeHeader({ rateLimitMessage, topics, activeTopic, onTo
           <p className="text-sm text-yellow-300">⚠️ {rateLimitMessage}</p>
         </div>
       )}
-      <TrendingTopicsBar topics={topics} activeTopic={activeTopic} onTopicChange={onTopicChange} />
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+        <TrendingTopicsBar
+          topics={topics}
+          activeTopic={activeTopic}
+          onTopicChange={onTopicChange}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={requestSummary}
+          className="relative overflow-hidden border border-border text-foreground hover:bg-muted transition-all duration-300"
+        >
+          <span className="relative z-10 font-medium">✨ Summarize</span>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
+        </Button>
+      </div>
     </header>
   )
 }

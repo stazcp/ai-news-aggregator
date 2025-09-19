@@ -10,10 +10,17 @@ interface TrendingTopicsBarProps {
   onTopicChange?: (topic: string) => void
 }
 
-export default function TrendingTopicsBar({ topics, activeTopic, onTopicChange }: TrendingTopicsBarProps) {
+export default function TrendingTopicsBar({
+  topics,
+  activeTopic,
+  onTopicChange,
+}: TrendingTopicsBarProps) {
   const router = useRouter()
   const params = useSearchParams()
-  const active = useMemo(() => (activeTopic !== undefined ? activeTopic : params.get('topic') || ''), [params, activeTopic])
+  const active = useMemo(
+    () => (activeTopic !== undefined ? activeTopic : params.get('topic') || ''),
+    [params, activeTopic]
+  )
 
   const setTopic = (topic: string) => {
     if (onTopicChange) {
@@ -37,7 +44,7 @@ export default function TrendingTopicsBar({ topics, activeTopic, onTopicChange }
   if (!topics?.length) return null
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+    <div className="flex flex-wrap items-center justify-center gap-2 ">
       <Button size="sm" variant={active ? 'outline' : 'default'} onClick={() => setTopic('')}>
         Trending
       </Button>

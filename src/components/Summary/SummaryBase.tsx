@@ -9,7 +9,7 @@ interface SummaryBaseProps {
   className?: string
   headerBadge?: ReactNode
   loadingContent: ReactNode
-  placeholderContent: ReactNode
+  placeholderContent?: ReactNode
   errorContent?: ReactNode
   children?: ReactNode
   showContainer?: boolean
@@ -58,7 +58,7 @@ export function SummaryBase({
   // If there is no summary content yet, always show the placeholder so
   // manual/on-demand controls remain visible when in viewport. Auto mode
   // will render the loading state above when intersecting.
-  if (!children) {
+  if (!children && placeholderContent) {
     return (
       <div ref={elementRef} className={containerClass}>
         {headerBadge}
