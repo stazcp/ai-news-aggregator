@@ -1,4 +1,4 @@
-import { LoadingSpinner } from '@/components/ui'
+import { CategorySummaryContentSkeleton } from '@/components/ui'
 import { useLazySummary } from '@/hooks/useLazySummary'
 import { StoryCluster } from '@/types'
 import { SummaryBase } from './SummaryBase'
@@ -32,9 +32,9 @@ export default function ClusterSummary({ cluster, eager = false }: ClusterSummar
       error={error}
       isIntersecting={isIntersecting && topicMatches}
       eager={eager}
-      className="space-y-4"
+      className="space-y-4 rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm min-h-[220px]"
       headerBadge={headerBadge}
-      loadingContent={<LoadingSpinner variant="cluster" articleCount={cluster?.articles?.length} />}
+      loadingContent={<CategorySummaryContentSkeleton />}
       placeholderContent={
         <p className="text-lg text-muted-foreground">
           AI-powered analysis will load when this section becomes visible

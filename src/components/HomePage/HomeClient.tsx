@@ -1,12 +1,12 @@
 'use client'
 
-import React, { useEffect, useMemo, useState, useRef } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import HomeLayout from './HomeLayout'
 import HomeHeader from './HomeHeader'
 import NewsList from '@/components/NewsList'
-import CategorySummary, { CategorySummaryRef } from '@/components/Summary/CategorySummary'
+import CategorySummary from '@/components/Summary/CategorySummary'
 import RefreshStatusBar from '@/components/RefreshStatusBar'
-import { NewsListSkeleton } from '@/components/ui/Skeleton'
+import { NewsListSkeleton, HomeHeaderSkeleton, CategorySummarySkeleton } from '@/components/ui'
 import { filterByTopic } from '@/lib/utils'
 import { useHomepageData, useHomepageDataAge, HomepageData } from '@/hooks/useHomepageData'
 
@@ -112,10 +112,14 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   }
 
   // Show skeleton loading state only if no data at all
-  if (isLoading && !data) {
+  // if (isLoading && !data) {
+  if (true) {
     return (
       <HomeLayout>
-        <NewsListSkeleton />
+        <div className="space-y-8">
+          <HomeHeaderSkeleton />
+          <NewsListSkeleton />
+        </div>
       </HomeLayout>
     )
   }
@@ -124,8 +128,12 @@ export default function HomeClient({ initialData }: HomeClientProps) {
 
   const { storyClusters, unclusteredArticles, topics, rateLimitMessage } = data
 
-  const handleOpenSummary = () => setIsSummaryOpen(true)
+  const handleTopicChange = (nextTopic: string) => {
+    setIsSummaryOpen(false)
+    setTopic(nextTopic)
+  }
 
+  const handleOpenSummary = () => setIsSummaryOpen(true)
   const handleCloseSummary = () => setIsSummaryOpen(false)
 
   return (
@@ -148,19 +156,18 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           rateLimitMessage={rateLimitMessage}
           topics={available}
           activeTopic={topic}
-          onTopicChange={setTopic}
+          onTopicChange={handleTopicChange}
           openSummary={handleOpenSummary}
           closeSummary={handleCloseSummary}
         />
 
-        {isSummaryOpen && (
-          <CategorySummary
-            topic={topic || undefined}
-            clusters={filtered.clusters}
-            unclustered={filtered.unclustered}
-            onClose={handleCloseSummary}
-          />
-        )}
+        <CategorySummary
+          topic={topic || undefined}
+          clusters={filtered.clusters}
+          unclustered={filtered.unclustered}
+          isSummaryOpen={isSummaryOpen}
+          onClose={handleCloseSummary}
+        />
 
         <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
 
