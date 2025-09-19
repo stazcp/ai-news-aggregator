@@ -112,8 +112,7 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   }
 
   // Show skeleton loading state only if no data at all
-  // if (isLoading && !data) {
-  if (true) {
+  if (isLoading && !data) {
     return (
       <HomeLayout>
         <div className="space-y-8">
