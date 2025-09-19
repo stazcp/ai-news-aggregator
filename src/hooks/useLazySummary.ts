@@ -14,6 +14,7 @@ interface UseLazySummaryArgs {
   variant?: 'article' | 'cluster'
   mode?: 'auto' | 'manual'
   purpose?: 'article' | 'cluster' | 'category'
+  disabled?: boolean
 }
 
 export function useLazySummary({
@@ -24,6 +25,7 @@ export function useLazySummary({
   variant = 'article',
   mode = 'auto',
   purpose,
+  disabled = false,
 }: UseLazySummaryArgs) {
   const searchParams = useSearchParams()
   const activeTopic = (searchParams?.get('topic') || '').trim()
@@ -92,6 +94,7 @@ export function useLazySummary({
   }, [variant, cluster, articleId])
 
   const enabled = useMemo(() => {
+    if (disabled) return false
     // Allow shorter thresholds when user explicitly requests (manual mode),
     // but still require some content to avoid 400 from the API.
     const lengthOk =
@@ -113,7 +116,7 @@ export function useLazySummary({
     error: queryError,
   } = useQuery({
     queryKey: ['summary', variant, effectivePurpose, idForCache, contentPayload.length],
-    enabled,
+    enabled: enabled,
     initialData: variant === 'cluster' ? cluster?.summary : undefined,
     staleTime: variant === 'cluster' ? 7200_000 : 3600_000,
     gcTime: variant === 'cluster' ? 7200_000 : 3600_000,

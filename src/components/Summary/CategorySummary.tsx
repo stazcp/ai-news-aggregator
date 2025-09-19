@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Article, StoryCluster } from '@/types'
 import { buildCategorySummaryPayload, simpleHash } from '@/lib/utils'
 import { useLazySummary } from '@/hooks/useLazySummary'
@@ -10,9 +10,21 @@ interface CategorySummaryProps {
   topic?: string
   clusters: StoryCluster[]
   unclustered: Article[]
+  isSummaryOpen: boolean
+  onClose: () => void
 }
 
-export function CategorySummary({ topic, clusters, unclustered }: CategorySummaryProps) {
+export interface CategorySummaryRef {
+  requestSummary: () => void
+}
+
+export function CategorySummary({
+  topic,
+  clusters,
+  unclustered,
+  isSummaryOpen,
+  onClose,
+}: CategorySummaryProps) {
   const isTrending = !topic
   const summaryTitle = isTrending ? 'Summary of the Day' : `${topic} Highlights`
   const buttonLabel = isTrending ? "Summarize today's news" : `Summarize ${topic}`
@@ -53,6 +65,7 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
     articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
     content: payload?.content || '',
     eager: false,
+    disabled: !isSummaryOpen,
     variant: 'article',
     mode,
     purpose: 'category',
@@ -64,35 +77,17 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
   }
 
   const articleCountLabel = `${payload.articleCount} article${payload.articleCount === 1 ? '' : 's'} analyzed`
-  const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
-    setIsCollapsed(false)
-  }, [summary])
+    if (isSummaryOpen) requestSummary()
+  }, [isSummaryOpen, requestSummary])
 
   const hasSummary = Boolean(summary)
   const containerClass = !hasSummary
     ? 'flex justify-end'
-    : isCollapsed
+    : !isSummaryOpen
       ? 'flex justify-end'
       : 'rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm'
-
-  const placeholderContent = (
-    <div className="inline-flex items-center gap-2">
-      {/* <Badge variant="outline" className="hidden sm:inline-flex text-xs">
-        {summaryTitle}
-      </Badge> */}
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={requestSummary}
-        className="relative overflow-hidden border border-border text-foreground hover:bg-muted transition-all duration-300 cursor-pointer"
-      >
-        <span className="relative z-10 font-medium">✨ Summarize Page</span>
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
-      </Button>
-    </div>
-  )
 
   const errorContent = (
     <div className="inline-flex items-center gap-2">
@@ -121,53 +116,37 @@ export function CategorySummary({ topic, clusters, unclustered }: CategorySummar
         eager={false}
         className={containerClass}
         loadingContent={<LoadingSpinner variant="cluster" articleCount={payload.articleCount} />}
-        placeholderContent={placeholderContent}
         errorContent={errorContent}
       >
-        {summary ? (
-          isCollapsed ? (
-            <div className="inline-flex items-center gap-2">
-              <Badge variant="outline" className="hidden sm:inline-flex text-xs">
-                {summaryTitle}
-              </Badge>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsCollapsed(false)}
-                className="relative overflow-hidden border border-border text-foreground hover:bg-muted transition-all duration-300 cursor-pointer"
-              >
-                <span className="relative z-10 font-medium">✨ Show summary</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/10"></div>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <Badge variant="secondary">{summaryTitle}</Badge>
-                  <span className="text-xs text-muted-foreground">{articleCountLabel}</span>
+        {summary
+          ? isSummaryOpen && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary">{summaryTitle}</Badge>
+                    <span className="text-xs text-muted-foreground">{articleCountLabel}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="hidden sm:inline">AI-powered digest</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={onClose}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      Hide summary
+                    </Button>
+                  </div>
                 </div>
+                <AISummaryTitle />
+                <p className="text-base leading-relaxed text-foreground/90">{summary}</p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="hidden sm:inline">AI-powered digest</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsCollapsed(true)}
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
-                  >
-                    Hide summary
-                  </Button>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                  <span>{articleCountLabel}</span>
                 </div>
               </div>
-              <AISummaryTitle />
-              <p className="text-base leading-relaxed text-foreground/90">{summary}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                <span>{articleCountLabel}</span>
-              </div>
-            </div>
-          )
-        ) : null}
+            )
+          : null}
       </SummaryBase>
     </section>
   )
