@@ -9,6 +9,7 @@ interface TrendingTopicsBarProps {
   activeTopic?: string
   onTopicChange?: (topic: string) => void
   additionalActions?: React.ReactNode
+  closeSummary: () => void
 }
 
 export default function TrendingTopicsBar({
@@ -16,6 +17,7 @@ export default function TrendingTopicsBar({
   activeTopic,
   onTopicChange,
   additionalActions,
+  closeSummary,
 }: TrendingTopicsBarProps) {
   const router = useRouter()
   const params = useSearchParams()
@@ -33,6 +35,7 @@ export default function TrendingTopicsBar({
         else url.searchParams.set('topic', topic)
         window.history.replaceState({}, '', `${url.pathname}${url.search}`)
       } catch {}
+      closeSummary()
       onTopicChange(topic)
       return
     }

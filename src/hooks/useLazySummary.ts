@@ -94,6 +94,7 @@ export function useLazySummary({
   }, [variant, cluster, articleId])
 
   const enabled = useMemo(() => {
+    if (disabled) return false
     // Allow shorter thresholds when user explicitly requests (manual mode),
     // but still require some content to avoid 400 from the API.
     const lengthOk =

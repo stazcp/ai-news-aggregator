@@ -150,6 +150,7 @@ export default function HomeClient({ initialData }: HomeClientProps) {
           activeTopic={topic}
           onTopicChange={setTopic}
           openSummary={handleOpenSummary}
+          closeSummary={handleCloseSummary}
         />
 
         <CategorySummary

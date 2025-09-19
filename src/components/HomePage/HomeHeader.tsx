@@ -10,6 +10,7 @@ interface HomeHeaderProps {
   activeTopic?: string
   onTopicChange?: (topic: string) => void
   openSummary: () => void
+  closeSummary: () => void
 }
 
 export default function HomeHeader({
@@ -18,6 +19,7 @@ export default function HomeHeader({
   activeTopic,
   onTopicChange,
   openSummary,
+  closeSummary,
 }: HomeHeaderProps) {
   const openSummaryButton = (
     <Button
@@ -50,6 +52,7 @@ export default function HomeHeader({
           activeTopic={activeTopic}
           onTopicChange={onTopicChange}
           additionalActions={openSummaryButton}
+          closeSummary={closeSummary}
         />
       </div>
     </header>
