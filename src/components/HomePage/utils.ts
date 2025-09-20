@@ -37,5 +37,7 @@ export const computeTopics = (data: HomepageData | undefined) => {
     if (total > 0) scored.push({ topic: t, score })
   }
 
-  return scored.toSorted((a, b) => b.score - a.score).map((s) => s.topic)
+  scored.sort((a, b) => b.score - a.score)
+
+  return scored.map((s) => s.topic)
 }
