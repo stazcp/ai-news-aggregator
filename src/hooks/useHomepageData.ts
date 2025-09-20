@@ -34,17 +34,16 @@ export function useHomepageData(initialData?: HomepageData) {
     },
 
     // Use initial data from SSR if available
-    ...(initialData && { initialData }),
+    ...(initialData && { initialData, initialDataUpdatedAt: Date.now() }),
 
     // Cache for 10 minutes, but show stale data immediately
     staleTime: 10 * 60 * 1000, // 10 minutes - data is fresh for 10 min
     gcTime: 60 * 60 * 1000, // 1 hour - keep in memory for 1 hour
 
     // Show cached data first, only refetch if stale
-    refetchOnMount: true, // Only refetch if data is stale
+    // refetchOnMount: true, // Only refetch if data is stale
     refetchOnWindowFocus: false, // Don't refetch on window focus to avoid constant updates
     refetchOnReconnect: true, // Refresh when internet reconnects
-
     // Custom background refetch logic based on data age
     refetchInterval: (query) => {
       const data = query.state.data
@@ -114,32 +113,4 @@ export function useHomepageData(initialData?: HomepageData) {
   }, [query.data, query.error, queryClient])
 
   return query
-}
-
-// Helper hook to get just the loading state for the homepage
-export function useHomepageLoading() {
-  const { isLoading, isFetching, error } = useHomepageData()
-
-  return {
-    isInitialLoading: isLoading, // True only on first load with no cached data
-    isRefreshing: isFetching && !isLoading, // True when updating in background
-    hasError: !!error,
-  }
-}
-
-// Helper hook to check if homepage data is stale
-export function useHomepageDataAge() {
-  const { data } = useHomepageData()
-
-  if (!data?.lastUpdated) return null
-
-  const lastUpdate = new Date(data.lastUpdated)
-  const ageInHours = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60)
-
-  return {
-    lastUpdated: lastUpdate,
-    ageInHours,
-    isStale: ageInHours > 6, // Consider stale after 6 hours
-    isVeryStale: ageInHours > 24, // Consider very stale after 24 hours
-  }
 }
