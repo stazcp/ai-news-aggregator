@@ -32,7 +32,6 @@ export default function ClusterSummary({ cluster, eager = false }: ClusterSummar
       error={error}
       isIntersecting={isIntersecting && topicMatches}
       eager={eager}
-      className="space-y-4 rounded-2xl border border-border bg-card/60 backdrop-blur p-6 sm:p-7 shadow-sm min-h-[220px]"
       headerBadge={headerBadge}
       loadingContent={<CategorySummaryContentSkeleton />}
       placeholderContent={

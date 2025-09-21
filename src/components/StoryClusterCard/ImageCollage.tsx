@@ -131,13 +131,13 @@ const ImageCollage = ({
 
   return (
     <div
-      className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl border border-border/60 bg-background/40"
+      className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl "
       style={{ gridAutoRows: autoRowHeight }}
     >
       {urls.map((url, index) => {
         const layoutClass = layoutForIndex(index)
-        let className = 'relative h-full w-full min-h-[8rem] overflow-hidden rounded-xl' +
-          layoutClass
+        let className =
+          'relative h-full w-full min-h-[8rem] overflow-hidden rounded-xl' + layoutClass
         const srcToUse = url
         const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
         const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')

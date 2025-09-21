@@ -34,16 +34,27 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
       article.urlToImage.trim() === ''
     const unknownDims = !article.imageWidth || !article.imageHeight
     const tooSmall =
-      !!article.imageWidth && !!article.imageHeight &&
+      !!article.imageWidth &&
+      !!article.imageHeight &&
       (article.imageWidth < MIN_W || article.imageHeight < MIN_H)
     return missingUrl || unknownDims || tooSmall
   })
 
   return (
     <div className="space-y-10 lg:space-y-12">
-      {storyClusters.map((cluster, index) => (
-        <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
-      ))}
+      {storyClusters.length > 0 && (
+        <section>
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+            <span className="h-6 w-1 rounded-full bg-accent"></span>
+            AI-Generated Clusters
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {storyClusters.map((cluster, index) => (
+              <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
+            ))}
+          </div>
+        </section>
+      )}
       {storyClusters.length > 0 && unclusteredArticles.length > 0 && <SectionDivider />}
       {unclusteredArticles.length > 0 && (
         <div className="space-y-8">

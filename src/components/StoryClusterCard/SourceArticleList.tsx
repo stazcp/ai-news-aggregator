@@ -49,9 +49,10 @@ const SourceArticle = ({ article, index }: { article: Article; index: number }) 
 interface SourceArticleListProps {
   articles: Article[]
   className?: string
+  showHeader?: boolean
 }
 
-const SourceArticleList = ({ articles, className }: SourceArticleListProps) => {
+const SourceArticleList = ({ articles, className, showHeader = true }: SourceArticleListProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const sourceCount = articles.length
   if (!articles || articles.length === 0) {
@@ -63,13 +64,15 @@ const SourceArticleList = ({ articles, className }: SourceArticleListProps) => {
 
   return (
     <div className={containerClassName}>
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-          Coverage from {sourceCount} sources
-          <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-        </span>
-        <span className="text-xs uppercase tracking-wide text-muted-foreground/70">Live updates</span>
-      </div>
+      {showHeader && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+            Coverage from {sourceCount} sources
+            <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+          </span>
+          <span className="text-xs uppercase tracking-wide text-muted-foreground/70">Live updates</span>
+        </div>
+      )}
 
       <div className="space-y-2">
         {visibleArticles.map((article, index) => (

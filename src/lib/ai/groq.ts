@@ -121,7 +121,10 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
   }
 }
 
-export async function summarizeCluster(articles: Article[]): Promise<string> {
+export async function summarizeCluster(
+  articles: Article[],
+  length: 'short' | 'long' = 'long'
+): Promise<string> {
   const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
   const cacheKey = `cluster-summary-${articles
     .map((a) => a.id)
@@ -140,13 +143,18 @@ export async function summarizeCluster(articles: Article[]): Promise<string> {
     )
     .join('--- \n')
 
+  const isShort = length === 'short'
   const prompt = `
-You are a senior news editor. Synthesize a single, cohesive summary from multiple articles covering the same event.
+You are a senior news editor. Synthesize a ${isShort ? 'single-sentence' : 'single, cohesive'} summary from multiple articles covering the same event.
 Requirements:
-- One paragraph, 4–6 sentences, neutral and precise.
+${
+  isShort
+    ? '- Exactly one sentence (≈18–30 words), neutral and precise.'
+    : '- One paragraph, 4–6 sentences, neutral and precise.'
+}
 - Integrate key facts that multiple sources agree on; avoid duplication.
 - Note any major disagreements or uncertainty if present.
-- Avoid rhetoric and adjectives; prefer numbers, timeframes, and concrete details.
+- Prefer numbers, timeframes, concrete details; avoid rhetoric.
 - Do not list sources; write a unified narrative.
 Here are the sources (title, brief, content, date, url):
 ${contentToSummarize}
@@ -160,13 +168,26 @@ ${contentToSummarize}
           { role: 'user', content: prompt },
         ],
         model: 'llama-3.3-70b-versatile',
-        temperature: 0.4,
-        max_tokens: 320,
+        temperature: isShort ? 0.3 : 0.4,
+        max_tokens: isShort ? 90 : 320,
       })
     )
 
-    const summary =
+    let summary =
       completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
+    if (isShort) {
+      // Ensure single concise sentence when short is requested
+      const normalized = summary.replace(/\s+/g, ' ').trim()
+      const match = normalized.match(/(.+?[.!?])(\s|$)/)
+      if (match) {
+        summary = match[1]
+      } else {
+        // Fallback: hard cut at ~140 chars
+        summary = normalized.slice(0, 140)
+        const lastDot = summary.lastIndexOf('.')
+        if (lastDot > 40) summary = summary.slice(0, lastDot + 1)
+      }
+    }
     await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
     return summary
   } catch (error) {
