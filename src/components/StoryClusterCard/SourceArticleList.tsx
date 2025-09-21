@@ -3,14 +3,13 @@
 import { Article } from '@/types'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '../ui'
 
 const SourceArticle = ({ article, index }: { article: Article; index: number }) => (
   <a
     href={article.url}
     target="_blank"
     rel="noopener noreferrer"
-    className="group block p-4 rounded-lg bg-background border hover:border-accent/50 transition-all duration-200 hover:shadow-md"
+    className="group block rounded-lg border border-border/60 bg-background/80 p-3 transition-all duration-200 hover:border-accent/50 hover:shadow-sm"
   >
     <div className="flex items-start gap-3">
       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center text-sm font-medium text-accent">
@@ -47,7 +46,12 @@ const SourceArticle = ({ article, index }: { article: Article; index: number }) 
   </a>
 )
 
-const SourceArticleList = ({ articles }: { articles: Article[] }) => {
+interface SourceArticleListProps {
+  articles: Article[]
+  className?: string
+}
+
+const SourceArticleList = ({ articles, className }: SourceArticleListProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const sourceCount = articles.length
   if (!articles || articles.length === 0) {
@@ -55,38 +59,36 @@ const SourceArticleList = ({ articles }: { articles: Article[] }) => {
   }
 
   const visibleArticles = isExpanded ? articles : articles.slice(0, 4)
+  const containerClassName = ['flex flex-col gap-4', className].filter(Boolean).join(' ')
 
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Coverage from {sourceCount} Sources</CardTitle>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 bg-accent rounded-full"></div>
-            Live Coverage
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {visibleArticles.map((article, index) => (
-            <SourceArticle key={article.id} article={article} index={index} />
-          ))}
+    <div className={containerClassName}>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+          Coverage from {sourceCount} sources
+          <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+        </span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground/70">Live updates</span>
+      </div>
 
-          {articles.length > 4 && (
-            <div className="pt-4 border-t border-border">
-              <Button
-                variant="outline"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full cursor-pointer"
-              >
-                {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
-              </Button>
-            </div>
-          )}
+      <div className="space-y-2">
+        {visibleArticles.map((article, index) => (
+          <SourceArticle key={article.id} article={article} index={index} />
+        ))}
+      </div>
+
+      {articles.length > 4 && (
+        <div className="pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full cursor-pointer"
+          >
+            {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
+          </Button>
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   )
 }
 

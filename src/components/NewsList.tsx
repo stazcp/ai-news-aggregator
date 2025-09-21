@@ -40,7 +40,7 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
   })
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-10 lg:space-y-12">
       {storyClusters.map((cluster, index) => (
         <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
       ))}

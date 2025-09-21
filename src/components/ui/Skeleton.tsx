@@ -155,13 +155,6 @@ export function HomeHeaderSkeleton() {
             <Skeleton key={i} className="h-8 w-20 rounded-full" />
           ))}
         </div>
-        <button
-          type="button"
-          className="relative overflow-hidden border border-border text-foreground bg-background px-3 h-8 rounded-md text-sm font-medium cursor-default"
-          disabled
-        >
-          <span className="opacity-70">✨ Summarize</span>
-        </button>
       </div>
     </header>
   )

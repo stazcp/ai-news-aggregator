@@ -123,11 +123,21 @@ const ImageCollage = ({
 
   if (urls.length === 0) return null
 
+  const autoRowHeight = useMemo(() => {
+    if (urls.length <= 1) return 'minmax(clamp(12rem, 30vw, 18rem), 1fr)'
+    if (urls.length === 2) return 'minmax(clamp(10rem, 26vw, 16rem), 1fr)'
+    return 'minmax(clamp(8.5rem, 22vw, 14rem), 1fr)'
+  }, [urls.length])
+
   return (
-    <div className="mb-4 grid grid-cols-2 grid-rows-2 gap-2 h-80 lg:h-96 xl:h-[500px] rounded-lg overflow-hidden border">
+    <div
+      className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl border border-border/60 bg-background/40"
+      style={{ gridAutoRows: autoRowHeight }}
+    >
       {urls.map((url, index) => {
         const layoutClass = layoutForIndex(index)
-        let className = 'w-full h-full' + layoutClass
+        let className = 'relative h-full w-full min-h-[8rem] overflow-hidden rounded-xl' +
+          layoutClass
         const srcToUse = url
         const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
         const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
@@ -141,7 +151,7 @@ const ImageCollage = ({
                 href={correspondingArticle.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block w-full h-full group relative overflow-hidden rounded-sm"
+                className="group relative block h-full w-full overflow-hidden"
               >
                 <NextImage
                   src={srcToUse}
@@ -154,7 +164,7 @@ const ImageCollage = ({
                   onError={() => setUrls((prev) => prev.filter((u) => u !== url))}
                 />
                 {/* Overlay with source name on hover */}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+                <div className="absolute inset-0 flex items-end bg-black/60 p-3 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                   <div className="text-white">
                     <p className="text-xs font-medium">{correspondingArticle.source.name}</p>
                     <p className="text-xs opacity-75 line-clamp-2 mt-1">
@@ -163,7 +173,7 @@ const ImageCollage = ({
                   </div>
                 </div>
                 {/* External link icon */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute right-2 top-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                   <svg
                     className="w-4 h-4 text-white"
                     fill="none"

@@ -16,52 +16,84 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
   if (!cluster.articles || cluster.articles.length === 0) return null
 
   const sourceCount = cluster.articles.length
-  const latestArticle = cluster.articles[0] // Assuming articles are sorted by date
+  const latestArticle = cluster.articles[0]
   const [hasImages, setHasImages] = React.useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
 
+  const publishedLabel = React.useMemo(() => {
+    try {
+      return new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    } catch {
+      return ''
+    }
+  }, [latestArticle?.publishedAt])
+
   return (
-    <section className="mb-16 border-b border-border pb-16 last:border-b-0">
-      {/* Story Header */}
-      <header className="mb-6">
-        <div className="flex items-center gap-4 mb-3">
-          <Badge variant="secondary">{isFirst ? 'Breaking News' : 'Top Story'}</Badge>
-          <span className="text-sm text-muted-foreground">
-            {sourceCount} source{sourceCount !== 1 ? 's' : ''} •{' '}
-            {new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-            })}
-          </span>
-        </div>
-
-        <h1 className="text-4xl md:text-5xl font-bold text-foreground leading-tight mb-4">
-          {cluster.clusterTitle}
-        </h1>
-      </header>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {hasImages ? (
-          <div className="lg:col-span-1">
-            <ImageCollage
-              cluster={cluster}
-              onChangeCount={(count) => setHasImages(count > 0)}
-            />
+    <section className="last:pb-0">
+      <Card className="overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md">
+        <CardHeader className="gap-3 border-b border-border/60 bg-muted/40 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <Badge variant="secondary" className="uppercase tracking-wide">
+              {isFirst ? 'Breaking' : 'Top Story'}
+            </Badge>
+            <span>
+              {sourceCount} source{sourceCount !== 1 ? 's' : ''}
+              {publishedLabel ? ` • ${publishedLabel}` : ''}
+            </span>
+            {cluster.severity?.label && (
+              <span className="inline-flex items-center rounded-full border border-border/60 px-3 py-1 text-[11px] uppercase tracking-wide text-foreground/70">
+                {cluster.severity.label}
+              </span>
+            )}
           </div>
-        ) : (
-          <SourceArticleList articles={cluster.articles} />
-        )}
+          <CardTitle className="text-2xl sm:text-3xl font-semibold leading-tight text-foreground">
+            {cluster.clusterTitle}
+          </CardTitle>
+          {latestArticle?.description && (
+            <p className="text-sm text-muted-foreground/80 line-clamp-2">
+              {latestArticle.description}
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="flex flex-col gap-6 p-6">
+            <div
+              className={`grid gap-6 ${
+                hasImages
+                  ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch'
+                  : ''
+              }`}
+            >
+              {hasImages && (
+                <ImageCollage
+                  cluster={cluster}
+                  onChangeCount={(count) => setHasImages(count > 0)}
+                />
+              )}
+              <div className="flex flex-col gap-6 lg:h-full lg:justify-between">
+                <ClusterSummary cluster={cluster} eager={isFirst} />
+                {!hasImages && (
+                  <SourceArticleList
+                    articles={cluster.articles}
+                    className="border-t border-border/60 pt-6"
+                  />
+                )}
+              </div>
+            </div>
 
-        {/* Right Column: AI Summary with Lazy Loading */}
-        <div className="lg:col-span-2">
-          <ClusterSummary cluster={cluster} eager={isFirst} />
-        </div>
-        {hasImages && (
-          <div className="lg:col-span-3">{<SourceArticleList articles={cluster.articles} />}</div>
-        )}
-      </div>
+            {hasImages && (
+              <SourceArticleList
+                articles={cluster.articles}
+                className="border-t border-border/60 pt-6"
+              />
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </section>
   )
 }
