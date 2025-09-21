@@ -126,10 +126,12 @@ export async function summarizeCluster(
   length: 'short' | 'long' = 'long'
 ): Promise<string> {
   const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
-  const cacheKey = `cluster-summary-${articles
+  const isShort = length === 'short'
+  const baseKey = `cluster-summary-${articles
     .map((a) => a.id)
     .sort()
     .join('-')}`
+  const cacheKey = isShort ? `${baseKey}:short` : baseKey
   const cachedSummary = await getCachedData(cacheKey)
   if (cachedSummary) {
     console.log('📦 Returning cached cluster summary')
@@ -143,9 +145,8 @@ export async function summarizeCluster(
     )
     .join('--- \n')
 
-  const isShort = length === 'short'
   const prompt = `
-You are a senior news editor. Synthesize a ${isShort ? 'single-sentence' : 'single, cohesive'} summary from multiple articles covering the same event.
+  You are a senior news editor. Synthesize a ${isShort ? 'single-sentence' : 'single, cohesive'} summary from multiple articles covering the same event.
 Requirements:
 ${
   isShort
