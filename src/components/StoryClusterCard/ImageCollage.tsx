@@ -128,7 +128,7 @@ const ImageCollage = ({
     if (urls.length === 2) return 'minmax(clamp(10rem, 26vw, 16rem), 1fr)'
     return 'minmax(clamp(8.5rem, 22vw, 14rem), 1fr)'
   }, [urls.length])
-
+  console.log(urls)
   return (
     <div
       className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl "

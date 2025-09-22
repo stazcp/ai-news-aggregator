@@ -41,7 +41,6 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     }
   }, [latestArticle?.publishedAt])
 
-
   const heroImage = React.useMemo(() => {
     const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
     const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
@@ -90,7 +89,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
       className="h-8 px-3 text-xs"
       aria-expanded={isExpanded}
     >
-      {isExpanded ? 'Collapse cluster' : `Open ${sourceCount} related stories`}
+      {isExpanded ? 'Collapse story' : `Open ${sourceCount} related stories`}
     </Button>
   )
 
@@ -242,15 +241,13 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
               >
                 {cluster.clusterTitle}
               </CardTitle>
-              {isExpanded
-                ? shortSummary
-                  ? (
-                      <p className="text-sm text-muted-foreground line-clamp-2">{shortSummary}</p>
-                    )
-                  : (
-                      clusterMeta
-                    )
-                : null}
+              {isExpanded ? (
+                shortSummary ? (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{shortSummary}</p>
+                ) : (
+                  clusterMeta
+                )
+              ) : null}
             </div>
             <div className="flex items-start justify-end sm:pt-1">{toggleButton}</div>
           </div>

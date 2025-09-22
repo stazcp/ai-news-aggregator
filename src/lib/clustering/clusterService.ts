@@ -50,8 +50,14 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
 
   // 1) Deterministic pre-clustering to create coherent seeds across ALL articles
   console.log('🧩 Pre-clustering articles (TF-IDF cosine)…')
-  const seeds = preClusterArticles(articles, { threshold: THRESH, minSize: MIN_SIZE, maxGroup: MAX_GROUP })
-  console.log(`🧪 Generated ${seeds.length} seed groups for LLM refinement (threshold=${THRESH}, min=${MIN_SIZE})`)
+  const seeds = preClusterArticles(articles, {
+    threshold: THRESH,
+    minSize: MIN_SIZE,
+    maxGroup: MAX_GROUP,
+  })
+  console.log(
+    `🧪 Generated ${seeds.length} seed groups for LLM refinement (threshold=${THRESH}, min=${MIN_SIZE})`
+  )
   printSamples('Seed groups (pre-refine)', seeds)
 
   // 2) Refine each seed with the LLM to name the cluster and adjust membership
@@ -73,7 +79,9 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
             allClusters.push(...refined)
           } catch (error) {
             if (isRateLimitError(error)) {
-              console.warn('⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.')
+              console.warn(
+                '⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.'
+              )
               // Fallback: return seeds as clusters
               return seeds
             }
@@ -82,13 +90,15 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
           await new Promise((r) => setTimeout(r, 800))
         }
       } else {
-        console.log(`🤖 Refining seed ${si + 1}/${seeds.length} (${seedArticles.length} articles)`) 
+        console.log(`🤖 Refining seed ${si + 1}/${seeds.length} (${seedArticles.length} articles)`)
         try {
           const refined = await clusterArticles(seedArticles)
           allClusters.push(...refined)
         } catch (error) {
           if (isRateLimitError(error)) {
-            console.warn('⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.')
+            console.warn(
+              '⚠️ Rate limit during refinement (or spend limit). Falling back to deterministic seeds.'
+            )
             return seeds
           }
           console.error('Error refining seed:', error)
@@ -167,7 +177,8 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
         const baseSim = parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.46')
         const baseMaxAdd = parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '30', 10)
         const baseHours = parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '96', 10)
-        const baseStrict = (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
+        const baseStrict =
+          (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
 
         const expanded = mergedLLM.map((c) => {
           // Use heuristic severity to relax expansion for critical events
@@ -215,8 +226,8 @@ async function enrichClusters(
   articleMap: Map<string, Article>
 ): Promise<StoryCluster[]> {
   const enrichedClusters: StoryCluster[] = []
-  const DO_SUMMARY_DURING_ENRICH = (process.env.CLUSTER_SUMMARIZE_DURING_ENRICH || 'false')
-    .toLowerCase() !== 'false'
+  const DO_SUMMARY_DURING_ENRICH =
+    (process.env.CLUSTER_SUMMARIZE_DURING_ENRICH || 'false').toLowerCase() !== 'false'
 
   for (let i = 0; i < rawClusters.length; i++) {
     const cluster = rawClusters[i]
@@ -250,7 +261,8 @@ async function enrichClusters(
         // Fallback: tie dedupe explicitly to host (never cross-host)
         let host = ''
         try {
-          if (a.source?.url) host = new URL(a.source.url).hostname.replace(/^www\./, '').toLowerCase()
+          if (a.source?.url)
+            host = new URL(a.source.url).hostname.replace(/^www\./, '').toLowerCase()
         } catch {}
         return `${host}|${(a.title || '').toLowerCase().trim()}`
       }
@@ -281,8 +293,7 @@ async function enrichClusters(
         const aHasImage = hasUsefulImage(a) ? 0 : 1
         const bHasImage = hasUsefulImage(b) ? 0 : 1
         if (aHasImage !== bHasImage) return aHasImage - bHasImage
-        const timeDiff =
-          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        const timeDiff = new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
         return timeDiff
       })
 
@@ -290,7 +301,9 @@ async function enrichClusters(
       const perDomainMax = 2
       const domainCounts = new Map<string, number>()
       const diverse: Article[] = []
-      for (const a of articlesInCluster.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())) {
+      for (const a of articlesInCluster.sort(
+        (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+      )) {
         try {
           const host = new URL(a.url).hostname.replace(/^www\./, '')
           const used = domainCounts.get(host) || 0
@@ -306,8 +319,8 @@ async function enrichClusters(
       articlesInCluster = diverse
 
       const summary = DO_SUMMARY_DURING_ENRICH ? await summarizeCluster(articlesInCluster) : ''
-      const MINW = parseInt(process.env.MIN_IMAGE_WIDTH || '320', 10)
-      const MINH = parseInt(process.env.MIN_IMAGE_HEIGHT || '200', 10)
+      const MINW = parseInt(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH || '320', 10)
+      const MINH = parseInt(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT || '200', 10)
       const imageSourceArticles = articlesInCluster.some(hasUsefulImage)
         ? articlesInCluster
         : dedupedArticles
@@ -328,9 +341,7 @@ async function enrichClusters(
         return true
       })
       // Unique image URLs only to avoid duplicate keys and empty slots
-      const imageUrls = Array.from(
-        new Set(validImageArticles.map((a) => a.urlToImage))
-      ).slice(0, 4)
+      const imageUrls = Array.from(new Set(validImageArticles.map((a) => a.urlToImage))).slice(0, 4)
 
       enrichedClusters.push({ ...cluster, articles: articlesInCluster, summary, imageUrls })
 
@@ -366,52 +377,54 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     console.log(`🔄 Starting clustering process for ${articles.length} articles`)
     const articleMap = new Map(articles.map((a) => [a.id, a]))
     const rawClusters = await getRawClusters(articles)
-  const enrichedClusters = await enrichClusters(rawClusters, articleMap)
-  // Filter out any clusters that became invalid (e.g., had fewer than 2 articles after enrichment)
-  let validClusters = enrichedClusters.filter(
-    (cluster) => cluster.articles && cluster.articles.length >= 2
-  )
+    const enrichedClusters = await enrichClusters(rawClusters, articleMap)
+    // Filter out any clusters that became invalid (e.g., had fewer than 2 articles after enrichment)
+    let validClusters = enrichedClusters.filter(
+      (cluster) => cluster.articles && cluster.articles.length >= 2
+    )
 
-  // Compute severity and scores, then sort
-  const sevBoosts = {
-    'War/Conflict': Number(process.env.SEVERITY_BOOST_WAR || 10),
-    'Mass Casualty/Deaths': Number(process.env.SEVERITY_BOOST_DEATHS || 7),
-    'National Politics': Number(process.env.SEVERITY_BOOST_POLITICS || 3),
-    'Economy/Markets': Number(process.env.SEVERITY_BOOST_ECONOMY || 2),
-    'Tech/Business': Number(process.env.SEVERITY_BOOST_TECH || 1),
-    Other: Number(process.env.SEVERITY_BOOST_OTHER || 0),
-  }
-
-  const USE_LLM_SEVERITY = (process.env.SEVERITY_USE_LLM || 'true').toLowerCase() !== 'false'
-  const computed: StoryCluster[] = []
-  for (const c of validClusters) {
-    let severity = USE_LLM_SEVERITY ? await assessClusterSeverityLLM(c) : computeSeverity(c)
-    // Fallback if LLM returns neutral
-    if (!USE_LLM_SEVERITY || !severity || severity.level === 0) {
-      severity = computeSeverity(c)
+    // Compute severity and scores, then sort
+    const sevBoosts = {
+      'War/Conflict': Number(process.env.SEVERITY_BOOST_WAR || 10),
+      'Mass Casualty/Deaths': Number(process.env.SEVERITY_BOOST_DEATHS || 7),
+      'National Politics': Number(process.env.SEVERITY_BOOST_POLITICS || 3),
+      'Economy/Markets': Number(process.env.SEVERITY_BOOST_ECONOMY || 2),
+      'Tech/Business': Number(process.env.SEVERITY_BOOST_TECH || 1),
+      Other: Number(process.env.SEVERITY_BOOST_OTHER || 0),
     }
-    const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
-    computed.push({ ...c, severity, score })
-  }
-  // Sort by score BEFORE doing any server-side summarization
-  validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
 
-  // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
-  const SUM_TOP = parseInt(process.env.CLUSTER_SUMMARIZE_TOP_N || '6', 10)
-  const topToSummarize = validClusters.slice(0, SUM_TOP)
-  for (let i = 0; i < topToSummarize.length; i++) {
-    try {
-      if (!topToSummarize[i].summary) {
-        const s = await summarizeCluster(topToSummarize[i].articles || [])
-        topToSummarize[i].summary = s
+    const USE_LLM_SEVERITY = (process.env.SEVERITY_USE_LLM || 'true').toLowerCase() !== 'false'
+    const computed: StoryCluster[] = []
+    for (const c of validClusters) {
+      let severity = USE_LLM_SEVERITY ? await assessClusterSeverityLLM(c) : computeSeverity(c)
+      // Fallback if LLM returns neutral
+      if (!USE_LLM_SEVERITY || !severity || severity.level === 0) {
+        severity = computeSeverity(c)
       }
-    } catch (e) {
-      if (isRateLimitError(e)) break
+      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
+      computed.push({ ...c, severity, score })
     }
-  }
+    // Sort by score BEFORE doing any server-side summarization
+    validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
 
-  console.log(`✅ Successfully created ${validClusters.length} story clusters (scored and sorted)`) 
-  return { clusters: validClusters, rateLimited: false }
+    // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
+    const SUM_TOP = parseInt(process.env.CLUSTER_SUMMARIZE_TOP_N || '6', 10)
+    const topToSummarize = validClusters.slice(0, SUM_TOP)
+    for (let i = 0; i < topToSummarize.length; i++) {
+      try {
+        if (!topToSummarize[i].summary) {
+          const s = await summarizeCluster(topToSummarize[i].articles || [])
+          topToSummarize[i].summary = s
+        }
+      } catch (e) {
+        if (isRateLimitError(e)) break
+      }
+    }
+
+    console.log(
+      `✅ Successfully created ${validClusters.length} story clusters (scored and sorted)`
+    )
+    return { clusters: validClusters, rateLimited: false }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     if (isRateLimitError(error) || errorMessage === 'RATE_LIMIT_EXCEEDED') {
