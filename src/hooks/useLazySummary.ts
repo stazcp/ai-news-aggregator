@@ -15,6 +15,7 @@ interface UseLazySummaryArgs {
   mode?: 'auto' | 'manual'
   purpose?: 'article' | 'cluster' | 'category'
   disabled?: boolean
+  length?: 'short' | 'long'
 }
 
 export function useLazySummary({
@@ -26,25 +27,13 @@ export function useLazySummary({
   mode = 'auto',
   purpose,
   disabled = false,
+  length = 'long',
 }: UseLazySummaryArgs) {
   const searchParams = useSearchParams()
   const activeTopic = (searchParams?.get('topic') || '').trim()
   const effectivePurpose = purpose || (variant === 'cluster' ? 'cluster' : 'article')
 
-  const [summary, setSummary] = useState<string>(
-    variant === 'cluster' ? cluster?.summary || '' : ''
-  )
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [hasRequested, setHasRequested] = useState(
-    variant === 'cluster' ? !!cluster?.summary : false
-  )
-
-  const { elementRef, isIntersecting } = useIntersectionObserver({
-    threshold: variant === 'cluster' ? 0.1 : 0.2,
-    rootMargin: variant === 'cluster' ? '300px' : '200px',
-    triggerOnce: true,
-  })
+  const MIN_CLUSTER_SUMMARY_LENGTH = 160
 
   // Helper to strip any HTML tags from summaries that may come from fallbacks
   const stripHtml = (input: string): string =>
@@ -55,16 +44,42 @@ export function useLazySummary({
       .replace(/\s+/g, ' ')
       .trim()
 
+  const cleanedClusterSummary = useMemo(() => {
+    if (variant !== 'cluster') return ''
+    return stripHtml(cluster?.summary || '')
+  }, [variant, cluster?.summary])
+
+  const hasServerClusterSummary =
+    variant === 'cluster' && cleanedClusterSummary.length >= MIN_CLUSTER_SUMMARY_LENGTH
+
+  // For short cluster summaries, we never treat the long server summary as a
+  // substitute; always allow fetching the short variant when requested.
+  const hasServerSummaryForVariant =
+    variant === 'cluster' && length === 'short' ? false : hasServerClusterSummary
+
+  const [summary, setSummary] = useState<string>(
+    variant === 'cluster' && hasServerSummaryForVariant ? cleanedClusterSummary : ''
+  )
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [hasRequested, setHasRequested] = useState(hasServerSummaryForVariant)
+
+  const { elementRef, isIntersecting } = useIntersectionObserver({
+    threshold: variant === 'cluster' ? 0.1 : 0.2,
+    rootMargin: variant === 'cluster' ? '300px' : '200px',
+    triggerOnce: true,
+  })
+
   // Reset local state when target identity changes to avoid stale summaries
   useEffect(() => {
-    const initialSummaryRaw = variant === 'cluster' ? cluster?.summary || '' : ''
-    const initialSummary = stripHtml(initialSummaryRaw)
+    const initialSummary =
+      variant === 'cluster' && hasServerSummaryForVariant ? cleanedClusterSummary : ''
     setSummary(initialSummary)
     setError(null)
-    setHasRequested(variant === 'cluster' ? !!cluster?.summary : false)
+    setHasRequested(variant === 'cluster' ? hasServerSummaryForVariant : false)
     setIsLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [variant, articleId, cluster?.clusterTitle])
+  }, [variant, articleId, cluster?.clusterTitle, cleanedClusterSummary, hasServerSummaryForVariant])
 
   const topicMatches = (() => {
     if (!activeTopic) return true
@@ -88,10 +103,11 @@ export function useLazySummary({
 
   const idForCache = useMemo(() => {
     if (variant === 'cluster' && cluster) {
-      return getClusterSummaryId(cluster)
+      const base = getClusterSummaryId(cluster)
+      return length === 'short' ? `${base}:short` : base
     }
     return articleId || 'unknown'
-  }, [variant, cluster, articleId])
+  }, [variant, cluster, articleId, length])
 
   const enabled = useMemo(() => {
     if (disabled) return false
@@ -102,22 +118,31 @@ export function useLazySummary({
         ? (cluster?.articles?.length ?? 0) > 0
         : !!content && (mode === 'manual' ? content.length > 30 : content.length > 100)
 
-    const hasServerClusterSummary = variant === 'cluster' && !!cluster?.summary
-
     if (mode === 'manual') {
-      return lengthOk && hasRequested && !hasServerClusterSummary
+      return lengthOk && hasRequested && !hasServerSummaryForVariant
     }
-    return lengthOk && (eager || isIntersecting) && topicMatches && !hasServerClusterSummary
-  }, [variant, cluster, content, eager, isIntersecting, topicMatches, mode, hasRequested])
+    return lengthOk && (eager || isIntersecting) && topicMatches && !hasServerSummaryForVariant
+  }, [
+    variant,
+    cluster,
+    content,
+    eager,
+    isIntersecting,
+    topicMatches,
+    mode,
+    hasRequested,
+    hasServerSummaryForVariant,
+  ])
 
   const {
     data,
     isFetching,
     error: queryError,
   } = useQuery({
-    queryKey: ['summary', variant, effectivePurpose, idForCache, contentPayload.length],
+    queryKey: ['summary', variant, effectivePurpose, idForCache, contentPayload.length, length],
     enabled: enabled,
-    initialData: variant === 'cluster' ? cluster?.summary : undefined,
+    initialData:
+      variant === 'cluster' && hasServerSummaryForVariant ? cleanedClusterSummary : undefined,
     staleTime: variant === 'cluster' ? 7200_000 : 3600_000,
     gcTime: variant === 'cluster' ? 7200_000 : 3600_000,
     queryFn: async () => {
@@ -129,6 +154,7 @@ export function useLazySummary({
               isCluster: true,
               clusterTitle: cluster?.clusterTitle,
               purpose: effectivePurpose,
+              length,
             }
           : { articleId: idForCache, content: contentPayload, purpose: effectivePurpose }
 

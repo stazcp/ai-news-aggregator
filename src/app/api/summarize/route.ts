@@ -5,7 +5,7 @@ import { getSummaryCacheKey } from '@/lib/ai/summaryCache'
 
 export async function POST(request: Request) {
   try {
-    const { articleId, content, isCluster, clusterTitle, purpose } = await request.json()
+    const { articleId, content, isCluster, clusterTitle, purpose, length } = await request.json()
 
     if (!content) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
@@ -17,7 +17,10 @@ export async function POST(request: Request) {
         ? 'category'
         : 'article'
 
-    const cacheKey = getSummaryCacheKey(summaryPurpose, articleId)
+    const cacheKey = getSummaryCacheKey(
+      summaryPurpose,
+      length === 'short' && summaryPurpose === 'cluster' ? `${articleId}:short` : articleId
+    )
     const summaryType = summaryPurpose
 
     // Log AI resource usage for optimization tracking
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
       console.log(`⚡ [AI Generation] Generating new ${summaryType} summary for: ${articleId}`)
 
       if (summaryPurpose === 'cluster' && clusterTitle) {
-        summary = await summarizeCluster(content)
+        summary = await summarizeCluster(content, length === 'short' ? 'short' : 'long')
       } else if (summaryPurpose === 'category') {
         summary = await summarizeCategoryDigest(content)
       } else {

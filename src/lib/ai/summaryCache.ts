@@ -7,7 +7,10 @@ export type SummaryPurpose = 'article' | 'cluster' | 'category'
  */
 export function getSummaryCacheKey(purpose: SummaryPurpose, id: string): string {
   const sanitizedId = (id || '').trim() || 'unknown'
-  return `Summary-${purpose}-${sanitizedId}`
+  // Bump cluster cache namespace to avoid collisions with pre-change keys
+  // and to separate short vs. long variants clearly in production caches.
+  const versionTag = purpose === 'cluster' ? 'v2' : 'v1'
+  return `Summary-${versionTag}-${purpose}-${sanitizedId}`
 }
 
 /**
