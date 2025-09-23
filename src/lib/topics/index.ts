@@ -12,7 +12,6 @@ export const TOPIC_KEYWORDS: Record<string, string[]> = {
     'blockchain',
     'defi',
     'stablecoin',
-    'token',
     'web3',
     'nft',
     'solana',

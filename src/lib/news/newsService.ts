@@ -25,6 +25,8 @@ const parser = new Parser({
   },
   customFields: {
     item: [
+      // Prefer full content when feeds provide it
+      ['content:encoded', 'content:encoded'],
       ['media:content', 'media:content'],
       ['media:thumbnail', 'media:thumbnail'],
       ['media:group', 'media:group'],
@@ -375,7 +377,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             }
           }
           if (!dims.width && !dims.height) {
-            const fromContent = extractImageFromContentWithDims(item.content || item.contentSnippet)
+            const fromContent = extractImageFromContentWithDims(
+              (item as any)['content:encoded'] || item.content || item.contentSnippet
+            )
             if (fromContent?.width || fromContent?.height) {
               dims = { width: fromContent.width, height: fromContent.height }
             }
@@ -389,7 +393,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${titleHash}-${sourceHash}-${index}`,
             title: item.title?.trim() || 'Untitled Article',
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
-            content: item.content?.trim() || item.contentSnippet?.trim() || '',
+            content:
+              ((item as any)['content:encoded'] as string | undefined)?.trim() ||
+              item.content?.trim() ||
+              item.contentSnippet?.trim() ||
+              '',
             url: item.link?.trim() || '',
             urlToImage: imageUrl,
             imageWidth: dims.width,
