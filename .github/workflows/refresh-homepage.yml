@@ -1,0 +1,35 @@
+name: Refresh Homepage Cache
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+
+      - name: Refresh homepage cache
+        run: pnpm run refresh:cron
+        env:
+          NODE_ENV: production
+          UPSTASH_REDIS_REST_URL: ${{ secrets.KV_REST_API_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FEED_LOG_LEVEL: ${{ secrets.FEED_LOG_LEVEL }}
