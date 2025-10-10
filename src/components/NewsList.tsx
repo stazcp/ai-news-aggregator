@@ -1,4 +1,6 @@
-import React from 'react'
+'use client'
+
+import React, { useCallback, useState } from 'react'
 import { Article } from '@/types'
 import StoryClusterCard from './StoryClusterCard'
 import { StoryCluster } from '@/types'
@@ -12,9 +14,9 @@ interface NewsListProps {
 }
 
 export default function NewsList({ storyClusters, unclusteredArticles }: NewsListProps) {
-  const [expandedClusters, setExpandedClusters] = React.useState<Set<number>>(new Set([0])) // First cluster starts expanded
+  const [expandedClusters, setExpandedClusters] = useState<Set<number>>(new Set([0])) // First cluster starts expanded
 
-  const handleClusterExpansion = React.useCallback((index: number, isExpanded: boolean) => {
+  const handleClusterExpansion = useCallback((index: number, isExpanded: boolean) => {
     setExpandedClusters((prev) => {
       const newSet = new Set(prev)
       if (isExpanded) {

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import ClusterSummary from '@/components/Summary/ClusterSummary'
@@ -25,15 +25,19 @@ export default function StoryClusterCard({
 
   const sourceCount = cluster.articles.length
   const latestArticle = cluster.articles[0]
-  const [hasImages, setHasImages] = React.useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
-  const [isExpanded, setIsExpanded] = React.useState<boolean>(isFirst)
-  const [showSources, setShowSources] = React.useState<boolean>(false)
+  const [hasImages, setHasImages] = useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
+  const [isExpanded, setIsExpanded] = useState<boolean>(isFirst)
+  const [showSources, setShowSources] = useState<boolean>(false)
 
-  React.useEffect(() => {
+  useEffect(() => {
     setIsExpanded(isFirst)
-  }, [isFirst, cluster?.clusterTitle])
+    // Notify parent when cluster changes collapse the card
+    if (!isFirst) {
+      onExpansionChange?.(false)
+    }
+  }, [isFirst, cluster?.clusterTitle, onExpansionChange])
 
-  const publishedLabel = React.useMemo(() => {
+  const publishedLabel = useMemo(() => {
     try {
       return new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
         month: 'short',
@@ -46,7 +50,7 @@ export default function StoryClusterCard({
     }
   }, [latestArticle?.publishedAt])
 
-  const heroImage = React.useMemo(() => {
+  const heroImage = useMemo(() => {
     const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
     const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
     const allowLowResThumb = !isExpanded
