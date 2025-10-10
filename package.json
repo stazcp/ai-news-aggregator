@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test-feeds": "node test-feeds.js"
+    "test-feeds": "node test-feeds.js",
+    "refresh:cron": "tsx -r tsconfig-paths/register scripts/run-refresh.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -45,6 +46,7 @@
     "tailwindcss": "^4",
     "ts-jest": "^29.4.1",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.2",
     "tw-animate-css": "^1.3.4",
     "typescript": "^5"
   }

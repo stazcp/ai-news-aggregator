@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import ClusterSummary from '@/components/Summary/ClusterSummary'
@@ -13,22 +13,33 @@ import { useLazySummary } from '@/hooks/useLazySummary'
 interface StoryClusterCardProps {
   cluster: StoryCluster
   isFirst?: boolean // Indicates if this is the first story (above-the-fold)
+  onExpansionChange?: (expanded: boolean) => void
 }
 
-export default function StoryClusterCard({ cluster, isFirst = false }: StoryClusterCardProps) {
+export default function StoryClusterCard({
+  cluster,
+  isFirst = false,
+  onExpansionChange,
+}: StoryClusterCardProps) {
   if (!cluster.articles || cluster.articles.length === 0) return null
 
   const sourceCount = cluster.articles.length
   const latestArticle = cluster.articles[0]
-  const [hasImages, setHasImages] = React.useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
-  const [isExpanded, setIsExpanded] = React.useState<boolean>(isFirst)
-  const [showSources, setShowSources] = React.useState<boolean>(false)
+  const [hasImages, setHasImages] = useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
+  const [isExpanded, setIsExpanded] = useState<boolean>(isFirst)
+  const [showSources, setShowSources] = useState<boolean>(false)
 
-  React.useEffect(() => {
-    setIsExpanded(isFirst)
-  }, [isFirst, cluster?.clusterTitle])
+  useEffect(() => {
+    const wasExpanded = isExpanded
+    const shouldBeExpanded = isFirst
 
-  const publishedLabel = React.useMemo(() => {
+    if (wasExpanded !== shouldBeExpanded) {
+      setIsExpanded(shouldBeExpanded)
+      onExpansionChange?.(shouldBeExpanded)
+    }
+  }, [isFirst, cluster?.clusterTitle, isExpanded, onExpansionChange])
+
+  const publishedLabel = useMemo(() => {
     try {
       return new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
         month: 'short',
@@ -41,7 +52,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     }
   }, [latestArticle?.publishedAt])
 
-  const heroImage = React.useMemo(() => {
+  const heroImage = useMemo(() => {
     const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
     const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
     const allowLowResThumb = !isExpanded
@@ -81,17 +92,21 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     </div>
   )
 
-  const toggleButton = (
+  const toggleButton = !isFirst ? (
     <Button
       size="sm"
       variant={isExpanded ? 'ghost' : 'outline'}
-      onClick={() => setIsExpanded((prev) => !prev)}
+      onClick={() => {
+        const newExpanded = !isExpanded
+        setIsExpanded(newExpanded)
+        onExpansionChange?.(newExpanded)
+      }}
       className="h-8 px-3 text-xs"
       aria-expanded={isExpanded}
     >
       {isExpanded ? 'Collapse story' : `Open ${sourceCount} related stories`}
     </Button>
-  )
+  ) : null
 
   // Short summary for collapsed state (lazy-loaded)
   const { elementRef: shortRef, summary: shortSummary } = useLazySummary({
@@ -187,26 +202,26 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     </CardContent>
   )
 
-  const sectionCols = isExpanded ? 'col-span-1 lg:col-span-2' : 'col-span-1 lg:col-span-1'
-
-  const cardInteractiveProps = !isExpanded
-    ? {
-        role: 'button' as const,
-        tabIndex: 0,
-        'aria-expanded': false,
-        'aria-label': `Open cluster: ${cluster.clusterTitle}`,
-        onClick: () => setIsExpanded(true),
-        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setIsExpanded(true)
-          }
-        },
+  const cardInteractiveProps = !isExpanded && {
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-expanded': false,
+    'aria-label': `Open cluster: ${cluster.clusterTitle}`,
+    onClick: () => {
+      setIsExpanded(true)
+      onExpansionChange?.(true)
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        setIsExpanded(true)
+        onExpansionChange?.(true)
       }
-    : {}
+    },
+  }
 
   return (
-    <section className={sectionCols}>
+    <section>
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
@@ -214,7 +229,7 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
         }
         {...cardInteractiveProps}
       >
-        {!isExpanded && (
+        {!isExpanded && !isFirst && (
           <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/5" />
           </div>
