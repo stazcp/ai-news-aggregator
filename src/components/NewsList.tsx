@@ -12,6 +12,20 @@ interface NewsListProps {
 }
 
 export default function NewsList({ storyClusters, unclusteredArticles }: NewsListProps) {
+  const [expandedClusters, setExpandedClusters] = React.useState<Set<number>>(new Set([0])) // First cluster starts expanded
+
+  const handleClusterExpansion = React.useCallback((index: number, isExpanded: boolean) => {
+    setExpandedClusters((prev) => {
+      const newSet = new Set(prev)
+      if (isExpanded) {
+        newSet.add(index)
+      } else {
+        newSet.delete(index)
+      }
+      return newSet
+    })
+  }, [])
+
   // Separate articles with and without images for better layout
   const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
   const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
@@ -49,9 +63,20 @@ export default function NewsList({ storyClusters, unclusteredArticles }: NewsLis
             AI-Generated Clusters
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {storyClusters.map((cluster, index) => (
-              <StoryClusterCard key={index} cluster={cluster} isFirst={index === 0} />
-            ))}
+            {storyClusters.map((cluster, index) => {
+              const isExpanded = expandedClusters.has(index)
+              const shouldSpanFullWidth = index === 0 || isExpanded
+
+              return (
+                <div key={index} className={shouldSpanFullWidth ? 'md:col-span-2' : ''}>
+                  <StoryClusterCard
+                    cluster={cluster}
+                    isFirst={index === 0}
+                    onExpansionChange={(expanded) => handleClusterExpansion(index, expanded)}
+                  />
+                </div>
+              )
+            })}
           </div>
         </section>
       )}

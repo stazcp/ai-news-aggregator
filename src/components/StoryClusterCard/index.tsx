@@ -13,9 +13,14 @@ import { useLazySummary } from '@/hooks/useLazySummary'
 interface StoryClusterCardProps {
   cluster: StoryCluster
   isFirst?: boolean // Indicates if this is the first story (above-the-fold)
+  onExpansionChange?: (expanded: boolean) => void
 }
 
-export default function StoryClusterCard({ cluster, isFirst = false }: StoryClusterCardProps) {
+export default function StoryClusterCard({
+  cluster,
+  isFirst = false,
+  onExpansionChange,
+}: StoryClusterCardProps) {
   if (!cluster.articles || cluster.articles.length === 0) return null
 
   const sourceCount = cluster.articles.length
@@ -81,17 +86,21 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     </div>
   )
 
-  const toggleButton = (
+  const toggleButton = !isFirst ? (
     <Button
       size="sm"
       variant={isExpanded ? 'ghost' : 'outline'}
-      onClick={() => setIsExpanded((prev) => !prev)}
+      onClick={() => {
+        const newExpanded = !isExpanded
+        setIsExpanded(newExpanded)
+        onExpansionChange?.(newExpanded)
+      }}
       className="h-8 px-3 text-xs"
       aria-expanded={isExpanded}
     >
       {isExpanded ? 'Collapse story' : `Open ${sourceCount} related stories`}
     </Button>
-  )
+  ) : null
 
   // Short summary for collapsed state (lazy-loaded)
   const { elementRef: shortRef, summary: shortSummary } = useLazySummary({
@@ -187,34 +196,58 @@ export default function StoryClusterCard({ cluster, isFirst = false }: StoryClus
     </CardContent>
   )
 
-  const sectionCols = isExpanded ? 'col-span-1 lg:col-span-2' : 'col-span-1 lg:col-span-1'
-
   const cardInteractiveProps = !isExpanded
     ? {
         role: 'button' as const,
         tabIndex: 0,
         'aria-expanded': false,
         'aria-label': `Open cluster: ${cluster.clusterTitle}`,
-        onClick: () => setIsExpanded(true),
+        onClick: () => {
+          setIsExpanded(true)
+          onExpansionChange?.(true)
+        },
         onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
             setIsExpanded(true)
+            onExpansionChange?.(true)
           }
         },
       }
-    : {}
+    : isFirst
+      ? {} // First story cannot be collapsed, so no interactive props when expanded
+      : {
+          role: 'button' as const,
+          tabIndex: 0,
+          'aria-expanded': true,
+          'aria-label': `Collapse cluster: ${cluster.clusterTitle}`,
+          onClick: () => {
+            setIsExpanded(false)
+            onExpansionChange?.(false)
+          },
+          onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setIsExpanded(false)
+              onExpansionChange?.(false)
+            }
+          },
+        }
 
   return (
-    <section className={sectionCols}>
+    <section>
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
-          (!isExpanded ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring' : '')
+          (!isExpanded
+            ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring'
+            : isFirst
+              ? ''
+              : 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring')
         }
         {...cardInteractiveProps}
       >
-        {!isExpanded && (
+        {!isExpanded && !isFirst && (
           <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full animate-[shimmer_2s_infinite] dark:via-white/5" />
           </div>
