@@ -26,7 +26,9 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Refresh homepage cache
-        run: pnpm run refresh:cron
+        run: |
+          corepack enable
+          pnpm run refresh:cron
         env:
           NODE_ENV: production
           UPSTASH_REDIS_REST_URL: ${{ secrets.KV_REST_API_URL }}
