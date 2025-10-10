@@ -2,6 +2,7 @@
   "name": "ai-news-aggregator",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.11.0",
   "scripts": {
     "dev": "NODE_OPTIONS='--inspect' next dev --turbopack",
     "build": "next build",
