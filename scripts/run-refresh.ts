@@ -2,10 +2,6 @@ import 'tsconfig-paths/register'
 import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
 
 async function main(): Promise<void> {
-  if (!process.env.NODE_ENV) {
-    process.env.NODE_ENV = 'production'
-  }
-
   console.log('🚀 Starting homepage cache refresh (CLI)')
   const start = Date.now()
 
