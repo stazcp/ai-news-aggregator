@@ -14,6 +14,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -21,14 +24,10 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
-        run: |
-          corepack enable
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Refresh homepage cache
-        run: |
-          corepack enable
-          pnpm run refresh:cron
+        run: pnpm run refresh:cron
         env:
           NODE_ENV: production
           UPSTASH_REDIS_REST_URL: ${{ secrets.KV_REST_API_URL }}
