@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { StoryCluster } from '@/types'
 import ImageCollage from './ImageCollage'
 import ClusterSummary from '@/components/Summary/ClusterSummary'
@@ -28,16 +28,6 @@ export default function StoryClusterCard({
   const [hasImages, setHasImages] = useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
   const [isExpanded, setIsExpanded] = useState<boolean>(isFirst)
   const [showSources, setShowSources] = useState<boolean>(false)
-
-  useEffect(() => {
-    const wasExpanded = isExpanded
-    const shouldBeExpanded = isFirst
-
-    if (wasExpanded !== shouldBeExpanded) {
-      setIsExpanded(shouldBeExpanded)
-      onExpansionChange?.(shouldBeExpanded)
-    }
-  }, [isFirst, cluster?.clusterTitle, isExpanded, onExpansionChange])
 
   const publishedLabel = useMemo(() => {
     try {
