@@ -196,54 +196,30 @@ export default function StoryClusterCard({
     </CardContent>
   )
 
-  const cardInteractiveProps = !isExpanded
-    ? {
-        role: 'button' as const,
-        tabIndex: 0,
-        'aria-expanded': false,
-        'aria-label': `Open cluster: ${cluster.clusterTitle}`,
-        onClick: () => {
-          setIsExpanded(true)
-          onExpansionChange?.(true)
-        },
-        onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            setIsExpanded(true)
-            onExpansionChange?.(true)
-          }
-        },
+  const cardInteractiveProps = !isExpanded && {
+    role: 'button' as const,
+    tabIndex: 0,
+    'aria-expanded': false,
+    'aria-label': `Open cluster: ${cluster.clusterTitle}`,
+    onClick: () => {
+      setIsExpanded(true)
+      onExpansionChange?.(true)
+    },
+    onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        setIsExpanded(true)
+        onExpansionChange?.(true)
       }
-    : isFirst
-      ? {} // First story cannot be collapsed, so no interactive props when expanded
-      : {
-          role: 'button' as const,
-          tabIndex: 0,
-          'aria-expanded': true,
-          'aria-label': `Collapse cluster: ${cluster.clusterTitle}`,
-          onClick: () => {
-            setIsExpanded(false)
-            onExpansionChange?.(false)
-          },
-          onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setIsExpanded(false)
-              onExpansionChange?.(false)
-            }
-          },
-        }
+    },
+  }
 
   return (
     <section>
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
-          (!isExpanded
-            ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring'
-            : isFirst
-              ? ''
-              : 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring')
+          (!isExpanded && 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring')
         }
         {...cardInteractiveProps}
       >
