@@ -30,12 +30,14 @@ export default function StoryClusterCard({
   const [showSources, setShowSources] = useState<boolean>(false)
 
   useEffect(() => {
-    setIsExpanded(isFirst)
-    // Notify parent when cluster changes collapse the card
-    if (!isFirst) {
-      onExpansionChange?.(false)
+    const wasExpanded = isExpanded
+    const shouldBeExpanded = isFirst
+
+    if (wasExpanded !== shouldBeExpanded) {
+      setIsExpanded(shouldBeExpanded)
+      onExpansionChange?.(shouldBeExpanded)
     }
-  }, [isFirst, cluster?.clusterTitle, onExpansionChange])
+  }, [isFirst, cluster?.clusterTitle, isExpanded, onExpansionChange])
 
   const publishedLabel = useMemo(() => {
     try {
@@ -223,7 +225,7 @@ export default function StoryClusterCard({
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
-          (!isExpanded && 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring')
+          (!isExpanded ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring' : '')
         }
         {...cardInteractiveProps}
       >
