@@ -216,5 +216,6 @@ export function buildCategorySummaryPayload(
  * @returns The cache TTL in seconds
  */
 export const getCacheTtl = (): number => {
-  return Number(process.env.CACHE_TTL_SECONDS) ?? 43200
+  const ttl = Number(process.env.CACHE_TTL_SECONDS)
+  return isNaN(ttl) ? 43200 : ttl
 }
