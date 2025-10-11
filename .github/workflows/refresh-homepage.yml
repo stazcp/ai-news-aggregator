@@ -2,7 +2,8 @@ name: Refresh Homepage Cache
 
 on:
   schedule:
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * *' # 6 AM UTC - Morning news cycle (US East Coast 2 AM, West Coast 11 PM previous day)
+    - cron: '0 18 * * *' # 6 PM UTC - Evening news cycle (US East Coast 2 PM, West Coast 11 AM)
   workflow_dispatch:
 
 jobs:
