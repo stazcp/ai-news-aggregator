@@ -35,3 +35,4 @@ jobs:
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           FEED_LOG_LEVEL: ${{ secrets.FEED_LOG_LEVEL }}
+          CACHE_TTL_SECONDS: 43200

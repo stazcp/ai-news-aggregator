@@ -47,8 +47,9 @@ export async function generateFreshHomepage(): Promise<HomepageData> {
       lastUpdated: new Date().toISOString(),
     }
 
-    // Cache for 24 hours
-    await setCachedData('homepage-result', homepageData, 86400)
+    // Cache TTL from environment (default 12 hours)
+    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    await setCachedData('homepage-result', homepageData, cacheTtl)
     console.log('💾 Cached fresh homepage data')
 
     return homepageData
@@ -148,8 +149,9 @@ async function generateAndCacheSummary(
       throw new Error('Invalid content type for summary generation')
     }
 
-    // Cache for 24 hours to match the refresh cycle
-    await setCachedData(cacheKey, summary, 86400)
+    // Cache TTL from environment (default 12 hours)
+    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    await setCachedData(cacheKey, summary, cacheTtl)
     console.log(`✅ Generated and cached summary for ${articleId}`)
   } catch (error) {
     console.error(`❌ Failed to generate summary for ${articleId}:`, error)
@@ -171,7 +173,9 @@ export async function enrichClustersWithSummaries(
         ...cluster,
         // Preserve existing server-generated summary; otherwise, hydrate from cache if available
         summary:
-          cluster.summary || (await getCachedData(getSummaryCacheKey('cluster', clusterId))) || undefined,
+          cluster.summary ||
+          (await getCachedData(getSummaryCacheKey('cluster', clusterId))) ||
+          undefined,
       }
     })
   )

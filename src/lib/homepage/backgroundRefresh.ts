@@ -15,9 +15,7 @@ interface RefreshProgress {
 
 export async function refreshCacheInBackground(): Promise<void> {
   // Skip background refresh in local development unless explicitly enabled
-  const ALLOW_LOCAL = /^(1|true|yes)$/i.test(
-    process.env.ALLOW_LOCAL_BACKGROUND_REFRESH || ''
-  )
+  const ALLOW_LOCAL = /^(1|true|yes)$/i.test(process.env.ALLOW_LOCAL_BACKGROUND_REFRESH || '')
   if (process.env.NODE_ENV === 'development' && !ALLOW_LOCAL) {
     console.log(
       '⏭️ Skipping background refresh in development (set ALLOW_LOCAL_BACKGROUND_REFRESH=1 to enable)'
@@ -77,8 +75,10 @@ export async function refreshCacheInBackground(): Promise<void> {
     }
 
     // Update the cached homepage result with enriched data
-    await setCachedData('homepage-result', finalHomepageResult, 86400) // 24 hours
-    await setCachedData('last-cache-update', new Date().toISOString(), 86400)
+    // Cache TTL from environment (default 12 hours)
+    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    await setCachedData('homepage-result', finalHomepageResult, cacheTtl)
+    await setCachedData('last-cache-update', new Date().toISOString(), cacheTtl)
 
     // Mark refresh as complete with short TTL (3 minutes for client to see completion)
     await setCachedData(
