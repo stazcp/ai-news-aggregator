@@ -210,3 +210,11 @@ export function buildCategorySummaryPayload(
     articleCount: orderedArticles.length,
   }
 }
+
+/**
+ * Get the cache TTL from the environment variable
+ * @returns The cache TTL in seconds
+ */
+export const getCacheTtl = (): number => {
+  return Number(process.env.CACHE_TTL_SECONDS) ?? 43200
+}

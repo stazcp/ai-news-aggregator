@@ -1,4 +1,5 @@
 import { getCachedData, setCachedData } from '../cache'
+import { getCacheTtl } from '../utils'
 import {
   generateFreshHomepage,
   generateTopStorySummaries,
@@ -75,8 +76,7 @@ export async function refreshCacheInBackground(): Promise<void> {
     }
 
     // Update the cached homepage result with enriched data
-    // Cache TTL from environment (default 12 hours)
-    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    const cacheTtl = getCacheTtl()
     await setCachedData('homepage-result', finalHomepageResult, cacheTtl)
     await setCachedData('last-cache-update', new Date().toISOString(), cacheTtl)
 

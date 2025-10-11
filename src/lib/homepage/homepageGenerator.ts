@@ -5,6 +5,7 @@ import { TOPIC_KEYWORDS } from '../topics'
 import { summarizeArticle, summarizeCluster } from '../ai/groq'
 import { getSummaryCacheKey, SummaryPurpose, getClusterSummaryId } from '../ai/summaryCache'
 import { StoryCluster, Article } from '@/types'
+import { getCacheTtl } from '../utils'
 
 export interface HomepageData {
   storyClusters: StoryCluster[]
@@ -47,8 +48,7 @@ export async function generateFreshHomepage(): Promise<HomepageData> {
       lastUpdated: new Date().toISOString(),
     }
 
-    // Cache TTL from environment (default 12 hours)
-    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) ?? 43200
+    const cacheTtl = getCacheTtl()
     await setCachedData('homepage-result', homepageData, cacheTtl)
     console.log('💾 Cached fresh homepage data')
 
@@ -149,8 +149,7 @@ async function generateAndCacheSummary(
       throw new Error('Invalid content type for summary generation')
     }
 
-    // Cache TTL from environment (default 12 hours)
-    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    const cacheTtl = getCacheTtl()
     await setCachedData(cacheKey, summary, cacheTtl)
     console.log(`✅ Generated and cached summary for ${articleId}`)
   } catch (error) {
