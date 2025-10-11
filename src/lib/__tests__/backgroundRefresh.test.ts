@@ -5,6 +5,7 @@ import {
   generateTopStorySummaries,
   enrichClustersWithSummaries,
 } from '../homepage/homepageGenerator'
+import { getCacheTtl } from '../utils'
 
 // Mock all dependencies
 jest.mock('../cache')
@@ -24,6 +25,23 @@ const mockEnrichClustersWithSummaries = enrichClustersWithSummaries as jest.Mock
 >
 
 describe('backgroundRefresh', () => {
+  // Mock environment variable for TTL
+  const originalEnv = process.env.CACHE_TTL_SECONDS
+
+  beforeEach(() => {
+    // Set default TTL for tests (12 hours)
+    process.env.CACHE_TTL_SECONDS = '43200'
+  })
+
+  afterEach(() => {
+    // Restore original environment
+    if (originalEnv !== undefined) {
+      process.env.CACHE_TTL_SECONDS = originalEnv
+    } else {
+      delete process.env.CACHE_TTL_SECONDS
+    }
+  })
+
   const mockHomepageData = {
     storyClusters: [
       {
@@ -100,13 +118,14 @@ describe('backgroundRefresh', () => {
       expect(mockGenerateTopStorySummaries).toHaveBeenCalledTimes(1)
       expect(mockEnrichClustersWithSummaries).toHaveBeenCalledTimes(1)
 
-      // Verify final results were cached
+      // Verify final results were cached with configurable TTL
+      const expectedTtl = getCacheTtl()
       expect(mockSetCachedData).toHaveBeenCalledWith(
         'homepage-result',
         expect.objectContaining({
           storyClusters: mockHomepageData.storyClusters,
         }),
-        86400 // 24 hours
+        expectedTtl
       )
 
       // CRITICAL: Verify completion status has SHORT TTL (not setTimeout)
