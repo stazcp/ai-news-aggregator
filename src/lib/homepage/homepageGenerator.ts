@@ -48,7 +48,7 @@ export async function generateFreshHomepage(): Promise<HomepageData> {
     }
 
     // Cache TTL from environment (default 12 hours)
-    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) || 43200
+    const cacheTtl = Number(process.env.CACHE_TTL_SECONDS) ?? 43200
     await setCachedData('homepage-result', homepageData, cacheTtl)
     console.log('💾 Cached fresh homepage data')
 
