@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData } from '@/lib/cache'
 import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
-import { generateFreshHomepage, HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
+import { HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
 
 interface HomepageData extends BaseHomepageData {
   fromCache: boolean
@@ -40,14 +40,46 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       })
     }
 
-    // No cache - generate fresh data (cold start)
-    console.log('🐌 Cold start - generating fresh homepage data')
-    const homepageData = await generateFreshHomepage()
+    // No cache - this should be rare with fixed CACHE_PREFIX
+    console.warn('⚠️ Cache miss detected!')
 
-    return NextResponse.json({
-      ...homepageData,
-      fromCache: false,
-    })
+    // Check if a refresh is already in progress
+    const refreshInProgress = await getCachedData('refresh-in-progress')
+
+    if (refreshInProgress) {
+      // Refresh already in progress - return 503 and let client retry
+      console.log('⏳ Refresh already in progress, returning 503')
+      return NextResponse.json(
+        {
+          error: 'Data is being refreshed. Please try again in a moment.',
+          refreshing: true,
+          fromCache: false,
+        },
+        { status: 503, headers: { 'Retry-After': '10' } }
+      )
+    }
+
+    // No refresh in progress and no cache - this is the first request
+    // Allow blocking generation for initial seed (emergency fallback)
+    console.warn(
+      '🚨 No cache and no refresh in progress - generating initial data (this may take 30-60s)'
+    )
+    console.warn('📋 This should only happen once. If frequent, check CACHE_PREFIX configuration.')
+
+    try {
+      const { generateFreshHomepage } = await import('@/lib/homepage/homepageGenerator')
+      const homepageData = await generateFreshHomepage()
+
+      return NextResponse.json({
+        ...homepageData,
+        fromCache: false,
+      })
+    } catch (genError) {
+      console.error('❌ Failed to generate initial data:', genError)
+      // Trigger background refresh for next time
+      refreshCacheInBackground().catch(console.error)
+      throw genError
+    }
   } catch (error) {
     console.error('❌ Homepage API error:', error)
     return NextResponse.json(
