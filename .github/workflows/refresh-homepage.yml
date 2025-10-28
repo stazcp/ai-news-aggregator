@@ -31,8 +31,10 @@ jobs:
         run: pnpm run refresh:cron
         env:
           NODE_ENV: production
+          VERCEL_ENV: production
+          CACHE_PREFIX: 'prod:'
           UPSTASH_REDIS_REST_URL: ${{ secrets.KV_REST_API_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           FEED_LOG_LEVEL: ${{ secrets.FEED_LOG_LEVEL }}
-          CACHE_TTL_SECONDS: 43200
+          CACHE_TTL_SECONDS: 86400
