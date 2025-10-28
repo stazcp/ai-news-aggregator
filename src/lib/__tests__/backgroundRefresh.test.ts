@@ -29,8 +29,8 @@ describe('backgroundRefresh', () => {
   const originalEnv = process.env.CACHE_TTL_SECONDS
 
   beforeEach(() => {
-    // Set default TTL for tests (12 hours)
-    process.env.CACHE_TTL_SECONDS = '43200'
+    // Set default TTL for tests (24 hours)
+    process.env.CACHE_TTL_SECONDS = '86400'
   })
 
   afterEach(() => {
