@@ -22,6 +22,14 @@ export function useHomepageData(initialData?: HomepageData) {
       })
 
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+
+        // Handle 503 - data is being refreshed
+        if (response.status === 503 && errorData.refreshing) {
+          console.log('⏳ Data is being refreshed, will retry automatically...')
+          throw new Error('DATA_REFRESHING')
+        }
+
         throw new Error(`Failed to fetch homepage data: ${response.status} ${response.statusText}`)
       }
 
@@ -70,8 +78,17 @@ export function useHomepageData(initialData?: HomepageData) {
 
     // Retry configuration
     retry: (failureCount, error: any) => {
-      // Don't retry 4xx errors (client errors)
-      if (error?.status >= 400 && error?.status < 500) {
+      // Special handling for data refresh in progress (503)
+      if (error?.message === 'DATA_REFRESHING') {
+        // Retry up to 5 times for refresh scenarios (can take 30-60 seconds)
+        if (failureCount < 5) {
+          console.log(`🔄 Waiting for data refresh (attempt ${failureCount + 1}/5)`)
+          return true
+        }
+      }
+
+      // Don't retry 4xx errors (client errors) except 503
+      if (error?.status >= 400 && error?.status < 500 && error?.status !== 503) {
         console.log('❌ Client error, not retrying')
         return false
       }
@@ -85,7 +102,14 @@ export function useHomepageData(initialData?: HomepageData) {
       return false
     },
 
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff, max 30s
+    retryDelay: (attemptIndex, error: any) => {
+      // For refresh scenarios, use fixed 10-second intervals
+      if (error?.message === 'DATA_REFRESHING') {
+        return 10000 // 10 seconds between retries
+      }
+      // For other errors, exponential backoff
+      return Math.min(1000 * 2 ** attemptIndex, 30000)
+    },
   })
 
   // Handle data changes with useEffect (replaces onSuccess/onError)

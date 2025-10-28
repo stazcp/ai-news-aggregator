@@ -40,7 +40,7 @@ export async function refreshCacheInBackground(): Promise<void> {
         progress: 0,
         timestamp: Date.now(),
       },
-      1800 // 30 minutes timeout (reduced from 1 hour)
+      600 // 10 minutes timeout (10x normal refresh time for safety)
     )
 
     console.log('🔄 Background refresh starting...')
@@ -122,7 +122,7 @@ async function updateRefreshStatus(stage: string, progress: number): Promise<voi
         // Preserve original startTime for accurate age calculations
         startTime: existingStatus?.startTime || Date.now(),
       },
-      1800 // 30 minutes timeout (consistent with initial timeout)
+      600 // 10 minutes timeout (consistent with initial timeout)
     )
   } catch (error) {
     console.error('Failed to update refresh status:', error)
