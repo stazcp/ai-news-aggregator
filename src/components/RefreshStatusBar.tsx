@@ -3,16 +3,36 @@
 import { useRefreshIndicator } from '@/hooks/useRefreshStatus'
 import { useState, useEffect } from 'react'
 
-export default function RefreshStatusBar() {
-  const { show, stage, progress, isComplete, isActive } = useRefreshIndicator()
+interface RefreshStatusBarProps {
+  showOnlyWhenWaiting?: boolean // Show only when user is waiting for initial data
+  hasData?: boolean // Whether homepage data is available
+}
+
+export default function RefreshStatusBar({
+  showOnlyWhenWaiting = false,
+  hasData = true,
+}: RefreshStatusBarProps) {
+  // Determine if we need aggressive polling
+  // Only poll frequently if user is waiting for data
+  const shouldPollAggressively = showOnlyWhenWaiting ? !hasData : true
+
+  const { show, stage, progress, isComplete, isActive } = useRefreshIndicator({
+    enabled: shouldPollAggressively,
+  })
   const [isVisible, setIsVisible] = useState(false)
   const [showCompletion, setShowCompletion] = useState(false)
 
   useEffect(() => {
     if (isActive) {
-      // Show immediately when refresh starts
-      setIsVisible(true)
-      setShowCompletion(false)
+      // Only show progress if:
+      // 1. showOnlyWhenWaiting is false (always show), OR
+      // 2. User has no data yet (they're actually waiting)
+      const shouldShow = !showOnlyWhenWaiting || !hasData
+
+      if (shouldShow) {
+        setIsVisible(true)
+        setShowCompletion(false)
+      }
     } else if (isComplete && isVisible) {
       // Show completion message briefly
       setShowCompletion(true)
@@ -25,7 +45,7 @@ export default function RefreshStatusBar() {
 
       return () => clearTimeout(timeout)
     }
-  }, [isActive, isComplete, isVisible])
+  }, [isActive, isComplete, isVisible, showOnlyWhenWaiting, hasData])
 
   if (!show || !isVisible) return null
 
