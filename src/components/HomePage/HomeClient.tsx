@@ -104,7 +104,8 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   return (
     <HomeLayout>
       {/* Refresh status bar - shows when background updates are happening */}
-      <RefreshStatusBar />
+      {/* Only show progress bar when user has no data (rare cache miss scenario) */}
+      <RefreshStatusBar showOnlyWhenWaiting={true} hasData={!!data} />
 
       <div className="relative">
         {/* Subtle loading indicator when fetching fresh data - non-blocking */}

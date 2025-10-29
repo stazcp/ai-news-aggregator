@@ -11,7 +11,12 @@ interface RefreshStatusData {
   justCompleted?: boolean
 }
 
-export function useRefreshStatus() {
+interface UseRefreshStatusOptions {
+  enabled?: boolean // Whether to actively poll for status
+}
+
+export function useRefreshStatus(options: UseRefreshStatusOptions = {}) {
+  const { enabled = true } = options
   const queryClient = useQueryClient()
   const lastCompletedTimestamp = useRef<number | null>(null)
 
@@ -33,6 +38,12 @@ export function useRefreshStatus() {
 
     // Polling configuration based on current status
     refetchInterval: (query) => {
+      // Don't poll if disabled (user has data and doesn't need progress)
+      // They'll get fresh content on next page load
+      if (!enabled) {
+        return false // Completely disable polling
+      }
+
       const data = query.state.data
       if (!data) return 30000 // 30 seconds if no data
 
@@ -119,8 +130,8 @@ export function useRefreshStatus() {
 }
 
 // Helper hook to get just the essential refresh info for UI
-export function useRefreshIndicator() {
-  const { refreshStatus, isRefreshing, justCompleted } = useRefreshStatus()
+export function useRefreshIndicator(options: UseRefreshStatusOptions = {}) {
+  const { refreshStatus, isRefreshing, justCompleted } = useRefreshStatus(options)
 
   return {
     show: isRefreshing || justCompleted,
