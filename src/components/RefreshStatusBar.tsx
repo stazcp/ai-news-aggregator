@@ -35,13 +35,14 @@ export default function RefreshStatusBar({
 
   useEffect(() => {
     if (isActive) {
-      // Only show progress bar if:
-      // 1. showOnlyWhenWaiting is false (always show), OR
-      // 2. User has no data yet (they're actually waiting)
       const shouldShow = !showOnlyWhenWaiting || !hasData
 
       if (shouldShow) {
         setIsVisible(true)
+        setShowCompletion(false)
+      } else if (isVisible) {
+        // User now has data but refresh is still active; hide the bar
+        setIsVisible(false)
         setShowCompletion(false)
       }
     } else if (isComplete && isVisible) {
@@ -55,6 +56,10 @@ export default function RefreshStatusBar({
       }, 3000)
 
       return () => clearTimeout(timeout)
+    } else if (!isActive && !isComplete && isVisible) {
+      // Refresh stopped without completion (error/cancel) - hide bar
+      setIsVisible(false)
+      setShowCompletion(false)
     }
   }, [isActive, isComplete, isVisible, showOnlyWhenWaiting, hasData])
 
