@@ -1,26 +1,44 @@
 'use client'
 
-import { useRefreshIndicator } from '@/hooks/useRefreshStatus'
 import { useState, useEffect } from 'react'
 
-interface RefreshStatusBarProps {
-  hasData?: boolean // Whether homepage data is available
+interface RefreshIndicatorState {
+  show: boolean
+  stage: string
+  progress: number
+  isComplete: boolean
+  isActive: boolean
 }
 
-export default function RefreshStatusBar({ hasData = true }: RefreshStatusBarProps) {
-  // Always enable polling - smart cache-age-based logic in useRefreshStatus
-  // handles when to actually poll (disabled when cache is fresh)
-  const { show, stage, progress, isComplete, isActive } = useRefreshIndicator({
-    enabled: true, // Always enabled, but polling is smart based on cache age
-  })
+interface RefreshStatusBarProps {
+  showOnlyWhenWaiting?: boolean
+  hasData?: boolean
+  refreshState?: RefreshIndicatorState
+}
+
+const defaultIndicatorState: RefreshIndicatorState = {
+  show: false,
+  stage: 'Idle',
+  progress: 0,
+  isComplete: false,
+  isActive: false,
+}
+
+export default function RefreshStatusBar({
+  showOnlyWhenWaiting = false,
+  hasData = true,
+  refreshState = defaultIndicatorState,
+}: RefreshStatusBarProps) {
+  const { show, stage, progress, isComplete, isActive } = refreshState
   const [isVisible, setIsVisible] = useState(false)
   const [showCompletion, setShowCompletion] = useState(false)
 
   useEffect(() => {
     if (isActive) {
-      // Only show progress bar if user has no data (waiting for initial load)
-      // This keeps the UI clean when users already have content to read
-      const shouldShow = !hasData
+      // Only show progress bar if:
+      // 1. showOnlyWhenWaiting is false (always show), OR
+      // 2. User has no data yet (they're actually waiting)
+      const shouldShow = !showOnlyWhenWaiting || !hasData
 
       if (shouldShow) {
         setIsVisible(true)
@@ -38,7 +56,7 @@ export default function RefreshStatusBar({ hasData = true }: RefreshStatusBarPro
 
       return () => clearTimeout(timeout)
     }
-  }, [isActive, isComplete, isVisible, hasData])
+  }, [isActive, isComplete, isVisible, showOnlyWhenWaiting, hasData])
 
   if (!show || !isVisible) return null
 

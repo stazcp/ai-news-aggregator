@@ -11,8 +11,12 @@ try {
     // Will throw if required envs are missing (UPSTASH_REDIS_REST_URL/TOKEN)
     redis = Redis.fromEnv()
   }
-} catch {
+} catch (error) {
   redis = null
+  console.warn(
+    '⚠️ Redis initialization failed. Falling back to in-memory cache only.',
+    (error as Error)?.message ?? error
+  )
 }
 
 const memoryCache = new Map<string, { data: any; expires: number }>()

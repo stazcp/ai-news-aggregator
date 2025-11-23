@@ -10,6 +10,7 @@ import { NewsListSkeleton, HomeHeaderSkeleton, CategorySummarySkeleton } from '@
 import { filterByTopic } from '@/lib/utils'
 import { useHomepageData, HomepageData } from '@/hooks/useHomepageData'
 import { computeTopics } from './utils'
+import { useRefreshIndicator } from '@/hooks/use-refresh-status'
 
 interface HomeClientProps {
   initialData?: HomepageData
@@ -44,6 +45,9 @@ export default function HomeClient({ initialData }: HomeClientProps) {
 
   // Use React Query data if available, fallback to initial data
   const data = homepageData || initialData
+  const refreshIndicator = useRefreshIndicator({
+    enabled: !data,
+  })
 
   // Compute which topics actually have content
   const availableTopics = useMemo(() => computeTopics(data), [data])
@@ -104,9 +108,7 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   return (
     <HomeLayout>
       {/* Refresh status bar - shows when background updates are happening */}
-      {/* Only shows UI when user has no data (rare cache miss scenario) */}
-      {/* Smart polling runs in background based on cache age */}
-      <RefreshStatusBar hasData={!!data} />
+      <RefreshStatusBar showOnlyWhenWaiting hasData={!!data} refreshState={refreshIndicator} />
 
       <div className="relative">
         {/* Subtle loading indicator when fetching fresh data - non-blocking */}
