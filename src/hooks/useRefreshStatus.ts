@@ -36,25 +36,64 @@ export function useRefreshStatus(options: UseRefreshStatusOptions = {}) {
       return response.json()
     },
 
-    // Polling configuration based on current status
+    // Smart polling configuration based on current status and cache age
     refetchInterval: (query) => {
-      // Don't poll if disabled (user has data and doesn't need progress)
-      // They'll get fresh content on next page load
+      const data = query.state.data
+
+      // If disabled (user has data, bar hidden), still poll for completion detection
+      // but at slower rate since we don't need progress updates
       if (!enabled) {
-        return false // Completely disable polling
+        if (!data) return 30000 // 30 seconds if no data yet
+
+        // When refresh is active, poll every 10 seconds to catch completion
+        if (data.status === 'refreshing') {
+          return 10000 // 10 seconds (not 2s - user doesn't see progress)
+        }
+
+        // When idle, use smart polling based on cache age
+        // Refreshes happen at 6 AM and 6 PM UTC (every 12 hours)
+        // We can poll very infrequently since refetchOnWindowFocus catches completions
+        if (data.status === 'idle') {
+          const cacheAge = data.cacheAge || 0
+
+          // Cache just refreshed (< 1 hour), very unlikely to refresh again soon
+          // Poll every 30 minutes - rely on window focus for immediate detection
+          if (cacheAge < 60) {
+            return 30 * 60 * 1000 // 30 minutes
+          }
+
+          // Cache is fresh (1-5 hours), refresh not expected for hours
+          // Poll every 30 minutes - very low frequency
+          if (cacheAge < 300) {
+            return 30 * 60 * 1000 // 30 minutes
+          }
+
+          // Cache getting old (5-5.5 hours), refresh expected soon
+          // Poll every 5 minutes to detect when it starts
+          if (cacheAge >= 300 && cacheAge < 330) {
+            return 5 * 60 * 1000 // 5 minutes
+          }
+
+          // Cache very old (5.5-6 hours), refresh should be happening
+          // Poll every 2 minutes to catch it quickly
+          if (cacheAge >= 330 && cacheAge < 360) {
+            return 2 * 60 * 1000 // 2 minutes
+          }
+
+          // Cache overdue (> 6 hours), refresh definitely happening
+          // Poll every minute
+          return 60 * 1000
+        }
+
+        return 2 * 60 * 1000 // Default: 2 minutes
       }
 
-      const data = query.state.data
+      // Enabled (user waiting for data) - poll aggressively for progress
       if (!data) return 30000 // 30 seconds if no data
 
-      // Poll every 2 seconds when actively refreshing
+      // Poll every 2 seconds when actively refreshing (user sees progress)
       if (data.status === 'refreshing') {
         return 2000
-      }
-
-      // Poll every 30 seconds when idle to detect new refreshes
-      if (data.status === 'idle') {
-        return 30000
       }
 
       // Poll every 10 seconds on error to detect recovery
@@ -62,7 +101,43 @@ export function useRefreshStatus(options: UseRefreshStatusOptions = {}) {
         return 10000
       }
 
-      return 30000 // Default fallback
+      // Smart polling when idle based on cache age
+      // Background refresh triggers when cache > 6 hours (360 minutes)
+      // Refreshes happen at 6 AM and 6 PM UTC (every 12 hours)
+      // User is waiting, so we can poll more aggressively for progress
+      if (data.status === 'idle') {
+        const cacheAge = data.cacheAge || 0
+
+        // Cache just refreshed (< 1 hour), very unlikely to refresh again soon
+        // Poll every 15 minutes
+        if (cacheAge < 60) {
+          return 15 * 60 * 1000 // 15 minutes
+        }
+
+        // Cache is fresh (1-5 hours), refresh not expected for hours
+        // Poll every 15 minutes
+        if (cacheAge < 300) {
+          return 15 * 60 * 1000 // 15 minutes
+        }
+
+        // Cache getting old (5-5.5 hours), refresh expected soon
+        // Poll every 2 minutes to detect when it starts
+        if (cacheAge >= 300 && cacheAge < 330) {
+          return 2 * 60 * 1000 // 2 minutes
+        }
+
+        // Cache very old (5.5-6 hours), refresh should be happening
+        // Poll every minute to catch it quickly
+        if (cacheAge >= 330 && cacheAge < 360) {
+          return 60 * 1000 // 1 minute
+        }
+
+        // Cache overdue (> 6 hours), refresh definitely happening
+        // Poll every 30 seconds
+        return 30 * 1000
+      }
+
+      return 2 * 60 * 1000 // Default: 2 minutes
     },
 
     staleTime: 1000, // Always consider stale after 1 second
