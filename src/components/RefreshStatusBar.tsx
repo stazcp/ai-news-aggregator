@@ -61,7 +61,7 @@ export default function RefreshStatusBar({
       setIsVisible(false)
       setShowCompletion(false)
     }
-  }, [isActive, isComplete, isVisible, showOnlyWhenWaiting, hasData])
+  }, [isActive, isComplete, isVisible])
 
   if (!show || !isVisible) return null
 
