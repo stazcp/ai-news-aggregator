@@ -1,18 +1,50 @@
 'use client'
 
-import { useRefreshIndicator } from '@/hooks/useRefreshStatus'
 import { useState, useEffect } from 'react'
 
-export default function RefreshStatusBar() {
-  const { show, stage, progress, isComplete, isActive } = useRefreshIndicator()
+interface RefreshIndicatorState {
+  show: boolean
+  stage: string
+  progress: number
+  isComplete: boolean
+  isActive: boolean
+}
+
+interface RefreshStatusBarProps {
+  showOnlyWhenWaiting?: boolean
+  hasData?: boolean
+  refreshState?: RefreshIndicatorState
+}
+
+const defaultIndicatorState: RefreshIndicatorState = {
+  show: false,
+  stage: 'Idle',
+  progress: 0,
+  isComplete: false,
+  isActive: false,
+}
+
+export default function RefreshStatusBar({
+  showOnlyWhenWaiting = false,
+  hasData = true,
+  refreshState = defaultIndicatorState,
+}: RefreshStatusBarProps) {
+  const { show, stage, progress, isComplete, isActive } = refreshState
   const [isVisible, setIsVisible] = useState(false)
   const [showCompletion, setShowCompletion] = useState(false)
 
   useEffect(() => {
     if (isActive) {
-      // Show immediately when refresh starts
-      setIsVisible(true)
-      setShowCompletion(false)
+      const shouldShow = !showOnlyWhenWaiting || !hasData
+
+      if (shouldShow) {
+        setIsVisible(true)
+        setShowCompletion(false)
+      } else if (isVisible) {
+        // User now has data but refresh is still active; hide the bar
+        setIsVisible(false)
+        setShowCompletion(false)
+      }
     } else if (isComplete && isVisible) {
       // Show completion message briefly
       setShowCompletion(true)
@@ -24,6 +56,10 @@ export default function RefreshStatusBar() {
       }, 3000)
 
       return () => clearTimeout(timeout)
+    } else if (!isActive && !isComplete && isVisible) {
+      // Refresh stopped without completion (error/cancel) - hide bar
+      setIsVisible(false)
+      setShowCompletion(false)
     }
   }, [isActive, isComplete, isVisible])
 

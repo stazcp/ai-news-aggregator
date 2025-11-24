@@ -43,11 +43,7 @@ export default function ArticleCard({
             variant="compact"
           />
 
-          <ArticleContent
-            article={article}
-            eager={eager}
-            variant="compact"
-          />
+          <ArticleContent article={article} eager={eager} variant="compact" />
 
           <ArticleFooter url={article.url} variant="compact" />
         </CardContent>

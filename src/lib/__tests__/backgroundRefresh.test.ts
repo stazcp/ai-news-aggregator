@@ -101,7 +101,7 @@ describe('backgroundRefresh', () => {
 
       await refreshCacheInBackground()
 
-      // Verify refresh was marked as in progress with 30-minute TTL
+      // Verify refresh was marked as in progress with 10-minute TTL
       expect(mockSetCachedData).toHaveBeenCalledWith(
         'refresh-in-progress',
         expect.objectContaining({
@@ -110,7 +110,7 @@ describe('backgroundRefresh', () => {
           progress: 0,
           timestamp: expect.any(Number),
         }),
-        1800 // 30 minutes (not 1 hour)
+        600 // 10 minutes (not 1 hour)
       )
 
       // Verify all stages were called
@@ -170,9 +170,9 @@ describe('backgroundRefresh', () => {
         (call) => call[0] === 'refresh-in-progress' && call[1].progress < 100
       )
 
-      // Verify all progress updates use consistent 30-minute TTL
+      // Verify all progress updates use consistent 10-minute TTL
       progressCalls.forEach((call) => {
-        expect(call[2]).toBe(1800) // 30 minutes
+        expect(call[2]).toBe(600) // 10 minutes
       })
     })
 
@@ -442,7 +442,7 @@ describe('backgroundRefresh', () => {
       // Verify all TTLs are reasonable (not 1 hour)
       mockSetCachedData.mock.calls.forEach((call) => {
         if (call[0] === 'refresh-in-progress') {
-          expect(call[2]).toBeLessThanOrEqual(1800) // Max 30 minutes
+          expect(call[2]).toBeLessThanOrEqual(600) // Max 10 minutes
         }
       })
     })

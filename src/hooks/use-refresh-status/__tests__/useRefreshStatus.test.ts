@@ -3,24 +3,13 @@
  */
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useRefreshStatus } from '../useRefreshStatus'
+import { useRefreshStatus } from '..'
 import { ReactNode, createElement } from 'react'
 
 // Mock fetch globally
 global.fetch = jest.fn()
 
 const mockFetch = fetch as jest.MockedFunction<typeof fetch>
-
-// Helper to create a QueryClient for tests
-const createTestQueryClient = () =>
-  new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false, // Disable retries for tests
-        gcTime: 0, // Disable cache persistence
-      },
-    },
-  })
 
 describe('useRefreshStatus', () => {
   beforeEach(() => {
