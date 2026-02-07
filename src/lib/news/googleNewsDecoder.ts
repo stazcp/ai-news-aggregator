@@ -90,16 +90,14 @@ async function tryFollowRedirect(
     })
 
     // Check for redirect — reject any Google-owned intermediate pages
-    // (consent.google.com, accounts.google.com, google.com/url, etc.)
+    // (consent.google.com, accounts.google.de, google.co.jp/url, etc.)
+    // Uses a regex that matches all Google ccTLDs (google.com, google.de,
+    // google.co.uk, google.com.au, …) and their subdomains.
     const location = response.headers.get('location')
     if (location) {
       try {
         const host = new URL(location).hostname.toLowerCase()
-        const isGoogleDomain =
-          host === 'google.com' ||
-          host.endsWith('.google.com') ||
-          host === 'google.co.uk' ||
-          host.endsWith('.google.co.uk')
+        const isGoogleDomain = /(?:^|\.)google\.[a-z.]+$/.test(host)
         if (!isGoogleDomain) {
           return location
         }
