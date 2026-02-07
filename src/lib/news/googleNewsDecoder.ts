@@ -71,16 +71,22 @@ function tryBase64Decode(googleNewsUrl: string): string | null {
 
 /**
  * Try to resolve a Google News URL by following HTTP redirects.
+ * Uses HEAD to avoid downloading the full response body — we only need
+ * the status code and Location header to detect a 302 redirect.
+ * @param timeoutMs  Per-request timeout (default 1 500 ms)
  */
-async function tryFollowRedirect(googleNewsUrl: string): Promise<string | null> {
+async function tryFollowRedirect(
+  googleNewsUrl: string,
+  timeoutMs: number = 1500
+): Promise<string | null> {
   try {
     const response = await fetch(googleNewsUrl, {
-      method: 'GET',
+      method: 'HEAD',
       redirect: 'manual',
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; RSS Reader)',
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
 
     // Check for redirect
@@ -98,46 +104,74 @@ async function tryFollowRedirect(googleNewsUrl: string): Promise<string | null> 
  * Decode a batch of Google News article URLs.
  * Returns a Map of original Google News URL -> decoded URL.
  * URLs that can't be decoded are mapped to themselves.
+ *
+ * Uses a two-phase approach to stay within time budgets:
+ *   Phase 1 – base64 decode (synchronous, instant, no I/O)
+ *   Phase 2 – HTTP redirect fallback with a hard total-time cap
+ *
+ * The total time budget (`totalTimeoutMs`, default 4 s) prevents this from
+ * exceeding the 15 s outer feed timeout in `fetchAllNews`.
+ * `fetchRSSFeed` passes a dynamic budget based on time already spent on
+ * RSS parsing, so the decode phase never causes the outer timeout to fire.
  */
 export async function decodeGoogleNewsUrls(
   urls: string[],
-  options: { concurrency?: number; timeoutMs?: number } = {}
+  options: {
+    concurrency?: number
+    perRequestTimeoutMs?: number
+    totalTimeoutMs?: number
+  } = {}
 ): Promise<Map<string, string>> {
-  const { concurrency = 5, timeoutMs = 8000 } = options
+  const { concurrency = 10, perRequestTimeoutMs = 1500, totalTimeoutMs = 4000 } = options
   const results = new Map<string, string>()
 
-  // Process in batches
-  for (let i = 0; i < urls.length; i += concurrency) {
-    const batch = urls.slice(i, i + concurrency)
+  // ── Phase 1: base64 decode (free, no network) ──────────────────────
+  const needsNetwork: string[] = []
+  for (const url of urls) {
+    const base64Result = tryBase64Decode(url)
+    if (base64Result) {
+      results.set(url, base64Result)
+    } else {
+      needsNetwork.push(url)
+    }
+  }
+
+  if (needsNetwork.length === 0) return results
+
+  // ── Phase 2: HTTP redirect with a hard total time budget ───────────
+  const startTime = Date.now()
+
+  for (let i = 0; i < needsNetwork.length; i += concurrency) {
+    const elapsed = Date.now() - startTime
+    if (elapsed >= totalTimeoutMs) break // budget exhausted
+
+    const batch = needsNetwork.slice(i, i + concurrency)
+    const remainingMs = totalTimeoutMs - elapsed
+    const batchRequestTimeout = Math.min(perRequestTimeoutMs, remainingMs)
+
     const promises = batch.map(async (url) => {
-      // Try base64 decode first (fastest, no network)
-      const base64Result = tryBase64Decode(url)
-      if (base64Result) {
-        results.set(url, base64Result)
-        return
-      }
-
-      // Try HTTP redirect
-      const redirectResult = await tryFollowRedirect(url)
-      if (redirectResult) {
-        results.set(url, redirectResult)
-        return
-      }
-
-      // Fall back to Google News URL (still works, just redirects user)
-      results.set(url, url)
+      const redirectResult = await tryFollowRedirect(url, batchRequestTimeout)
+      results.set(url, redirectResult || url)
     })
 
+    // Race batch against remaining time budget
     await Promise.race([
       Promise.allSettled(promises),
-      new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+      new Promise((resolve) => setTimeout(resolve, remainingMs)),
     ])
 
-    // Ensure all URLs in this batch have a result (timeout fallback)
+    // Map any URLs that didn't resolve in time to themselves
     for (const url of batch) {
       if (!results.has(url)) {
         results.set(url, url)
       }
+    }
+  }
+
+  // Ensure every input URL has a mapping (handles budget-exhausted remainder)
+  for (const url of urls) {
+    if (!results.has(url)) {
+      results.set(url, url)
     }
   }
 
@@ -212,15 +246,23 @@ export function cleanGoogleNewsTitle(rawTitle: string): string {
  * origin when the current source URL is missing or still points at news.google.com.
  * This ensures the per-domain diversity cap in clusterService uses the real
  * publisher domain.
+ *
+ * @param totalTimeoutMs  Hard cap on network time spent decoding URLs (default 4 s).
+ *                        Callers should pass a dynamic budget based on elapsed time.
  */
-export async function decodeAndBackfillGoogleNewsArticles(articles: Article[]): Promise<void> {
+export async function decodeAndBackfillGoogleNewsArticles(
+  articles: Article[],
+  options?: { totalTimeoutMs?: number }
+): Promise<void> {
   const googleUrls = articles
     .filter((a) => a.url.includes('news.google.com/rss/articles/'))
     .map((a) => a.url)
 
   if (googleUrls.length === 0) return
 
-  const decoded = await decodeGoogleNewsUrls(googleUrls)
+  const decoded = await decodeGoogleNewsUrls(googleUrls, {
+    totalTimeoutMs: options?.totalTimeoutMs,
+  })
   for (const article of articles) {
     const realUrl = decoded.get(article.url)
     if (realUrl && realUrl !== article.url) {

@@ -172,7 +172,13 @@ function recordFeedFailure(url: string): void {
   }
 }
 
+// Must match the timeout in fetchAllNews() Promise.race
+const FEED_OUTER_TIMEOUT_MS = 15000
+const DECODE_SAFETY_MARGIN_MS = 2000 // buffer so decode never bumps into the outer timeout
+const DECODE_MIN_BUDGET_MS = 500 // don't bother decoding if less than this remains
+
 export async function fetchRSSFeed(url: string, category: string): Promise<Article[]> {
+  const fetchStartMs = Date.now()
   log('info', `🔄 Fetching RSS feed: ${url} (category: ${category})`)
 
   // Validate URL first
@@ -441,13 +447,32 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       })
       .filter((article): article is Article => article !== null) // Remove null entries
 
-    // For Google News feeds, decode obfuscated URLs and backfill source.url
+    // For Google News feeds, decode obfuscated URLs and backfill source.url.
+    // Compute a dynamic time budget so decode + parse never exceeds the outer
+    // 15 s timeout imposed by fetchAllNews.
     if (isAggregator && articles.length > 0) {
-      try {
-        await decodeAndBackfillGoogleNewsArticles(articles)
-        log('info', `🔗 Decoded Google News URLs for ${articles.length} articles`)
-      } catch (e) {
-        log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
+      const elapsedMs = Date.now() - fetchStartMs
+      const decodeBudgetMs = Math.max(
+        0,
+        FEED_OUTER_TIMEOUT_MS - elapsedMs - DECODE_SAFETY_MARGIN_MS
+      )
+      if (decodeBudgetMs >= DECODE_MIN_BUDGET_MS) {
+        try {
+          await decodeAndBackfillGoogleNewsArticles(articles, {
+            totalTimeoutMs: decodeBudgetMs,
+          })
+          log(
+            'info',
+            `🔗 Decoded Google News URLs for ${articles.length} articles (${decodeBudgetMs}ms budget)`
+          )
+        } catch (e) {
+          log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
+        }
+      } else {
+        log(
+          'warn',
+          `⏩ Skipped Google News URL decoding (only ${decodeBudgetMs}ms remaining of ${FEED_OUTER_TIMEOUT_MS}ms budget)`
+        )
       }
     }
 
@@ -556,8 +581,8 @@ export async function fetchAllNews(): Promise<Article[]> {
       batchPromises.map((promise) =>
         Promise.race([
           promise,
-          new Promise<{ articles: Article[]; url: string; category: string }>(
-            (_, reject) => setTimeout(() => reject(new Error('Feed timeout')), 15000) // Reduced timeout
+          new Promise<{ articles: Article[]; url: string; category: string }>((_, reject) =>
+            setTimeout(() => reject(new Error('Feed timeout')), FEED_OUTER_TIMEOUT_MS)
           ),
         ])
       )
