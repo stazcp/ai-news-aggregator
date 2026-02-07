@@ -171,36 +171,11 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       const mergedLLM = await mergeClustersByLLM(finalRaw, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
-      // Optional expansion to reach 10–20 sources per event (severity-aware)
+      // Optional expansion to reach 10–20 sources per event
+      // Defaults are configured in textCluster.ts and can be overridden via env vars
       const EXPAND = (process.env.CLUSTER_EXPAND || 'true').toLowerCase() !== 'false'
       if (EXPAND) {
-        const baseSim = parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.46')
-        const baseMaxAdd = parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '30', 10)
-        const baseHours = parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '96', 10)
-        const baseStrict =
-          (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
-
-        const expanded = mergedLLM.map((c) => {
-          // Use heuristic severity to relax expansion for critical events
-          const sev = computeSeverity(c)
-          let sim = baseSim
-          let maxAdd = baseMaxAdd
-          let hours = baseHours
-          let strict = baseStrict
-          if (sev.label === 'Mass Casualty/Deaths' || sev.label === 'War/Conflict') {
-            // Cast a wider net for high-severity events to catch paraphrases/outlet wording
-            sim = Math.min(sim, 0.42)
-            maxAdd = Math.max(maxAdd, 50)
-            hours = Math.max(hours, 120)
-            strict = false // allow cross-category pull (e.g., US News vs Crime)
-          }
-          return expandClusterMembership(articles, c, {
-            simThreshold: sim,
-            maxAdd,
-            timeWindowHours: hours,
-            categoryStrict: strict,
-          })
-        })
+        const expanded = mergedLLM.map((c) => expandClusterMembership(articles, c))
         printSamples('After expansion', expanded)
         return expanded
       }
