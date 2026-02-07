@@ -89,10 +89,23 @@ async function tryFollowRedirect(
       signal: AbortSignal.timeout(timeoutMs),
     })
 
-    // Check for redirect
+    // Check for redirect — reject any Google-owned intermediate pages
+    // (consent.google.com, accounts.google.com, google.com/url, etc.)
     const location = response.headers.get('location')
-    if (location && !location.includes('news.google.com')) {
-      return location
+    if (location) {
+      try {
+        const host = new URL(location).hostname.toLowerCase()
+        const isGoogleDomain =
+          host === 'google.com' ||
+          host.endsWith('.google.com') ||
+          host === 'google.co.uk' ||
+          host.endsWith('.google.co.uk')
+        if (!isGoogleDomain) {
+          return location
+        }
+      } catch {
+        // Malformed location header — ignore
+      }
     }
   } catch {
     // Redirect follow failed
