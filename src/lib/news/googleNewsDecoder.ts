@@ -14,13 +14,6 @@
 const GOOGLE_NEWS_ARTICLE_PREFIX = 'https://news.google.com/rss/articles/'
 
 /**
- * Check if a URL is a Google News obfuscated article link.
- */
-export function isGoogleNewsUrl(url: string): boolean {
-  return url.startsWith(GOOGLE_NEWS_ARTICLE_PREFIX)
-}
-
-/**
  * Check if a feed URL is from Google News (to apply special handling).
  */
 export function isGoogleNewsFeed(feedUrl: string): boolean {
