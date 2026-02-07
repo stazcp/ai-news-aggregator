@@ -5,6 +5,11 @@ import { getCachedData, setCachedData } from '../cache'
 import { inferImageDimsFromUrl } from '../images/imageProviders'
 import { normalizeImageUrl } from '../images/normalizeImageUrl'
 import { simpleHash } from '../utils'
+import {
+  isGoogleNewsFeed,
+  extractPublisherFromTitle,
+  decodeGoogleNewsUrls,
+} from './googleNewsDecoder'
 
 // Simple log gating for feed operations
 const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()
@@ -195,6 +200,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
           ['media:thumbnail', 'media:thumbnail'],
           ['media:group', 'media:group'],
           ['image', 'image'],
+          ['source', 'source'],
         ],
       },
     })
@@ -363,7 +369,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       return {}
     }
 
-    const PER_FEED_LIMIT = parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
+    // Use higher limit for aggregator feeds (Google News) since each item is from a different source
+    const isAggregator = isGoogleNewsFeed(url)
+    const PER_FEED_LIMIT = isAggregator
+      ? parseInt(process.env.AGGREGATOR_FEED_ITEMS_LIMIT || '50', 10)
+      : parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
     const articles: Article[] = feed.items
       .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
@@ -384,14 +394,45 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               dims = { width: fromContent.width, height: fromContent.height }
             }
           }
+
+          // For Google News feeds, extract publisher from <source> tag or title suffix
+          let sourceName = getFeedTitle(feed, url)
+          let sourceUrl = (feed && 'link' in feed ? feed.link : null) || url
+          if (isAggregator) {
+            const itemSource = (item as any).source
+            if (itemSource) {
+              // <source> tag: could be string or object with $ attributes
+              if (typeof itemSource === 'string') {
+                sourceName = itemSource
+              } else if (typeof itemSource === 'object') {
+                sourceName = itemSource._ || itemSource['#text'] || itemSource['$']?.url || sourceName
+                if (itemSource['$']?.url) sourceUrl = itemSource['$'].url
+              }
+            }
+            // Fallback: extract publisher from title ("Headline - Publisher")
+            if (sourceName === 'Google News' || sourceName.includes('news.google.com')) {
+              const fromTitle = extractPublisherFromTitle(item.title || '')
+              if (fromTitle) sourceName = fromTitle
+            }
+          }
+
           // Generate unique ID: category + title hash + source hash + index
           // This ensures uniqueness even when titles are identical across sources
-          const sourceHash = simpleHash(getFeedTitle(feed, url))
+          const sourceHash = simpleHash(sourceName)
           const titleHash = simpleHash(item.title?.trim() || 'untitled')
+
+          // Clean title for Google News items (remove " - Publisher" suffix)
+          let title = item.title?.trim() || 'Untitled Article'
+          if (isAggregator) {
+            const lastDash = title.lastIndexOf(' - ')
+            if (lastDash > 0) {
+              title = title.substring(0, lastDash).trim()
+            }
+          }
 
           const article: Article = {
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${titleHash}-${sourceHash}-${index}`,
-            title: item.title?.trim() || 'Untitled Article',
+            title,
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content:
               ((item as any)['content:encoded'] as string | undefined)?.trim() ||
@@ -404,8 +445,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             imageHeight: dims.height,
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),
             source: {
-              name: getFeedTitle(feed, url),
-              url: (feed && 'link' in feed ? feed.link : null) || url,
+              name: sourceName,
+              url: sourceUrl,
             },
             category,
           }
@@ -416,6 +457,28 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         }
       })
       .filter((article): article is Article => article !== null) // Remove null entries
+
+    // For Google News feeds, try to decode obfuscated article URLs
+    if (isAggregator && articles.length > 0) {
+      const googleUrls = articles
+        .filter((a) => a.url.includes('news.google.com/rss/articles/'))
+        .map((a) => a.url)
+
+      if (googleUrls.length > 0) {
+        try {
+          const decoded = await decodeGoogleNewsUrls(googleUrls)
+          for (const article of articles) {
+            const realUrl = decoded.get(article.url)
+            if (realUrl && realUrl !== article.url) {
+              article.url = realUrl
+            }
+          }
+          log('info', `🔗 Decoded ${decoded.size} Google News URLs`)
+        } catch (e) {
+          log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
+        }
+      }
+    }
 
     log('info', `✅ Processed ${articles.length} articles from ${url}`)
 

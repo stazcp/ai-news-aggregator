@@ -298,7 +298,8 @@ async function enrichClusters(
       })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
-      const perDomainMax = 2
+      const perDomainMax = parseInt(process.env.CLUSTER_PER_DOMAIN_MAX || '3', 10)
+      const displayCap = parseInt(process.env.CLUSTER_DISPLAY_CAP || '40', 10)
       const domainCounts = new Map<string, number>()
       const diverse: Article[] = []
       for (const a of articlesInCluster.sort(
@@ -314,7 +315,7 @@ async function enrichClusters(
         } catch {
           diverse.push(a)
         }
-        if (diverse.length >= 20) break
+        if (diverse.length >= displayCap) break
       }
       articlesInCluster = diverse
 

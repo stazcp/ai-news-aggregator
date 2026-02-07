@@ -267,10 +267,13 @@ export function expandClusterMembership(
     categoryStrict?: boolean
   } = {}
 ): StoryCluster {
-  const simThreshold = opts.simThreshold ?? 0.46
-  const maxAdd = opts.maxAdd ?? 30
-  const timeWindowHours = opts.timeWindowHours ?? 96
-  const categoryStrict = opts.categoryStrict ?? true
+  const simThreshold = opts.simThreshold ?? parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.42')
+  const maxAdd = opts.maxAdd ?? parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '50', 10)
+  const timeWindowHours =
+    opts.timeWindowHours ?? parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '168', 10)
+  const categoryStrict =
+    opts.categoryStrict ??
+    (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'false').toLowerCase() !== 'false'
 
   const idSet = new Set(cluster.articleIds)
   const members = allArticles.filter((a) => idSet.has(a.id))
