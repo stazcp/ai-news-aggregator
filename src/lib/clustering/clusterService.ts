@@ -273,6 +273,8 @@ async function enrichClusters(
       })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
+      // Use source.url (publisher's actual URL) when available, as a.url may be
+      // a Google News redirect URL that hasn't been decoded
       const perDomainMax = parseInt(process.env.CLUSTER_PER_DOMAIN_MAX || '3', 10)
       const displayCap = parseInt(process.env.CLUSTER_DISPLAY_CAP || '40', 10)
       const domainCounts = new Map<string, number>()
@@ -281,7 +283,15 @@ async function enrichClusters(
         (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       )) {
         try {
-          const host = new URL(a.url).hostname.replace(/^www\./, '')
+          // Prefer source.url for domain identification (avoids Google News redirect issue
+          // when decoding fails and a.url stays as news.google.com)
+          const urlForDomain = a.source?.url || a.url
+          let host = new URL(urlForDomain).hostname.replace(/^www\./, '')
+          // When host is still news.google.com (decoding failed / RSS had no source URL),
+          // use source name so different publishers are not capped as one domain
+          if (host === 'news.google.com' && a.source?.name) {
+            host = `news.google.com:${a.source.name}`
+          }
           const used = domainCounts.get(host) || 0
           if (used < perDomainMax) {
             domainCounts.set(host, used + 1)

@@ -7,8 +7,9 @@ import { normalizeImageUrl } from '../images/normalizeImageUrl'
 import { simpleHash } from '../utils'
 import {
   isGoogleNewsFeed,
-  extractPublisherFromTitle,
-  decodeGoogleNewsUrls,
+  extractGoogleNewsSource,
+  cleanGoogleNewsTitle,
+  decodeAndBackfillGoogleNewsArticles,
 } from './googleNewsDecoder'
 
 // Simple log gating for feed operations
@@ -395,39 +396,12 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             }
           }
 
-          // For Google News feeds, extract publisher from <source> tag or title suffix
-          let sourceName = getFeedTitle(feed, url)
-          let sourceUrl = (feed && 'link' in feed ? feed.link : null) || url
-          if (isAggregator) {
-            const itemSource = (item as any).source
-            if (itemSource) {
-              // <source> tag: could be string or object with $ attributes
-              if (typeof itemSource === 'string') {
-                sourceName = itemSource
-              } else if (typeof itemSource === 'object') {
-                sourceName = itemSource._ || itemSource['#text'] || itemSource['$']?.url || sourceName
-                if (itemSource['$']?.url) sourceUrl = itemSource['$'].url
-              }
-            }
-            // Fallback: extract publisher from title ("Headline - Publisher")
-            // Also handle case where sourceName is a URL instead of a readable name
-            const isUrlSource = sourceName.startsWith('http') || sourceName.includes('://')
-            if (sourceName === 'Google News' || sourceName.includes('news.google.com') || isUrlSource) {
-              const fromTitle = extractPublisherFromTitle(item.title || '')
-              if (fromTitle) {
-                sourceName = fromTitle
-              } else if (isUrlSource) {
-                // Last resort: extract readable name from URL hostname
-                try {
-                  const host = new URL(sourceName).hostname.replace(/^www\./, '')
-                  // Capitalize first letter of each part: nytimes.com -> Nytimes
-                  sourceName = host.split('.')[0].charAt(0).toUpperCase() + host.split('.')[0].slice(1)
-                } catch {
-                  // Keep as-is if URL parsing fails
-                }
-              }
-            }
-          }
+          // Resolve publisher name & URL (Google News items need special extraction)
+          const defaultName = getFeedTitle(feed, url)
+          const defaultUrl = (feed && 'link' in feed ? feed.link : null) || url
+          const { sourceName, sourceUrl } = isAggregator
+            ? extractGoogleNewsSource(item as Record<string, any>, defaultName, defaultUrl)
+            : { sourceName: defaultName, sourceUrl: defaultUrl }
 
           // Generate unique ID: category + title hash + source hash + index
           // This ensures uniqueness even when titles are identical across sources
@@ -435,13 +409,9 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
           const titleHash = simpleHash(item.title?.trim() || 'untitled')
 
           // Clean title for Google News items (remove " - Publisher" suffix)
-          let title = item.title?.trim() || 'Untitled Article'
-          if (isAggregator) {
-            const lastDash = title.lastIndexOf(' - ')
-            if (lastDash > 0) {
-              title = title.substring(0, lastDash).trim()
-            }
-          }
+          const title = isAggregator
+            ? cleanGoogleNewsTitle(item.title?.trim() || 'Untitled Article')
+            : item.title?.trim() || 'Untitled Article'
 
           const article: Article = {
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${titleHash}-${sourceHash}-${index}`,
@@ -471,25 +441,13 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       })
       .filter((article): article is Article => article !== null) // Remove null entries
 
-    // For Google News feeds, try to decode obfuscated article URLs
+    // For Google News feeds, decode obfuscated URLs and backfill source.url
     if (isAggregator && articles.length > 0) {
-      const googleUrls = articles
-        .filter((a) => a.url.includes('news.google.com/rss/articles/'))
-        .map((a) => a.url)
-
-      if (googleUrls.length > 0) {
-        try {
-          const decoded = await decodeGoogleNewsUrls(googleUrls)
-          for (const article of articles) {
-            const realUrl = decoded.get(article.url)
-            if (realUrl && realUrl !== article.url) {
-              article.url = realUrl
-            }
-          }
-          log('info', `🔗 Decoded ${decoded.size} Google News URLs`)
-        } catch (e) {
-          log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
-        }
+      try {
+        await decodeAndBackfillGoogleNewsArticles(articles)
+        log('info', `🔗 Decoded Google News URLs for ${articles.length} articles`)
+      } catch (e) {
+        log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
       }
     }
 

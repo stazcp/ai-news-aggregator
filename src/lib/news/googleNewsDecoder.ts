@@ -1,15 +1,14 @@
 /**
- * Google News URL Decoder
+ * Google News Helpers
  *
- * Google News RSS feed <link> elements contain obfuscated redirect URLs
- * (e.g., https://news.google.com/rss/articles/CBMi...) instead of the
- * original article URLs. This module decodes them.
- *
- * Approach:
- * 1. Try base64 decoding (works for older-format URLs with CBMi prefix)
- * 2. Try following HTTP redirects
- * 3. Fall back to the Google News URL as-is (still functional, just redirects)
+ * All Google-News-specific logic lives here so `newsService.ts` stays generic:
+ *   - URL decoding (base64 / redirect fallback)
+ *   - Publisher extraction from RSS <source> tag or title suffix
+ *   - Title cleaning (strip " - Publisher" suffix)
+ *   - Post-decode source.url backfill
  */
+
+import type { Article } from '@/types'
 
 const GOOGLE_NEWS_ARTICLE_PREFIX = 'https://news.google.com/rss/articles/'
 
@@ -143,4 +142,104 @@ export async function decodeGoogleNewsUrls(
   }
 
   return results
+}
+
+// ---------------------------------------------------------------------------
+// Higher-level helpers used by newsService to keep Google News logic here
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract publisher name & URL from a Google News RSS item's <source> tag
+ * and/or the " - Publisher" title suffix.
+ *
+ * @param item        The raw RSS item (typed loosely because rss-parser output varies)
+ * @param fallbackName  Default source name when extraction fails (e.g. feed title)
+ * @param fallbackUrl   Default source URL when extraction fails (e.g. feed link)
+ * @returns `{ sourceName, sourceUrl }` for the article
+ */
+export function extractGoogleNewsSource(
+  item: Record<string, any>,
+  fallbackName: string,
+  fallbackUrl: string
+): { sourceName: string; sourceUrl: string } {
+  let sourceName = fallbackName
+  let sourceUrl = fallbackUrl
+
+  const itemSource = item.source
+  if (itemSource) {
+    if (typeof itemSource === 'string') {
+      sourceName = itemSource
+    } else if (typeof itemSource === 'object') {
+      sourceName = itemSource._ || itemSource['#text'] || itemSource['$']?.url || sourceName
+      if (itemSource['$']?.url) sourceUrl = itemSource['$'].url
+    }
+  }
+
+  // Fallback: extract publisher from title ("Headline - Publisher")
+  // Also handle case where sourceName is a URL instead of a readable name
+  const isUrlSource = sourceName.startsWith('http') || sourceName.includes('://')
+  if (sourceName === 'Google News' || sourceName.includes('news.google.com') || isUrlSource) {
+    const fromTitle = extractPublisherFromTitle(item.title || '')
+    if (fromTitle) {
+      sourceName = fromTitle
+    } else if (isUrlSource) {
+      // Last resort: extract readable name from URL hostname
+      try {
+        const host = new URL(sourceName).hostname.replace(/^www\./, '')
+        sourceName = host.split('.')[0].charAt(0).toUpperCase() + host.split('.')[0].slice(1)
+      } catch {
+        // Keep as-is if URL parsing fails
+      }
+    }
+  }
+
+  return { sourceName, sourceUrl }
+}
+
+/**
+ * Strip the " - Publisher" suffix that Google News appends to titles.
+ */
+export function cleanGoogleNewsTitle(rawTitle: string): string {
+  const lastDash = rawTitle.lastIndexOf(' - ')
+  if (lastDash > 0) {
+    return rawTitle.substring(0, lastDash).trim()
+  }
+  return rawTitle
+}
+
+/**
+ * After URL decoding, backfill `article.source.url` with the decoded article's
+ * origin when the current source URL is missing or still points at news.google.com.
+ * This ensures the per-domain diversity cap in clusterService uses the real
+ * publisher domain.
+ */
+export async function decodeAndBackfillGoogleNewsArticles(articles: Article[]): Promise<void> {
+  const googleUrls = articles
+    .filter((a) => a.url.includes('news.google.com/rss/articles/'))
+    .map((a) => a.url)
+
+  if (googleUrls.length === 0) return
+
+  const decoded = await decodeGoogleNewsUrls(googleUrls)
+  for (const article of articles) {
+    const realUrl = decoded.get(article.url)
+    if (realUrl && realUrl !== article.url) {
+      article.url = realUrl
+      // Backfill source.url with decoded origin so per-domain diversity cap
+      // uses publisher domain when RSS had no <source url> or it was news.google.com
+      try {
+        const decodedOrigin = new URL(realUrl).origin
+        const current = article.source?.url
+        const currentIsGoogle = current && new URL(current).hostname === 'news.google.com'
+        if (!current || currentIsGoogle) {
+          article.source = {
+            name: article.source?.name ?? 'Unknown',
+            url: decodedOrigin,
+          }
+        }
+      } catch {
+        // ignore URL parse errors
+      }
+    }
+  }
 }
