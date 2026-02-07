@@ -410,9 +410,22 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               }
             }
             // Fallback: extract publisher from title ("Headline - Publisher")
-            if (sourceName === 'Google News' || sourceName.includes('news.google.com')) {
+            // Also handle case where sourceName is a URL instead of a readable name
+            const isUrlSource = sourceName.startsWith('http') || sourceName.includes('://')
+            if (sourceName === 'Google News' || sourceName.includes('news.google.com') || isUrlSource) {
               const fromTitle = extractPublisherFromTitle(item.title || '')
-              if (fromTitle) sourceName = fromTitle
+              if (fromTitle) {
+                sourceName = fromTitle
+              } else if (isUrlSource) {
+                // Last resort: extract readable name from URL hostname
+                try {
+                  const host = new URL(sourceName).hostname.replace(/^www\./, '')
+                  // Capitalize first letter of each part: nytimes.com -> Nytimes
+                  sourceName = host.split('.')[0].charAt(0).toUpperCase() + host.split('.')[0].slice(1)
+                } catch {
+                  // Keep as-is if URL parsing fails
+                }
+              }
             }
           }
 
