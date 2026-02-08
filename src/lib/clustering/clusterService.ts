@@ -12,6 +12,25 @@ import {
   expandClusterMembership,
 } from './textCluster'
 
+/**
+ * Resolve the effective hostname for an article, preferring the publisher's
+ * actual URL (`source.url`) over the article URL (which may be a Google News
+ * redirect).  When the host is still `news.google.com` (decoding failed), falls
+ * back to `source.name` so different publishers are not treated as one domain.
+ */
+export function resolveArticleHost(a: Article): string {
+  try {
+    const urlForHost = a.source?.url || a.url
+    let host = new URL(urlForHost).hostname.replace(/^www\./, '').toLowerCase()
+    if (host === 'news.google.com' && a.source?.name) {
+      host = `news.google.com:${a.source.name.toLowerCase()}`
+    }
+    return host
+  } catch {
+    return ''
+  }
+}
+
 // Helper function to check if error is a rate limit error
 function isRateLimitError(error: any): boolean {
   if (!error) return false
@@ -148,13 +167,15 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   printSamples('After title merge', titleMerged)
 
   // 4c) Merge clusters that share key entities (same topic/event, different angles)
-  // Example: "US wins swimming gold" + "Olympic medal standings" → both have "olympic"
+  // Coherence gate prevents unrelated clusters sharing common entities from merging
   const articleMap = new Map(articles.map((a) => [a.id, a]))
   const ENTITY_MIN_SHARED = parseInt(process.env.CLUSTER_ENTITY_MIN_SHARED || '2', 10)
   const ENTITY_MIN_LEN = parseInt(process.env.CLUSTER_ENTITY_MIN_LENGTH || '4', 10)
+  const ENTITY_MIN_COH = parseFloat(process.env.CLUSTER_ENTITY_MIN_COHERENCE || '0.12')
   const entityMerged = mergeClustersByEntity(titleMerged, articleMap, {
     minSharedEntities: ENTITY_MIN_SHARED,
     minEntityLength: ENTITY_MIN_LEN,
+    minCoherence: ENTITY_MIN_COH,
   })
   console.log(`🏷️ Entity-merged down to ${entityMerged.length} clusters`)
   printSamples('After entity merge', entityMerged)
@@ -175,13 +196,22 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   console.log(`🧪 Coherence check produced ${finalRaw.length} refined raw clusters`)
   printSamples('After coherence split', finalRaw)
 
+  // 5b) Re-merge fragments that coherence split into near-identical titled clusters
+  // (e.g. two "Winter Olympics" clusters created when a big Olympics cluster was split)
+  const postCohTitleMerged = mergeClustersByTitle(finalRaw, { threshold: TITLE_THRESH })
+  if (postCohTitleMerged.length < finalRaw.length) {
+    console.log(
+      `🧲 Post-coherence title re-merge: ${finalRaw.length} → ${postCohTitleMerged.length}`
+    )
+  }
+
   // 6) LLM merge for paraphrases / cross-language duplicates (optional via env toggle)
   const ENABLE_LLM_MERGE = (process.env.CLUSTER_LLM_MERGE || 'true').toLowerCase() !== 'false'
-  if (ENABLE_LLM_MERGE && finalRaw.length > 1) {
+  if (ENABLE_LLM_MERGE && postCohTitleMerged.length > 1) {
     try {
       // Build a quick map for article lookup
       const articleMap = new Map(articles.map((a) => [a.id, a]))
-      const mergedLLM = await mergeClustersByLLM(finalRaw, articleMap)
+      const mergedLLM = await mergeClustersByLLM(postCohTitleMerged, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
       // Optional expansion to reach 10–20 sources per event
@@ -195,11 +225,11 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       return mergedLLM
     } catch (e) {
       console.warn('LLM merge step failed; falling back to coherence output', e)
-      return finalRaw
+      return postCohTitleMerged
     }
   }
 
-  return finalRaw
+  return postCohTitleMerged
 }
 
 /**
@@ -263,20 +293,9 @@ async function enrichClusters(
 
       // Additional guard: drop exact same title from the same host (even if URL differs)
       // This avoids removing articles from different outlets that share the same headline.
-      // Use source.url (publisher's actual URL) when available, as a.url may be
-      // a Google News redirect URL that hasn't been decoded
       const seenTitleByHost = new Set<string>()
       articlesInCluster = articlesInCluster.filter((a) => {
-        let host = ''
-        try {
-          const urlForHost = a.source?.url || a.url
-          host = new URL(urlForHost).hostname.replace(/^www\./, '').toLowerCase()
-          // When host is still news.google.com (decoding failed / RSS had no source URL),
-          // use source name so different publishers are not collapsed into one key
-          if (host === 'news.google.com' && a.source?.name) {
-            host = `news.google.com:${a.source.name.toLowerCase()}`
-          }
-        } catch {}
+        const host = resolveArticleHost(a)
         const k = `${host}|${(a.title || '').toLowerCase().trim()}`
         if (seenTitleByHost.has(k)) return false
         seenTitleByHost.add(k)
@@ -294,8 +313,6 @@ async function enrichClusters(
       })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
-      // Use source.url (publisher's actual URL) when available, as a.url may be
-      // a Google News redirect URL that hasn't been decoded
       const perDomainMax = parseInt(process.env.CLUSTER_PER_DOMAIN_MAX || '3', 10)
       const displayCap = parseInt(process.env.CLUSTER_DISPLAY_CAP || '40', 10)
       const domainCounts = new Map<string, number>()
@@ -303,22 +320,10 @@ async function enrichClusters(
       for (const a of articlesInCluster.sort(
         (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       )) {
-        try {
-          // Prefer source.url for domain identification (avoids Google News redirect issue
-          // when decoding fails and a.url stays as news.google.com)
-          const urlForDomain = a.source?.url || a.url
-          let host = new URL(urlForDomain).hostname.replace(/^www\./, '')
-          // When host is still news.google.com (decoding failed / RSS had no source URL),
-          // use source name so different publishers are not capped as one domain
-          if (host === 'news.google.com' && a.source?.name) {
-            host = `news.google.com:${a.source.name}`
-          }
-          const used = domainCounts.get(host) || 0
-          if (used < perDomainMax) {
-            domainCounts.set(host, used + 1)
-            diverse.push(a)
-          }
-        } catch {
+        const host = resolveArticleHost(a)
+        const used = domainCounts.get(host) || 0
+        if (used < perDomainMax) {
+          domainCounts.set(host, used + 1)
           diverse.push(a)
         }
         if (diverse.length >= displayCap) break

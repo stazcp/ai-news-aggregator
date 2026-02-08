@@ -2,11 +2,60 @@ import { Article, StoryCluster } from '@/types'
 
 type Vec = Map<string, number>
 
-const STOPWORDS = new Set(
-  [
-    'the','a','an','of','and','or','to','in','on','for','with','at','by','from','as','that','this','these','those','is','are','was','were','be','been','being','it','its','into','about','after','before','over','under','up','down','out','off','than','then','but','not','no','so','just','only','more','most','less','least','new','latest'
-  ]
-)
+const STOPWORDS = new Set([
+  'the',
+  'a',
+  'an',
+  'of',
+  'and',
+  'or',
+  'to',
+  'in',
+  'on',
+  'for',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'that',
+  'this',
+  'these',
+  'those',
+  'is',
+  'are',
+  'was',
+  'were',
+  'be',
+  'been',
+  'being',
+  'it',
+  'its',
+  'into',
+  'about',
+  'after',
+  'before',
+  'over',
+  'under',
+  'up',
+  'down',
+  'out',
+  'off',
+  'than',
+  'then',
+  'but',
+  'not',
+  'no',
+  'so',
+  'just',
+  'only',
+  'more',
+  'most',
+  'less',
+  'least',
+  'new',
+  'latest',
+])
 
 function tokenize(text: string): string[] {
   return text
@@ -23,9 +72,11 @@ function docText(a: Article): string {
   return [a.title || '', a.description || '', content].join(' ')
 }
 
-export function buildTfIdf(
-  articles: Article[]
-): { vecs: Map<string, Vec>; idf: Map<string, number>; norms: Map<string, number> } {
+export function buildTfIdf(articles: Article[]): {
+  vecs: Map<string, Vec>
+  idf: Map<string, number>
+  norms: Map<string, number>
+} {
   const tf: Map<string, Map<string, number>> = new Map()
   const df: Map<string, number> = new Map()
 
@@ -166,9 +217,10 @@ export function mergeClustersByOverlap(
       const jac = inter / (union || 1)
       if (jac >= jaccard) {
         base = {
-          clusterTitle: base.clusterTitle.length >= other.clusterTitle.length
-            ? base.clusterTitle
-            : other.clusterTitle,
+          clusterTitle:
+            base.clusterTitle.length >= other.clusterTitle.length
+              ? base.clusterTitle
+              : other.clusterTitle,
           articleIds: Array.from(new Set([...base.articleIds, ...other.articleIds])),
         }
         used.add(j)
@@ -226,7 +278,9 @@ export function mergeClustersByTitle(
             (base.clusterTitle || '').length >= (clusters[j].clusterTitle || '').length
               ? base.clusterTitle
               : clusters[j].clusterTitle,
-          articleIds: Array.from(new Set([...(base.articleIds || []), ...(clusters[j].articleIds || [])])),
+          articleIds: Array.from(
+            new Set([...(base.articleIds || []), ...(clusters[j].articleIds || [])])
+          ),
         }
         baseTok = titleTokens(base.clusterTitle || '')
         used.add(j)
@@ -263,15 +317,22 @@ function extractEntities(text: string): Set<string> {
   }
 
   // 2. Extract single capitalized words (simple proper nouns)
-  // Skip first word of each sentence (likely sentence starter, not proper noun)
   // Split on sentence boundaries first
   const sentences = text.split(/[.!?]\s+/)
   for (const sentence of sentences) {
     const words = sentence.split(/\s+/)
-    for (let i = 1; i < words.length; i++) {
+    for (let i = 0; i < words.length; i++) {
       const word = words[i]
       // Match capitalized word (allows apostrophes for names like O'Brien, McDonald's)
       if (/^[A-Z][a-zA-Z'']*$/.test(word) && word.length >= 3) {
+        if (i === 0) {
+          // Include first word only if followed by a lowercase word, indicating
+          // it's a proper noun ("Biden announces...") rather than sentence
+          // capitalization ("The president..."). Compound patterns (step 1)
+          // already handle "First Second" cases where both are capitalized.
+          const nextWord = words[i + 1]
+          if (!nextWord || !/^[a-z]/.test(nextWord)) continue
+        }
         entities.add(word.toLowerCase().replace(/['']/g, ''))
       }
     }
@@ -295,36 +356,87 @@ function extractEntities(text: string): Set<string> {
 /**
  * Extract entities from a cluster by combining its title and article titles.
  */
-function extractClusterEntities(cluster: StoryCluster, articleMap?: Map<string, Article>): Set<string> {
+function extractClusterEntities(
+  cluster: StoryCluster,
+  articleMap?: Map<string, Article>
+): Set<string> {
   const allText: string[] = [cluster.clusterTitle || '']
 
   // Add article titles for more entity coverage
   if (articleMap && cluster.articleIds) {
-    for (const id of cluster.articleIds.slice(0, 10)) { // Limit to first 10 articles
+    for (const id of cluster.articleIds.slice(0, 10)) {
+      // Limit to first 10 articles
       const article = articleMap.get(id)
       if (article?.title) allText.push(article.title)
     }
   }
 
-  const combined = allText.join(' ')
+  // Join with '. ' so each title is treated as its own sentence in extractEntities,
+  // preventing the entire combined text from becoming one giant "sentence" where
+  // only the very first word is skipped.
+  const combined = allText.join('. ')
   return extractEntities(combined)
 }
 
 /**
- * Merge clusters that share significant entities (same topic/event).
+ * Compute the average pairwise TF-IDF cosine similarity between two sets of
+ * article IDs.  Uses a sample of up to `sampleSize` pairs to keep cost O(1).
+ */
+function crossClusterSimilarity(
+  idsA: string[],
+  idsB: string[],
+  vecs: Map<string, Vec>,
+  norms: Map<string, number>,
+  sampleSize = 20
+): number {
+  const pairsA = idsA.filter((id) => vecs.has(id))
+  const pairsB = idsB.filter((id) => vecs.has(id))
+  if (pairsA.length === 0 || pairsB.length === 0) return 0
+
+  let total = 0
+  let count = 0
+  // Iterate up to sampleSize pairs (deterministic: first N×M combinations)
+  outer: for (const idA of pairsA) {
+    for (const idB of pairsB) {
+      total += cosine(vecs.get(idA)!, vecs.get(idB)!, norms.get(idA)!, norms.get(idB)!)
+      count++
+      if (count >= sampleSize) break outer
+    }
+  }
+  return count > 0 ? total / count : 0
+}
+
+/**
+ * Merge clusters that share significant entities (same topic/event) AND
+ * pass a TF-IDF cosine coherence check.
  *
- * Example: "US wins gold in swimming" and "Olympic medal count update"
- * both contain "olympic" entity → merge into one Olympics cluster.
+ * The coherence gate prevents unrelated clusters that happen to share common
+ * entities (e.g. "Olympics" + "Paris") from being merged when their articles
+ * are actually about different events.
  *
- * @param minSharedEntities - Minimum number of shared entities to trigger merge (default: 1)
- * @param minEntityLength - Minimum entity length to consider (filters noise)
+ * Entity sets are NOT unioned after merge to prevent snowball absorption where
+ * a growing cluster inherits entities from each absorbed cluster and matches
+ * progressively less related clusters.
+ *
+ * @param minSharedEntities - Minimum shared entities to consider merge (default: 1)
+ * @param minEntityLength - Minimum entity string length to keep (filters noise)
+ * @param minCoherence - Minimum avg cross-cluster TF-IDF cosine to allow merge (default: 0.12)
  */
 export function mergeClustersByEntity(
   clusters: StoryCluster[],
-  articleMap?: Map<string, Article>,
-  { minSharedEntities = 1, minEntityLength = 4 }: { minSharedEntities?: number; minEntityLength?: number } = {}
+  articleMap: Map<string, Article>,
+  {
+    minSharedEntities = 1,
+    minEntityLength = 4,
+    minCoherence = 0.12,
+  }: { minSharedEntities?: number; minEntityLength?: number; minCoherence?: number } = {}
 ): StoryCluster[] {
   if (clusters.length <= 1) return clusters
+
+  // Build TF-IDF once for all articles referenced by any cluster
+  const allIds = new Set(clusters.flatMap((c) => c.articleIds || []))
+  const allArticles = [...allIds].map((id) => articleMap.get(id)).filter(Boolean) as Article[]
+  const { vecs, norms } = buildTfIdf(allArticles)
 
   // Extract entities for each cluster
   const clusterEntities = clusters.map((c) => {
@@ -340,32 +452,41 @@ export function mergeClustersByEntity(
     if (used.has(i)) continue
 
     let base = clusters[i]
-    let baseEntities = clusterEntities[i]
+    // Use only the original cluster's entities — do NOT union after merge
+    // to prevent snowball absorption of progressively less related clusters
+    const baseEntities = clusterEntities[i]
 
     for (let j = i + 1; j < clusters.length; j++) {
       if (used.has(j)) continue
 
       // Count shared entities
       let sharedCount = 0
-      const sharedEntities: string[] = []
       for (const entity of baseEntities) {
         if (clusterEntities[j].has(entity)) {
           sharedCount++
-          sharedEntities.push(entity)
         }
       }
 
       if (sharedCount >= minSharedEntities) {
+        // Coherence gate: verify articles are actually about the same event
+        const sim = crossClusterSimilarity(
+          base.articleIds || [],
+          clusters[j].articleIds || [],
+          vecs,
+          norms
+        )
+        if (sim < minCoherence) continue
+
         // Merge clusters
         base = {
           clusterTitle:
             (base.clusterTitle || '').length >= (clusters[j].clusterTitle || '').length
               ? base.clusterTitle
               : clusters[j].clusterTitle,
-          articleIds: Array.from(new Set([...(base.articleIds || []), ...(clusters[j].articleIds || [])])),
+          articleIds: Array.from(
+            new Set([...(base.articleIds || []), ...(clusters[j].articleIds || [])])
+          ),
         }
-        // Union the entities for continued merging
-        for (const e of clusterEntities[j]) baseEntities.add(e)
         used.add(j)
       }
     }
@@ -383,7 +504,7 @@ function dominantCategory(articles: Article[]): string | undefined {
   }
   let best: string | undefined
   let n = -1
-  for (const [k, v] of freq) if (v > n) ((best = k), (n = v))
+  for (const [k, v] of freq) if (v > n) (best = k), (n = v)
   return best
 }
 
@@ -450,4 +571,14 @@ export function expandClusterMembership(
   const toAdd = candidates.slice(0, maxAdd).map((c) => c.id)
   const articleIds = Array.from(new Set([...cluster.articleIds, ...toAdd]))
   return { ...cluster, articleIds }
+}
+
+// Expose private helpers for unit testing only
+export const _testExports = {
+  extractEntities,
+  extractClusterEntities,
+  crossClusterSimilarity,
+  cosine,
+  tokenize,
+  jaccardSets,
 }
