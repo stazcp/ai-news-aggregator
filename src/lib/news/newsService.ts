@@ -5,6 +5,12 @@ import { getCachedData, setCachedData } from '../cache'
 import { inferImageDimsFromUrl } from '../images/imageProviders'
 import { normalizeImageUrl } from '../images/normalizeImageUrl'
 import { simpleHash } from '../utils'
+import {
+  isGoogleNewsFeed,
+  extractGoogleNewsSource,
+  cleanGoogleNewsTitle,
+  decodeAndBackfillGoogleNewsArticles,
+} from './googleNewsDecoder'
 
 // Simple log gating for feed operations
 const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()
@@ -166,7 +172,13 @@ function recordFeedFailure(url: string): void {
   }
 }
 
+// Must match the timeout in fetchAllNews() Promise.race
+const FEED_OUTER_TIMEOUT_MS = 15000
+const DECODE_SAFETY_MARGIN_MS = 2000 // buffer so decode never bumps into the outer timeout
+const DECODE_MIN_BUDGET_MS = 500 // don't bother decoding if less than this remains
+
 export async function fetchRSSFeed(url: string, category: string): Promise<Article[]> {
+  const fetchStartMs = Date.now()
   log('info', `🔄 Fetching RSS feed: ${url} (category: ${category})`)
 
   // Validate URL first
@@ -195,6 +207,7 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
           ['media:thumbnail', 'media:thumbnail'],
           ['media:group', 'media:group'],
           ['image', 'image'],
+          ['source', 'source'],
         ],
       },
     })
@@ -363,7 +376,11 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
       return {}
     }
 
-    const PER_FEED_LIMIT = parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
+    // Use higher limit for aggregator feeds (Google News) since each item is from a different source
+    const isAggregator = isGoogleNewsFeed(url)
+    const PER_FEED_LIMIT = isAggregator
+      ? parseInt(process.env.AGGREGATOR_FEED_ITEMS_LIMIT || '50', 10)
+      : parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
     const articles: Article[] = feed.items
       .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
@@ -384,14 +401,27 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
               dims = { width: fromContent.width, height: fromContent.height }
             }
           }
+
+          // Resolve publisher name & URL (Google News items need special extraction)
+          const defaultName = getFeedTitle(feed, url)
+          const defaultUrl = (feed && 'link' in feed ? feed.link : null) || url
+          const { sourceName, sourceUrl } = isAggregator
+            ? extractGoogleNewsSource(item as Record<string, any>, defaultName, defaultUrl)
+            : { sourceName: defaultName, sourceUrl: defaultUrl }
+
           // Generate unique ID: category + title hash + source hash + index
           // This ensures uniqueness even when titles are identical across sources
-          const sourceHash = simpleHash(getFeedTitle(feed, url))
+          const sourceHash = simpleHash(sourceName)
           const titleHash = simpleHash(item.title?.trim() || 'untitled')
+
+          // Clean title for Google News items (remove " - Publisher" suffix)
+          const title = isAggregator
+            ? cleanGoogleNewsTitle(item.title?.trim() || 'Untitled Article')
+            : item.title?.trim() || 'Untitled Article'
 
           const article: Article = {
             id: `${category.replace(/\s+/g, '-').toLowerCase()}-${titleHash}-${sourceHash}-${index}`,
-            title: item.title?.trim() || 'Untitled Article',
+            title,
             description: item.contentSnippet?.trim() || item.summary?.trim() || '',
             content:
               ((item as any)['content:encoded'] as string | undefined)?.trim() ||
@@ -404,8 +434,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
             imageHeight: dims.height,
             publishedAt: item.pubDate || item.isoDate || new Date().toISOString(),
             source: {
-              name: getFeedTitle(feed, url),
-              url: (feed && 'link' in feed ? feed.link : null) || url,
+              name: sourceName,
+              url: sourceUrl,
             },
             category,
           }
@@ -416,6 +446,35 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
         }
       })
       .filter((article): article is Article => article !== null) // Remove null entries
+
+    // For Google News feeds, decode obfuscated URLs and backfill source.url.
+    // Compute a dynamic time budget so decode + parse never exceeds the outer
+    // 15 s timeout imposed by fetchAllNews.
+    if (isAggregator && articles.length > 0) {
+      const elapsedMs = Date.now() - fetchStartMs
+      const decodeBudgetMs = Math.max(
+        0,
+        FEED_OUTER_TIMEOUT_MS - elapsedMs - DECODE_SAFETY_MARGIN_MS
+      )
+      if (decodeBudgetMs >= DECODE_MIN_BUDGET_MS) {
+        try {
+          await decodeAndBackfillGoogleNewsArticles(articles, {
+            totalTimeoutMs: decodeBudgetMs,
+          })
+          log(
+            'info',
+            `🔗 Decoded Google News URLs for ${articles.length} articles (${decodeBudgetMs}ms budget)`
+          )
+        } catch (e) {
+          log('warn', `⚠️ Google News URL decoding failed, using redirect URLs`, e)
+        }
+      } else {
+        log(
+          'warn',
+          `⏩ Skipped Google News URL decoding (only ${decodeBudgetMs}ms remaining of ${FEED_OUTER_TIMEOUT_MS}ms budget)`
+        )
+      }
+    }
 
     log('info', `✅ Processed ${articles.length} articles from ${url}`)
 
@@ -522,8 +581,8 @@ export async function fetchAllNews(): Promise<Article[]> {
       batchPromises.map((promise) =>
         Promise.race([
           promise,
-          new Promise<{ articles: Article[]; url: string; category: string }>(
-            (_, reject) => setTimeout(() => reject(new Error('Feed timeout')), 15000) // Reduced timeout
+          new Promise<{ articles: Article[]; url: string; category: string }>((_, reject) =>
+            setTimeout(() => reject(new Error('Feed timeout')), FEED_OUTER_TIMEOUT_MS)
           ),
         ])
       )

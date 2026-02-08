@@ -164,9 +164,9 @@
       "name": "Axios",
       "feeds": [
         {
-          "id": "axios_politics",
-          "category": "US Politics",
-          "url": "https://api.axios.com/feed/politics"
+          "id": "axios_main",
+          "category": "US News",
+          "url": "https://www.axios.com/feeds/feed.rss"
         }
       ]
     },
@@ -356,7 +356,12 @@
         {
           "id": "wapo_politics",
           "category": "Politics",
-          "url": "https://www.washingtonpost.com/arcio/rss/category/politics/"
+          "url": "https://feeds.washingtonpost.com/rss/politics"
+        },
+        {
+          "id": "wapo_national",
+          "category": "US News",
+          "url": "https://feeds.washingtonpost.com/rss/national"
         }
       ]
     },
@@ -639,7 +644,7 @@
         {
           "id": "propublica",
           "category": "Investigations",
-          "url": "https://www.propublica.org/feeds/propublica-main"
+          "url": "https://feeds.propublica.org/propublica/main"
         }
       ]
     },
@@ -880,26 +885,6 @@
         }
       ]
     },
-    "Star-Herald (NE)": {
-      "name": "Star-Herald (NE)",
-      "feeds": [
-        {
-          "id": "starherald_all",
-          "category": "US News",
-          "url": "https://starherald.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc"
-        }
-      ]
-    },
-    "TimesDaily": {
-      "name": "TimesDaily",
-      "feeds": [
-        {
-          "id": "timesdaily_all",
-          "category": "US News",
-          "url": "https://www.timesdaily.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc"
-        }
-      ]
-    },
     "News.law": {
       "name": "News.law",
       "feeds": [{ "id": "newslaw", "category": "US Legal", "url": "https://www.news.law/feed/" }]
@@ -924,12 +909,6 @@
       "name": "The Journal Record",
       "feeds": [
         { "id": "journalrecord", "category": "Business", "url": "https://journalrecord.com/feed/" }
-      ]
-    },
-    "US News & World Report": {
-      "name": "US News & World Report",
-      "feeds": [
-        { "id": "usnews_top", "category": "US News", "url": "https://www.usnews.com/rss/news" }
       ]
     },
     "LA Times": {
@@ -991,6 +970,215 @@
       "name": "BBC Mundo",
       "feeds": [
         { "id": "bbc_mundo", "category": "World News", "url": "https://feeds.bbci.co.uk/mundo/rss.xml" }
+      ]
+    },
+    "Associated Press": {
+      "name": "Associated Press",
+      "feeds": [
+        { "id": "ap_topnews", "category": "World News", "url": "https://feedx.net/rss/ap.xml" }
+      ]
+    },
+    "UPI": {
+      "name": "UPI",
+      "feeds": [
+        { "id": "upi_top", "category": "World News", "url": "https://rss.upi.com/news/top_news.rss" },
+        { "id": "upi_science", "category": "Science", "url": "https://rss.upi.com/news/science_news.rss" }
+      ]
+    },
+    "The Hill": {
+      "name": "The Hill",
+      "feeds": [
+        { "id": "thehill", "category": "US Politics", "url": "https://thehill.com/feed/" }
+      ]
+    },
+    "Politico": {
+      "name": "Politico",
+      "feeds": [
+        { "id": "politico_us", "category": "US Politics", "url": "https://rss.politico.com/politics-news.xml" }
+      ]
+    },
+    "Daily Mail": {
+      "name": "Daily Mail",
+      "feeds": [
+        { "id": "dailymail_news", "category": "World News", "url": "https://www.dailymail.co.uk/news/index.rss" },
+        { "id": "dailymail_science", "category": "Science", "url": "https://www.dailymail.co.uk/sciencetech/index.rss" }
+      ]
+    },
+    "The Telegraph": {
+      "name": "The Telegraph",
+      "feeds": [
+        { "id": "telegraph_news", "category": "World News", "url": "https://www.telegraph.co.uk/news/rss.xml" }
+      ]
+    },
+    "South China Morning Post": {
+      "name": "South China Morning Post",
+      "feeds": [
+        { "id": "scmp_world", "category": "World News", "url": "https://www.scmp.com/rss/91/feed" },
+        { "id": "scmp_asia", "category": "World News", "url": "https://www.scmp.com/rss/2/feed" },
+        { "id": "scmp_tech", "category": "Technology", "url": "https://www.scmp.com/rss/36/feed" }
+      ]
+    },
+    "The Hindu": {
+      "name": "The Hindu",
+      "feeds": [
+        { "id": "thehindu_world", "category": "World News", "url": "https://www.thehindu.com/news/international/feeder/default.rss" },
+        { "id": "thehindu_national", "category": "World News", "url": "https://www.thehindu.com/news/national/feeder/default.rss" }
+      ]
+    },
+    "Times of India": {
+      "name": "Times of India",
+      "feeds": [
+        { "id": "toi_world", "category": "World News", "url": "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms" },
+        { "id": "toi_tech", "category": "Technology", "url": "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms" }
+      ]
+    },
+    "Business Insider": {
+      "name": "Business Insider",
+      "feeds": [
+        { "id": "businessinsider", "category": "Business", "url": "https://www.businessinsider.com/rss" }
+      ]
+    },
+    "Breitbart": {
+      "name": "Breitbart",
+      "feeds": [
+        { "id": "breitbart", "category": "US Politics", "url": "https://feeds.feedburner.com/breitbart" }
+      ]
+    },
+    "The Blaze": {
+      "name": "The Blaze",
+      "feeds": [
+        { "id": "theblaze", "category": "US Politics", "url": "https://www.theblaze.com/feeds/feed.rss" }
+      ]
+    },
+    "Salon": {
+      "name": "Salon",
+      "feeds": [
+        { "id": "salon", "category": "US Politics", "url": "https://www.salon.com/feed/" }
+      ]
+    },
+    "The Daily Wire": {
+      "name": "The Daily Wire",
+      "feeds": [
+        { "id": "dailywire", "category": "US Politics", "url": "https://www.dailywire.com/feeds/rss.xml" }
+      ]
+    },
+    "TechRadar": {
+      "name": "TechRadar",
+      "feeds": [
+        { "id": "techradar", "category": "Technology", "url": "https://www.techradar.com/rss" }
+      ]
+    },
+    "Android Central": {
+      "name": "Android Central",
+      "feeds": [
+        { "id": "androidcentral", "category": "Technology", "url": "https://www.androidcentral.com/feed" }
+      ]
+    },
+    "Straits Times": {
+      "name": "Straits Times",
+      "feeds": [
+        { "id": "straitstimes", "category": "World News", "url": "https://www.straitstimes.com/news/world/rss.xml" }
+      ]
+    },
+    "Irish Times": {
+      "name": "Irish Times",
+      "feeds": [
+        { "id": "irishtimes", "category": "World News", "url": "https://www.irishtimes.com/cmlink/news-1.1319192" }
+      ]
+    },
+    "CBC News": {
+      "name": "CBC News",
+      "feeds": [
+        { "id": "cbc_topstories", "category": "World News", "url": "https://www.cbc.ca/cmlink/rss-topstories" },
+        { "id": "cbc_world", "category": "World News", "url": "https://www.cbc.ca/cmlink/rss-world" },
+        { "id": "cbc_canada", "category": "World News", "url": "https://www.cbc.ca/cmlink/rss-canada" }
+      ]
+    },
+    "Phys.org": {
+      "name": "Phys.org",
+      "feeds": [
+        { "id": "physorg", "category": "Science", "url": "https://phys.org/rss-feed/" }
+      ]
+    },
+    "Space.com": {
+      "name": "Space.com",
+      "feeds": [
+        { "id": "spacecom", "category": "Science", "url": "https://www.space.com/feeds/all" }
+      ]
+    },
+    "ESPN": {
+      "name": "ESPN",
+      "feeds": [
+        { "id": "espn_top", "category": "Sports", "url": "https://www.espn.com/espn/rss/news" }
+      ]
+    },
+    "AllSides": {
+      "name": "AllSides",
+      "feeds": [
+        { "id": "allsides", "category": "US News", "url": "https://www.allsides.com/news/rss" }
+      ]
+    },
+    "NPR Business": {
+      "name": "NPR Business",
+      "feeds": [
+        { "id": "npr_business", "category": "Business", "url": "https://feeds.npr.org/1006/rss.xml" }
+      ]
+    },
+    "NPR Health": {
+      "name": "NPR Health",
+      "feeds": [
+        { "id": "npr_health", "category": "Health", "url": "https://feeds.npr.org/1128/rss.xml" }
+      ]
+    },
+    "NPR Science": {
+      "name": "NPR Science",
+      "feeds": [
+        { "id": "npr_science", "category": "Science", "url": "https://feeds.npr.org/1007/rss.xml" }
+      ]
+    },
+    "BBC Health": {
+      "name": "BBC Health",
+      "feeds": [
+        { "id": "bbc_health", "category": "Health", "url": "https://feeds.bbci.co.uk/news/health/rss.xml" }
+      ]
+    },
+    "BBC Asia": {
+      "name": "BBC Asia",
+      "feeds": [
+        { "id": "bbc_asia", "category": "World News", "url": "https://feeds.bbci.co.uk/news/world/asia/rss.xml" }
+      ]
+    },
+    "BBC Europe": {
+      "name": "BBC Europe",
+      "feeds": [
+        { "id": "bbc_europe", "category": "World News", "url": "https://feeds.bbci.co.uk/news/world/europe/rss.xml" }
+      ]
+    },
+    "BBC Latin America": {
+      "name": "BBC Latin America",
+      "feeds": [
+        { "id": "bbc_latam", "category": "World News", "url": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml" }
+      ]
+    },
+    "BBC Middle East": {
+      "name": "BBC Middle East",
+      "feeds": [
+        { "id": "bbc_mideast", "category": "World News", "url": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml" }
+      ]
+    },
+    "Google News": {
+      "name": "Google News",
+      "isAggregator": true,
+      "feeds": [
+        { "id": "gnews_top", "category": "World News", "url": "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_world", "category": "World News", "url": "https://news.google.com/rss/headlines/section/topic/WORLD?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_nation", "category": "US News", "url": "https://news.google.com/rss/headlines/section/topic/NATION?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_business", "category": "Business", "url": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_tech", "category": "Technology", "url": "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_science", "category": "Science", "url": "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_health", "category": "Health", "url": "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_sports", "category": "Sports", "url": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=en-US&gl=US&ceid=US:en" },
+        { "id": "gnews_entertainment", "category": "Culture", "url": "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=en-US&gl=US&ceid=US:en" }
       ]
     }
   }

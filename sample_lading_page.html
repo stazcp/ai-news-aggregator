@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Apollo AI | Narrative Intelligence</title>
+    <meta
+      name="description"
+      content="Apollo AI is a Narrative Intelligence console that compresses facts and reveals where narratives diverge."
+    />
+    <style>
+      :root {
+        --bg: #070a12;
+        --fg: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.65);
+        --faint: rgba(255, 255, 255, 0.45);
+        --card: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.12);
+        --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+        --radius: 20px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          Helvetica,
+          Arial,
+          'Apple Color Emoji',
+          'Segoe UI Emoji';
+        background:
+          radial-gradient(1200px 600px at 20% 10%, rgba(90, 140, 255, 0.18), transparent 60%),
+          radial-gradient(900px 500px at 80% 70%, rgba(210, 120, 255, 0.14), transparent 55%),
+          radial-gradient(700px 700px at 60% 20%, rgba(40, 255, 190, 0.09), transparent 55%),
+          var(--bg);
+        color: var(--fg);
+        overflow-x: hidden;
+      }
+
+      /* Subtle film grain */
+      .grain {
+        pointer-events: none;
+        position: fixed;
+        inset: 0;
+        opacity: 0.07;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E");
+        background-size: 180px 180px;
+      }
+
+      .shell {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 28px 18px;
+      }
+
+      /* Ambient “divergence” shapes */
+      .ambient {
+        position: fixed;
+        inset: -20vh -20vw;
+        pointer-events: none;
+        filter: blur(28px);
+        opacity: 0.45;
+      }
+      .blob {
+        position: absolute;
+        width: 420px;
+        height: 420px;
+        border-radius: 999px;
+        background:
+          radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.16), transparent 55%),
+          radial-gradient(circle at 70% 70%, rgba(90, 140, 255, 0.22), transparent 60%),
+          radial-gradient(circle at 50% 50%, rgba(210, 120, 255, 0.14), transparent 60%);
+        transform: translate3d(0, 0, 0);
+      }
+      .blob.one {
+        top: 12%;
+        left: 12%;
+        animation: drift1 18s ease-in-out infinite;
+      }
+      .blob.two {
+        bottom: 10%;
+        right: 10%;
+        width: 520px;
+        height: 520px;
+        animation: drift2 22s ease-in-out infinite;
+      }
+      .blob.three {
+        top: 56%;
+        left: 55%;
+        width: 360px;
+        height: 360px;
+        animation: drift3 20s ease-in-out infinite;
+      }
+
+      @keyframes drift1 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(30px, 18px) scale(1.04);
+        }
+      }
+      @keyframes drift2 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(-28px, -22px) scale(1.03);
+        }
+      }
+      @keyframes drift3 {
+        0%,
+        100% {
+          transform: translate(0, 0) scale(1);
+        }
+        50% {
+          transform: translate(-14px, 26px) scale(1.05);
+        }
+      }
+
+      /* Card */
+      .card {
+        width: min(920px, 100%);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04));
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        border-radius: var(--radius);
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* “Split line” motif to imply divergence */
+      .splitline {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.55;
+        background:
+          linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.06) 40%,
+            rgba(255, 255, 255, 0) 60%,
+            transparent 100%
+          ),
+          linear-gradient(
+            180deg,
+            transparent 0%,
+            rgba(255, 255, 255, 0.05) 30%,
+            rgba(255, 255, 255, 0) 72%,
+            transparent 100%
+          );
+        mask-image: radial-gradient(600px 360px at 55% 45%, black 50%, transparent 75%);
+      }
+
+      header {
+        padding: 26px 28px 0 28px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: radial-gradient(
+          circle at 30% 30%,
+          rgba(90, 140, 255, 0.55),
+          rgba(210, 120, 255, 0.3) 40%,
+          rgba(255, 255, 255, 0.08) 80%
+        );
+      }
+      .brand .name {
+        font-weight: 650;
+        letter-spacing: 0.2px;
+      }
+
+      .toplinks a {
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 13px;
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        transition:
+          border-color 180ms ease,
+          background 180ms ease,
+          color 180ms ease;
+      }
+      .toplinks a:hover {
+        color: var(--fg);
+        border-color: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      main {
+        padding: 34px 28px 26px 28px;
+        display: grid;
+        gap: 18px;
+      }
+
+      .kicker {
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(34px, 4.2vw, 56px);
+        letter-spacing: -0.03em;
+        line-height: 1.02;
+      }
+
+      .tagline {
+        margin: 0;
+        font-size: clamp(16px, 1.35vw, 20px);
+        color: rgba(255, 255, 255, 0.84);
+        line-height: 1.45;
+        max-width: 62ch;
+      }
+
+      .subtag {
+        margin: 0;
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.55;
+        max-width: 70ch;
+      }
+
+      .ctaRow {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--fg);
+        font-weight: 600;
+        padding: 12px 16px;
+        border-radius: 14px;
+        cursor: pointer;
+        transition:
+          transform 120ms ease,
+          background 180ms ease,
+          border-color 180ms ease;
+      }
+      .btn:hover {
+        background: rgba(255, 255, 255, 0.11);
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn.primary {
+        background: linear-gradient(135deg, rgba(90, 140, 255, 0.45), rgba(210, 120, 255, 0.34));
+        border-color: rgba(255, 255, 255, 0.22);
+      }
+      .btn.primary:hover {
+        background: linear-gradient(135deg, rgba(90, 140, 255, 0.55), rgba(210, 120, 255, 0.42));
+      }
+
+      .meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        color: var(--faint);
+        font-size: 12px;
+      }
+      .pill {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.04);
+        padding: 7px 10px;
+        border-radius: 999px;
+      }
+
+      footer {
+        padding: 18px 28px 22px 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        color: var(--faint);
+      }
+
+      .disclaimer {
+        font-size: 12px;
+        line-height: 1.4;
+        color: rgba(255, 255, 255, 0.52);
+        max-width: 85ch;
+      }
+
+      /* Reduced motion support */
+      @media (prefers-reduced-motion: reduce) {
+        .blob {
+          animation: none !important;
+        }
+        .btn {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="ambient" aria-hidden="true">
+      <div class="blob one"></div>
+      <div class="blob two"></div>
+      <div class="blob three"></div>
+    </div>
+    <div class="grain" aria-hidden="true"></div>
+
+    <div class="shell">
+      <div class="card" id="card">
+        <div class="splitline" aria-hidden="true"></div>
+
+        <header>
+          <div class="brand">
+            <div class="mark" aria-hidden="true"></div>
+            <div class="name">Apollo AI</div>
+          </div>
+
+          <nav class="toplinks" aria-label="Secondary">
+            <!-- Optional: wire these later -->
+            <a href="#manifesto">Manifesto</a>
+            <a href="#disclaimer">Disclaimer</a>
+          </nav>
+        </header>
+
+        <main>
+          <div class="kicker">Narrative Intelligence</div>
+
+          <h1>
+            Understand what happened.<br />
+            See where reality fractures.
+          </h1>
+
+          <p class="tagline">
+            Apollo reconstructs shared reality from fragmented, biased sources by compressing facts
+            and making narrative divergence visible.
+          </p>
+
+          <p class="subtag" id="manifesto">
+            Facts are merged. Interpretations are not. Bias is treated as incentive-driven, not
+            ideological. Depth is optional. Confusion is not.
+          </p>
+
+          <div class="ctaRow">
+            <!-- Replace href with your product route (e.g. /app or /feed) -->
+            <button class="btn primary" id="enterBtn">Enter →</button>
+            <button class="btn" id="learnBtn">How it works</button>
+
+            <div class="meta" aria-label="Highlights">
+              <span class="pill">Reality snapshot</span>
+              <span class="pill">Meaningful divergence</span>
+              <span class="pill">Source traceability</span>
+            </div>
+          </div>
+        </main>
+
+        <footer>
+          <div class="disclaimer" id="disclaimer">
+            Apollo does not provide investment advice, predictions, or guarantees. It reveals
+            structure so you can think more clearly and decide for yourself.
+          </div>
+          <div class="disclaimer" style="opacity: 0.85">
+            Tip: If you’re returning, you can skip this screen and go straight to the console.
+          </div>
+        </footer>
+      </div>
+    </div>
+
+    <script>
+      // Subtle parallax tilt on mouse move (kept gentle and optional)
+      ;(function () {
+        const card = document.getElementById('card')
+        const enterBtn = document.getElementById('enterBtn')
+        const learnBtn = document.getElementById('learnBtn')
+
+        const prefersReduced =
+          window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+        function setTilt(x, y) {
+          if (prefersReduced) return
+          const rx = (y - 0.5) * -6 // rotateX
+          const ry = (x - 0.5) * 8 // rotateY
+          card.style.transform = `perspective(1100px) rotateX(${rx}deg) rotateY(${ry}deg)`
+        }
+
+        function resetTilt() {
+          card.style.transform = 'perspective(1100px) rotateX(0deg) rotateY(0deg)'
+        }
+
+        window.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect()
+          const x = (e.clientX - rect.left) / rect.width
+          const y = (e.clientY - rect.top) / rect.height
+          if (x >= 0 && x <= 1 && y >= 0 && y <= 1) setTilt(x, y)
+          else resetTilt()
+        })
+
+        window.addEventListener('mouseleave', resetTilt)
+
+        // Buttons: replace these with real routes/actions
+        enterBtn.addEventListener('click', () => {
+          // TODO: route to your console page
+          // window.location.href = "/app";
+          alert('Enter → (wire this to /app or your product route)')
+        })
+
+        learnBtn.addEventListener('click', () => {
+          // Minimal “how it works” without a full landing page
+          alert(
+            'How it works:\n\n1) Compress shared facts into a reality snapshot.\n2) Surface meaningful narrative divergence.\n3) Let you zoom into sources when you choose.'
+          )
+        })
+      })()
+    </script>
+  </body>
+</html>

@@ -171,36 +171,11 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       const mergedLLM = await mergeClustersByLLM(finalRaw, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
-      // Optional expansion to reach 10–20 sources per event (severity-aware)
+      // Optional expansion to reach 10–20 sources per event
+      // Defaults are configured in textCluster.ts and can be overridden via env vars
       const EXPAND = (process.env.CLUSTER_EXPAND || 'true').toLowerCase() !== 'false'
       if (EXPAND) {
-        const baseSim = parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.46')
-        const baseMaxAdd = parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '30', 10)
-        const baseHours = parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '96', 10)
-        const baseStrict =
-          (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'true').toLowerCase() !== 'false'
-
-        const expanded = mergedLLM.map((c) => {
-          // Use heuristic severity to relax expansion for critical events
-          const sev = computeSeverity(c)
-          let sim = baseSim
-          let maxAdd = baseMaxAdd
-          let hours = baseHours
-          let strict = baseStrict
-          if (sev.label === 'Mass Casualty/Deaths' || sev.label === 'War/Conflict') {
-            // Cast a wider net for high-severity events to catch paraphrases/outlet wording
-            sim = Math.min(sim, 0.42)
-            maxAdd = Math.max(maxAdd, 50)
-            hours = Math.max(hours, 120)
-            strict = false // allow cross-category pull (e.g., US News vs Crime)
-          }
-          return expandClusterMembership(articles, c, {
-            simThreshold: sim,
-            maxAdd,
-            timeWindowHours: hours,
-            categoryStrict: strict,
-          })
-        })
+        const expanded = mergedLLM.map((c) => expandClusterMembership(articles, c))
         printSamples('After expansion', expanded)
         return expanded
       }
@@ -275,11 +250,19 @@ async function enrichClusters(
 
       // Additional guard: drop exact same title from the same host (even if URL differs)
       // This avoids removing articles from different outlets that share the same headline.
+      // Use source.url (publisher's actual URL) when available, as a.url may be
+      // a Google News redirect URL that hasn't been decoded
       const seenTitleByHost = new Set<string>()
       articlesInCluster = articlesInCluster.filter((a) => {
         let host = ''
         try {
-          host = new URL(a.url).hostname.replace(/^www\./, '').toLowerCase()
+          const urlForHost = a.source?.url || a.url
+          host = new URL(urlForHost).hostname.replace(/^www\./, '').toLowerCase()
+          // When host is still news.google.com (decoding failed / RSS had no source URL),
+          // use source name so different publishers are not collapsed into one key
+          if (host === 'news.google.com' && a.source?.name) {
+            host = `news.google.com:${a.source.name.toLowerCase()}`
+          }
         } catch {}
         const k = `${host}|${(a.title || '').toLowerCase().trim()}`
         if (seenTitleByHost.has(k)) return false
@@ -298,14 +281,25 @@ async function enrichClusters(
       })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
-      const perDomainMax = 2
+      // Use source.url (publisher's actual URL) when available, as a.url may be
+      // a Google News redirect URL that hasn't been decoded
+      const perDomainMax = parseInt(process.env.CLUSTER_PER_DOMAIN_MAX || '3', 10)
+      const displayCap = parseInt(process.env.CLUSTER_DISPLAY_CAP || '40', 10)
       const domainCounts = new Map<string, number>()
       const diverse: Article[] = []
       for (const a of articlesInCluster.sort(
         (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       )) {
         try {
-          const host = new URL(a.url).hostname.replace(/^www\./, '')
+          // Prefer source.url for domain identification (avoids Google News redirect issue
+          // when decoding fails and a.url stays as news.google.com)
+          const urlForDomain = a.source?.url || a.url
+          let host = new URL(urlForDomain).hostname.replace(/^www\./, '')
+          // When host is still news.google.com (decoding failed / RSS had no source URL),
+          // use source name so different publishers are not capped as one domain
+          if (host === 'news.google.com' && a.source?.name) {
+            host = `news.google.com:${a.source.name}`
+          }
           const used = domainCounts.get(host) || 0
           if (used < perDomainMax) {
             domainCounts.set(host, used + 1)
@@ -314,7 +308,7 @@ async function enrichClusters(
         } catch {
           diverse.push(a)
         }
-        if (diverse.length >= 20) break
+        if (diverse.length >= displayCap) break
       }
       articlesInCluster = diverse
 
