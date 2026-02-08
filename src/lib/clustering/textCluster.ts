@@ -326,12 +326,12 @@ function extractEntities(text: string): Set<string> {
       // Match capitalized word (allows apostrophes for names like O'Brien, McDonald's)
       if (/^[A-Z][a-zA-Z'']*$/.test(word) && word.length >= 3) {
         if (i === 0) {
-          // Include first word only if followed by a lowercase word, indicating
-          // it's a proper noun ("Biden announces...") rather than sentence
-          // capitalization ("The president..."). Compound patterns (step 1)
-          // already handle "First Second" cases where both are capitalized.
-          const nextWord = words[i + 1]
-          if (!nextWord || !/^[a-z]/.test(nextWord)) continue
+          // Always skip the first word of a sentence — it's capitalized due
+          // to grammar, not necessarily because it's a proper noun. We can't
+          // distinguish "Biden announces..." from "Today is..." at sentence
+          // start. Important proper nouns will still be captured mid-sentence
+          // in other articles or via compound patterns (step 1) / acronyms (step 3).
+          continue
         }
         entities.add(word.toLowerCase().replace(/['']/g, ''))
       }
