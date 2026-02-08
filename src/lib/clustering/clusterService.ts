@@ -250,11 +250,19 @@ async function enrichClusters(
 
       // Additional guard: drop exact same title from the same host (even if URL differs)
       // This avoids removing articles from different outlets that share the same headline.
+      // Use source.url (publisher's actual URL) when available, as a.url may be
+      // a Google News redirect URL that hasn't been decoded
       const seenTitleByHost = new Set<string>()
       articlesInCluster = articlesInCluster.filter((a) => {
         let host = ''
         try {
-          host = new URL(a.url).hostname.replace(/^www\./, '').toLowerCase()
+          const urlForHost = a.source?.url || a.url
+          host = new URL(urlForHost).hostname.replace(/^www\./, '').toLowerCase()
+          // When host is still news.google.com (decoding failed / RSS had no source URL),
+          // use source name so different publishers are not collapsed into one key
+          if (host === 'news.google.com' && a.source?.name) {
+            host = `news.google.com:${a.source.name.toLowerCase()}`
+          }
         } catch {}
         const k = `${host}|${(a.title || '').toLowerCase().trim()}`
         if (seenTitleByHost.has(k)) return false
