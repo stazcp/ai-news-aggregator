@@ -237,6 +237,145 @@ export function mergeClustersByTitle(
   return merged
 }
 
+/**
+ * Extract "key entities" from text - proper nouns, compound names, acronyms.
+ * These are words that identify specific things: Olympics, Trump, Apple, Paris, etc.
+ *
+ * Fully dynamic approach - no hardcoded word lists:
+ * 1. Consecutive capitalized words → compound entity ("World Cup" → "world_cup")
+ * 2. Mid-sentence capitalized words → simple entity ("Olympics" → "olympics")
+ * 3. Acronyms in ALL CAPS → entity ("NATO", "FBI")
+ * 4. Capitalized word + number → named events ("Paris 2024" → "paris_2024")
+ *
+ * Precision is achieved by requiring 2+ shared entities for cluster merging,
+ * which naturally filters out common words that appear across unrelated clusters.
+ */
+function extractEntities(text: string): Set<string> {
+  const entities = new Set<string>()
+  if (!text) return entities
+
+  // 1. Extract compound proper nouns (consecutive capitalized words)
+  // "World Cup", "Super Bowl", "White House" → "world_cup", "super_bowl", "white_house"
+  const compoundPattern = /[A-Z][a-zA-Z'']*(?:\s+[A-Z][a-zA-Z'']*)+/g
+  const compounds = text.match(compoundPattern) || []
+  for (const compound of compounds) {
+    entities.add(compound.toLowerCase().replace(/\s+/g, '_').replace(/['']/g, ''))
+  }
+
+  // 2. Extract single capitalized words (simple proper nouns)
+  // Skip first word of each sentence (likely sentence starter, not proper noun)
+  // Split on sentence boundaries first
+  const sentences = text.split(/[.!?]\s+/)
+  for (const sentence of sentences) {
+    const words = sentence.split(/\s+/)
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i]
+      // Match capitalized word (allows apostrophes for names like O'Brien, McDonald's)
+      if (/^[A-Z][a-zA-Z'']*$/.test(word) && word.length >= 3) {
+        entities.add(word.toLowerCase().replace(/['']/g, ''))
+      }
+    }
+  }
+
+  // 3. Extract acronyms (2-6 uppercase letters)
+  const acronyms = text.match(/\b[A-Z]{2,6}\b/g) || []
+  for (const acro of acronyms) {
+    entities.add(acro.toLowerCase())
+  }
+
+  // 4. Extract capitalized word + number patterns (e.g., "Paris 2024", "G20")
+  const namedEvents = text.match(/[A-Z][a-zA-Z]*\s*\d{2,4}/g) || []
+  for (const event of namedEvents) {
+    entities.add(event.toLowerCase().replace(/\s+/g, '_'))
+  }
+
+  return entities
+}
+
+/**
+ * Extract entities from a cluster by combining its title and article titles.
+ */
+function extractClusterEntities(cluster: StoryCluster, articleMap?: Map<string, Article>): Set<string> {
+  const allText: string[] = [cluster.clusterTitle || '']
+
+  // Add article titles for more entity coverage
+  if (articleMap && cluster.articleIds) {
+    for (const id of cluster.articleIds.slice(0, 10)) { // Limit to first 10 articles
+      const article = articleMap.get(id)
+      if (article?.title) allText.push(article.title)
+    }
+  }
+
+  const combined = allText.join(' ')
+  return extractEntities(combined)
+}
+
+/**
+ * Merge clusters that share significant entities (same topic/event).
+ *
+ * Example: "US wins gold in swimming" and "Olympic medal count update"
+ * both contain "olympic" entity → merge into one Olympics cluster.
+ *
+ * @param minSharedEntities - Minimum number of shared entities to trigger merge (default: 1)
+ * @param minEntityLength - Minimum entity length to consider (filters noise)
+ */
+export function mergeClustersByEntity(
+  clusters: StoryCluster[],
+  articleMap?: Map<string, Article>,
+  { minSharedEntities = 1, minEntityLength = 4 }: { minSharedEntities?: number; minEntityLength?: number } = {}
+): StoryCluster[] {
+  if (clusters.length <= 1) return clusters
+
+  // Extract entities for each cluster
+  const clusterEntities = clusters.map((c) => {
+    const entities = extractClusterEntities(c, articleMap)
+    // Filter by minimum length
+    return new Set([...entities].filter((e) => e.length >= minEntityLength))
+  })
+
+  const merged: StoryCluster[] = []
+  const used = new Set<number>()
+
+  for (let i = 0; i < clusters.length; i++) {
+    if (used.has(i)) continue
+
+    let base = clusters[i]
+    let baseEntities = clusterEntities[i]
+
+    for (let j = i + 1; j < clusters.length; j++) {
+      if (used.has(j)) continue
+
+      // Count shared entities
+      let sharedCount = 0
+      const sharedEntities: string[] = []
+      for (const entity of baseEntities) {
+        if (clusterEntities[j].has(entity)) {
+          sharedCount++
+          sharedEntities.push(entity)
+        }
+      }
+
+      if (sharedCount >= minSharedEntities) {
+        // Merge clusters
+        base = {
+          clusterTitle:
+            (base.clusterTitle || '').length >= (clusters[j].clusterTitle || '').length
+              ? base.clusterTitle
+              : clusters[j].clusterTitle,
+          articleIds: Array.from(new Set([...(base.articleIds || []), ...(clusters[j].articleIds || [])])),
+        }
+        // Union the entities for continued merging
+        for (const e of clusterEntities[j]) baseEntities.add(e)
+        used.add(j)
+      }
+    }
+
+    merged.push(base)
+  }
+
+  return merged
+}
+
 function dominantCategory(articles: Article[]): string | undefined {
   const freq = new Map<string, number>()
   for (const a of articles) {

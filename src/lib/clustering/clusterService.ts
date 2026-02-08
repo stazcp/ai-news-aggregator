@@ -8,6 +8,7 @@ import {
   mergeClustersByOverlap,
   splitIncoherentCluster,
   mergeClustersByTitle,
+  mergeClustersByEntity,
   expandClusterMembership,
 } from './textCluster'
 
@@ -146,11 +147,23 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   console.log(`🧲 Title-merged down to ${titleMerged.length} clusters (t=${TITLE_THRESH})`)
   printSamples('After title merge', titleMerged)
 
+  // 4c) Merge clusters that share key entities (same topic/event, different angles)
+  // Example: "US wins swimming gold" + "Olympic medal standings" → both have "olympic"
+  const articleMap = new Map(articles.map((a) => [a.id, a]))
+  const ENTITY_MIN_SHARED = parseInt(process.env.CLUSTER_ENTITY_MIN_SHARED || '2', 10)
+  const ENTITY_MIN_LEN = parseInt(process.env.CLUSTER_ENTITY_MIN_LENGTH || '4', 10)
+  const entityMerged = mergeClustersByEntity(titleMerged, articleMap, {
+    minSharedEntities: ENTITY_MIN_SHARED,
+    minEntityLength: ENTITY_MIN_LEN,
+  })
+  console.log(`🏷️ Entity-merged down to ${entityMerged.length} clusters`)
+  printSamples('After entity merge', entityMerged)
+
   // 5) Coherence guard: split any incoherent clusters into tighter subclusters
   const COH_THRESH = parseFloat(process.env.CLUSTER_COHERENCE_THRESHOLD || '0.52')
   const COH_MIN = parseInt(process.env.CLUSTER_COHERENCE_MIN || '2', 10)
   const finalRaw: StoryCluster[] = []
-  for (const c of titleMerged) {
+  for (const c of entityMerged) {
     const subs = splitIncoherentCluster(articles, c, { threshold: COH_THRESH, minSize: COH_MIN })
     if (subs.length > 0) {
       finalRaw.push(...subs)
