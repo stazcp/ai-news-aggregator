@@ -209,8 +209,6 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   const ENABLE_LLM_MERGE = (process.env.CLUSTER_LLM_MERGE || 'true').toLowerCase() !== 'false'
   if (ENABLE_LLM_MERGE && postCohTitleMerged.length > 1) {
     try {
-      // Build a quick map for article lookup
-      const articleMap = new Map(articles.map((a) => [a.id, a]))
       const mergedLLM = await mergeClustersByLLM(postCohTitleMerged, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
