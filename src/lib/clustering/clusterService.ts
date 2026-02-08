@@ -321,10 +321,15 @@ async function enrichClusters(
         (a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       )) {
         const host = resolveArticleHost(a)
-        const used = domainCounts.get(host) || 0
-        if (used < perDomainMax) {
-          domainCounts.set(host, used + 1)
+        if (!host) {
+          // Unparseable URL — always include (matches pre-refactor catch behavior)
           diverse.push(a)
+        } else {
+          const used = domainCounts.get(host) || 0
+          if (used < perDomainMax) {
+            domainCounts.set(host, used + 1)
+            diverse.push(a)
+          }
         }
         if (diverse.length >= displayCap) break
       }
