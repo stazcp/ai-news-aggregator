@@ -49,10 +49,10 @@ export default function HomeClient({ initialData }: HomeClientProps) {
   const availableTopics = useMemo(() => computeTopics(data), [data])
 
   const filtered = useMemo(() => {
-    if (!data?.storyClusters || !data?.unclusteredArticles) {
-      return { clusters: [], unclustered: [] }
+    if (!data?.storyClusters) {
+      return { clusters: [] }
     }
-    return filterByTopic(data.storyClusters, data.unclusteredArticles, topic || undefined)
+    return filterByTopic(data.storyClusters, [], topic || undefined)
   }, [data, topic])
 
   // Show error state if no data and there's an error
@@ -129,12 +129,11 @@ export default function HomeClient({ initialData }: HomeClientProps) {
         <CategorySummary
           topic={topic || undefined}
           clusters={filtered.clusters}
-          unclustered={filtered.unclustered}
           isSummaryOpen={isSummaryOpen}
           onClose={handleCloseSummary}
         />
 
-        <NewsList storyClusters={filtered.clusters} unclusteredArticles={filtered.unclustered} />
+        <NewsList storyClusters={filtered.clusters} />
 
         {/* Last updated timestamp */}
         {data.lastUpdated && (
