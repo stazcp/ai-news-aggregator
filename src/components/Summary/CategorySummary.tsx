@@ -58,23 +58,21 @@ export function CategorySummary({
     articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
     content: payload?.content || '',
     eager: false,
-    disabled: !isSummaryOpen,
+    disabled: !isSummaryOpen || !payload,
     variant: 'article',
     mode,
     purpose: 'category',
   })
 
-  if (!payload) {
-    return null
-  }
-
+  // Must call all hooks before any early returns
   useEffect(() => {
-    if (isSummaryOpen) {
+    if (isSummaryOpen && payload) {
       requestSummary()
     }
-  }, [isSummaryOpen, requestSummary])
+  }, [isSummaryOpen, requestSummary, payload])
 
-  if (!isSummaryOpen) {
+  // Early returns after all hooks
+  if (!payload || !isSummaryOpen) {
     return null
   }
 
