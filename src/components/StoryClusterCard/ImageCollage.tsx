@@ -12,10 +12,6 @@ const ImageCollage = ({
   cluster: StoryCluster
   onChangeCount?: (count: number) => void
 }) => {
-  if (!cluster.imageUrls || cluster.imageUrls.length === 0) {
-    return null
-  }
-
   // Build quick lookup from URL -> article
   const articlesByUrl = useMemo(() => {
     const map = new Map<string, Article>()
