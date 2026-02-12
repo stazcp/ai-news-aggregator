@@ -27,6 +27,23 @@ export default function NewsList({ storyClusters }: NewsListProps) {
     })
   }, [])
 
+  // Clear "More Stories" expansion state when section is hidden
+  const handleToggleMoreStories = () => {
+    if (showMoreStories) {
+      // Hiding the section - clear expanded state for more stories indices
+      setExpandedClusters((expanded) => {
+        const newSet = new Set(expanded)
+        for (const idx of expanded) {
+          if (idx >= TOP_STORIES_COUNT) {
+            newSet.delete(idx)
+          }
+        }
+        return newSet
+      })
+    }
+    setShowMoreStories(!showMoreStories)
+  }
+
   // Split clusters into top stories and more stories
   const topStories = storyClusters.slice(0, TOP_STORIES_COUNT)
   const moreStories = storyClusters.slice(TOP_STORIES_COUNT)
@@ -73,7 +90,7 @@ export default function NewsList({ storyClusters }: NewsListProps) {
       {moreStories.length > 0 && (
         <section>
           <button
-            onClick={() => setShowMoreStories(!showMoreStories)}
+            onClick={handleToggleMoreStories}
             className="w-full flex items-center justify-between py-3 px-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
           >
             <div className="flex items-center gap-2">
