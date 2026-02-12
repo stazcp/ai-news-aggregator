@@ -21,10 +21,9 @@ export default function StoryClusterCard({
   isFirst = false,
   onExpansionChange,
 }: StoryClusterCardProps) {
-  if (!cluster.articles || cluster.articles.length === 0) return null
-
-  const sourceCount = cluster.articles.length
-  const latestArticle = cluster.articles[0]
+  const articles = cluster.articles || []
+  const sourceCount = articles.length
+  const latestArticle = articles[0]
   const [hasImages, setHasImages] = useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
   const [isExpanded, setIsExpanded] = useState<boolean>(isFirst)
   const [showSources, setShowSources] = useState<boolean>(false)
@@ -46,7 +45,6 @@ export default function StoryClusterCard({
     const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
     const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
     const allowLowResThumb = !isExpanded
-    const articles = cluster.articles || []
     for (const article of articles) {
       const url = article.urlToImage
       if (!url || url.includes('placehold.co')) continue
@@ -106,6 +104,9 @@ export default function StoryClusterCard({
     disabled: false,
     eager: isFirst || !isExpanded,
   })
+
+  // Early return after all hooks
+  if (sourceCount === 0) return null
 
   const collapsedContent = (
     <CardContent className="p-0">
@@ -186,7 +187,7 @@ export default function StoryClusterCard({
           </button>
         </div>
         {showSources && (
-          <SourceArticleList articles={cluster.articles} className="pt-2" showHeader={false} />
+          <SourceArticleList articles={articles} className="pt-2" showHeader={false} />
         )}
       </div>
     </CardContent>

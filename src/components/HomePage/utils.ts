@@ -2,11 +2,11 @@ import { HomepageData } from '@/hooks/useHomepageData'
 import { filterByTopic } from '@/lib/utils'
 
 export const computeTopics = (data: HomepageData | undefined) => {
-  if (!data || !data.topics || !data.storyClusters || !data.unclusteredArticles) {
+  if (!data || !data.topics || !data.storyClusters) {
     return []
   }
 
-  const { storyClusters, unclusteredArticles, topics } = data
+  const { storyClusters, topics } = data
   const scored: Array<{ topic: string; score: number }> = []
 
   const ACTIVITY_W = Number(process.env.NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT ?? '1')
@@ -25,16 +25,17 @@ export const computeTopics = (data: HomepageData | undefined) => {
   }
 
   for (const t of topics) {
-    const { clusters, unclustered } = filterByTopic(storyClusters, unclusteredArticles, t)
+    // Only score based on clusters since UI only shows clustered stories
+    const { clusters } = filterByTopic(storyClusters, [], t)
     const clusterArticles = (clusters || []).reduce((sum, c) => sum + (c.articles?.length || 0), 0)
-    const recency =
-      (clusters || []).reduce((sum, c) => {
-        return sum + (c.articles || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
-      }, 0) + (unclustered || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
+    const recency = (clusters || []).reduce((sum, c) => {
+      return sum + (c.articles || []).reduce((s, a) => s + recencyWeight(a.publishedAt), 0)
+    }, 0)
 
-    const total = clusterArticles + (unclustered?.length || 0)
+    const total = clusterArticles
     const score = ACTIVITY_W * total + RECENCY_W * recency
-    if (total > 0) scored.push({ topic: t, score })
+    // Only show topics that have clusters to display
+    if (clusters && clusters.length > 0) scored.push({ topic: t, score })
   }
 
   scored.sort((a, b) => b.score - a.score)

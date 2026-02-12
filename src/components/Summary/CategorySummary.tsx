@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { Article, StoryCluster } from '@/types'
+import { StoryCluster } from '@/types'
 import { buildCategorySummaryPayload, simpleHash } from '@/lib/utils'
 import { useLazySummary } from '@/hooks/useLazySummary'
 import { SummaryBase } from './SummaryBase'
@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 interface CategorySummaryProps {
   topic?: string
   clusters: StoryCluster[]
-  unclustered: Article[]
   isSummaryOpen: boolean
   onClose: () => void
 }
@@ -17,7 +16,6 @@ interface CategorySummaryProps {
 export function CategorySummary({
   topic,
   clusters,
-  unclustered,
   isSummaryOpen,
   onClose,
 }: CategorySummaryProps) {
@@ -35,14 +33,14 @@ export function CategorySummary({
       buildCategorySummaryPayload(
         isTrending ? "Today's top stories" : slugSource,
         clusters,
-        unclustered,
+        [], // No standalone articles - we only summarize clustered stories
         {
           maxClusters: 4,
           maxArticlesPerCluster: 3,
-          maxStandaloneArticles: 4,
+          maxStandaloneArticles: 0,
         }
       ),
-    [clusters, unclustered, slugSource, isTrending]
+    [clusters, slugSource, isTrending]
   )
 
   const mode: 'manual' = 'manual'
@@ -60,23 +58,21 @@ export function CategorySummary({
     articleId: payload?.id || `category-${slug}-${simpleHash(slugSource)}`,
     content: payload?.content || '',
     eager: false,
-    disabled: !isSummaryOpen,
+    disabled: !isSummaryOpen || !payload,
     variant: 'article',
     mode,
     purpose: 'category',
   })
 
-  if (!payload) {
-    return null
-  }
-
+  // Must call all hooks before any early returns
   useEffect(() => {
-    if (isSummaryOpen) {
+    if (isSummaryOpen && payload) {
       requestSummary()
     }
-  }, [isSummaryOpen, requestSummary])
+  }, [isSummaryOpen, requestSummary, payload])
 
-  if (!isSummaryOpen) {
+  // Early returns after all hooks
+  if (!payload || !isSummaryOpen) {
     return null
   }
 
