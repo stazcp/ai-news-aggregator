@@ -2,11 +2,11 @@ import { HomepageData } from '@/hooks/useHomepageData'
 import { filterByTopic } from '@/lib/utils'
 
 export const computeTopics = (data: HomepageData | undefined) => {
-  if (!data || !data.topics || !data.storyClusters || !data.unclusteredArticles) {
+  if (!data || !data.topics || !data.storyClusters) {
     return []
   }
 
-  const { storyClusters, unclusteredArticles, topics } = data
+  const { storyClusters, unclusteredArticles = [], topics } = data
   const scored: Array<{ topic: string; score: number }> = []
 
   const ACTIVITY_W = Number(process.env.NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT ?? '1')
