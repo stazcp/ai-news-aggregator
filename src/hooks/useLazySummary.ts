@@ -138,6 +138,7 @@ export function useLazySummary({
     data,
     isFetching,
     error: queryError,
+    refetch,
   } = useQuery({
     queryKey: ['summary', variant, effectivePurpose, idForCache, contentPayload.length, length],
     enabled: enabled,
@@ -180,9 +181,8 @@ export function useLazySummary({
 
   const handleRetry = () => {
     setError(null)
-    setHasRequested(false)
-    // Refetch via react-query by invalidating key implicitly through enabled conditions
-    // or rely on retry button to re-trigger by intersection; here we do nothing extra
+    setHasRequested(true)
+    void refetch()
   }
 
   const requestSummary = () => {
