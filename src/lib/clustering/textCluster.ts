@@ -1,4 +1,5 @@
 import { Article, StoryCluster } from '@/types'
+import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 
 type Vec = Map<string, number>
 
@@ -527,13 +528,14 @@ export function expandClusterMembership(
     categoryStrict?: boolean
   } = {}
 ): StoryCluster {
-  const simThreshold = opts.simThreshold ?? parseFloat(process.env.CLUSTER_EXPAND_SIM || '0.42')
-  const maxAdd = opts.maxAdd ?? parseInt(process.env.CLUSTER_EXPAND_MAX_ADD || '50', 10)
+  const simThreshold = opts.simThreshold ?? envNumber('CLUSTER_EXPAND_SIM', ENV_DEFAULTS.clusterExpandSim)
+  const maxAdd = opts.maxAdd ?? envInt('CLUSTER_EXPAND_MAX_ADD', ENV_DEFAULTS.clusterExpandMaxAdd)
   const timeWindowHours =
-    opts.timeWindowHours ?? parseInt(process.env.CLUSTER_EXPAND_TIME_HOURS || '168', 10)
+    opts.timeWindowHours ??
+    envInt('CLUSTER_EXPAND_TIME_HOURS', ENV_DEFAULTS.clusterExpandTimeHours)
   const categoryStrict =
     opts.categoryStrict ??
-    (process.env.CLUSTER_EXPAND_CATEGORY_STRICT || 'false').toLowerCase() !== 'false'
+    envBool('CLUSTER_EXPAND_CATEGORY_STRICT', ENV_DEFAULTS.clusterExpandCategoryStrict)
 
   const idSet = new Set(cluster.articleIds)
   const members = allArticles.filter((a) => idSet.has(a.id))

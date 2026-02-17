@@ -1,6 +1,7 @@
 import { AISummaryTitle, LoadingSpinner } from '@/components/ui'
 import { Button } from '@/components/ui/button'
 import { useLazySummary } from '@/hooks/useLazySummary'
+import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
 import { SummaryBase } from './SummaryBase'
 
 interface SummaryProps {
@@ -16,7 +17,7 @@ export default function Summary({
   eager = false,
   className = '',
 }: SummaryProps) {
-  const ON_DEMAND = (process.env.NEXT_PUBLIC_SUMMARY_ON_DEMAND || 'true').toLowerCase() === 'true'
+  const ON_DEMAND = envBool('NEXT_PUBLIC_SUMMARY_ON_DEMAND', ENV_DEFAULTS.nextPublicSummaryOnDemand)
   const {
     elementRef,
     isIntersecting,

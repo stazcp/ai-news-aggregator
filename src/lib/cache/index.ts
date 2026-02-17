@@ -1,9 +1,10 @@
 // Shared cache adapter: prefers Upstash Redis (@upstash/redis) if configured,
 // otherwise uses in-memory Map. This preserves the same API across the app.
 import { Redis } from '@upstash/redis'
+import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
 
 // Allow forcing Redis off via env for local testing
-const DISABLE_REDIS = /^(1|true|yes)$/i.test(process.env.CACHE_DISABLE_REDIS || '')
+const DISABLE_REDIS = envBool('CACHE_DISABLE_REDIS', ENV_DEFAULTS.cacheDisableRedis)
 
 let redis: Redis | null = null
 try {

@@ -1,5 +1,6 @@
 import { HomepageData } from '@/hooks/useHomepageData'
 import { filterByTopic } from '@/lib/utils'
+import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 export const computeTopics = (data: HomepageData | undefined) => {
   if (!data || !data.topics || !data.storyClusters) {
@@ -9,9 +10,18 @@ export const computeTopics = (data: HomepageData | undefined) => {
   const { storyClusters, topics } = data
   const scored: Array<{ topic: string; score: number }> = []
 
-  const ACTIVITY_W = Number(process.env.NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT ?? '1')
-  const RECENCY_W = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_WEIGHT ?? '1')
-  const HALF_LIFE_HOURS = Number(process.env.NEXT_PUBLIC_TOPIC_RECENCY_HALF_LIFE_HOURS ?? '24')
+  const ACTIVITY_W = envNumber(
+    'NEXT_PUBLIC_TOPIC_ACTIVITY_WEIGHT',
+    ENV_DEFAULTS.nextPublicTopicActivityWeight
+  )
+  const RECENCY_W = envNumber(
+    'NEXT_PUBLIC_TOPIC_RECENCY_WEIGHT',
+    ENV_DEFAULTS.nextPublicTopicRecencyWeight
+  )
+  const HALF_LIFE_HOURS = envNumber(
+    'NEXT_PUBLIC_TOPIC_RECENCY_HALF_LIFE_HOURS',
+    ENV_DEFAULTS.nextPublicTopicRecencyHalfLifeHours
+  )
 
   const recencyWeight = (publishedAt: string | undefined) => {
     if (!publishedAt) return 0

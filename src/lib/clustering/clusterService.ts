@@ -11,6 +11,7 @@ import {
   mergeClustersByEntity,
   expandClusterMembership,
 } from './textCluster'
+import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 
 /**
  * Resolve the effective hostname for an article, preferring the publisher's
@@ -55,11 +56,11 @@ function isRateLimitError(error: any): boolean {
  */
 async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   // Allow tuning via env vars without code changes
-  const THRESH = parseFloat(process.env.PRECLUSTER_THRESHOLD || '0.42')
-  const MIN_SIZE = parseInt(process.env.PRECLUSTER_MIN_SIZE || '2', 10)
-  const MAX_GROUP = parseInt(process.env.PRECLUSTER_MAX_GROUP || '40', 10)
-  const JACCARD = parseFloat(process.env.CLUSTER_JACCARD_MERGE || '0.45')
-  const DIAG = (process.env.CLUSTER_DIAGNOSTICS || 'false').toLowerCase().trim() === 'true'
+  const THRESH = envNumber('PRECLUSTER_THRESHOLD', ENV_DEFAULTS.preclusterThreshold)
+  const MIN_SIZE = envInt('PRECLUSTER_MIN_SIZE', ENV_DEFAULTS.preclusterMinSize)
+  const MAX_GROUP = envInt('PRECLUSTER_MAX_GROUP', ENV_DEFAULTS.preclusterMaxGroup)
+  const JACCARD = envNumber('CLUSTER_JACCARD_MERGE', ENV_DEFAULTS.clusterJaccardMerge)
+  const DIAG = envBool('CLUSTER_DIAGNOSTICS', ENV_DEFAULTS.clusterDiagnostics)
 
   const printSamples = (label: string, groups: StoryCluster[]) => {
     if (!DIAG) return
@@ -88,8 +89,8 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       const seedArticles = articles.filter((a) => seed.articleIds.includes(a.id))
 
       // If a seed is very large, split into overlapping chunks to keep token usage sane
-      const SEED_CHUNK = parseInt(process.env.CLUSTER_SEED_CHUNK || '25', 10)
-      const SEED_OVERLAP = parseInt(process.env.CLUSTER_SEED_OVERLAP || '5', 10)
+      const SEED_CHUNK = envInt('CLUSTER_SEED_CHUNK', ENV_DEFAULTS.clusterSeedChunk)
+      const SEED_OVERLAP = envInt('CLUSTER_SEED_OVERLAP', ENV_DEFAULTS.clusterSeedOverlap)
       if (seedArticles.length > SEED_CHUNK) {
         for (let i = 0; i < seedArticles.length; i += Math.max(1, SEED_CHUNK - SEED_OVERLAP)) {
           const chunk = seedArticles.slice(i, i + SEED_CHUNK)
@@ -138,7 +139,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   const uncovered = articles.filter((a) => !covered.has(a.id))
   if (uncovered.length >= 3) {
     console.log(`🔎 Refining ${uncovered.length} uncovered articles to find more clusters…`)
-    const UNCOVERED_CHUNK = parseInt(process.env.CLUSTER_UNCOVERED_CHUNK || '40', 10)
+    const UNCOVERED_CHUNK = envInt('CLUSTER_UNCOVERED_CHUNK', ENV_DEFAULTS.clusterUncoveredChunk)
     for (let i = 0; i < uncovered.length; i += UNCOVERED_CHUNK) {
       const chunk = uncovered.slice(i, i + UNCOVERED_CHUNK)
       try {
@@ -161,7 +162,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   printSamples('After ID-overlap merge', merged)
 
   // 4b) Merge clusters with near-identical titles (handles disjoint-article duplicates)
-  const TITLE_THRESH = parseFloat(process.env.CLUSTER_TITLE_MERGE || '0.72')
+  const TITLE_THRESH = envNumber('CLUSTER_TITLE_MERGE', ENV_DEFAULTS.clusterTitleMerge)
   const titleMerged = mergeClustersByTitle(merged, { threshold: TITLE_THRESH })
   console.log(`🧲 Title-merged down to ${titleMerged.length} clusters (t=${TITLE_THRESH})`)
   printSamples('After title merge', titleMerged)
@@ -169,9 +170,12 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   // 4c) Merge clusters that share key entities (same topic/event, different angles)
   // Coherence gate prevents unrelated clusters sharing common entities from merging
   const articleMap = new Map(articles.map((a) => [a.id, a]))
-  const ENTITY_MIN_SHARED = parseInt(process.env.CLUSTER_ENTITY_MIN_SHARED || '2', 10)
-  const ENTITY_MIN_LEN = parseInt(process.env.CLUSTER_ENTITY_MIN_LENGTH || '4', 10)
-  const ENTITY_MIN_COH = parseFloat(process.env.CLUSTER_ENTITY_MIN_COHERENCE || '0.12')
+  const ENTITY_MIN_SHARED = envInt('CLUSTER_ENTITY_MIN_SHARED', ENV_DEFAULTS.clusterEntityMinShared)
+  const ENTITY_MIN_LEN = envInt('CLUSTER_ENTITY_MIN_LENGTH', ENV_DEFAULTS.clusterEntityMinLength)
+  const ENTITY_MIN_COH = envNumber(
+    'CLUSTER_ENTITY_MIN_COHERENCE',
+    ENV_DEFAULTS.clusterEntityMinCoherence
+  )
   const entityMerged = mergeClustersByEntity(titleMerged, articleMap, {
     minSharedEntities: ENTITY_MIN_SHARED,
     minEntityLength: ENTITY_MIN_LEN,
@@ -181,8 +185,8 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   printSamples('After entity merge', entityMerged)
 
   // 5) Coherence guard: split any incoherent clusters into tighter subclusters
-  const COH_THRESH = parseFloat(process.env.CLUSTER_COHERENCE_THRESHOLD || '0.52')
-  const COH_MIN = parseInt(process.env.CLUSTER_COHERENCE_MIN || '2', 10)
+  const COH_THRESH = envNumber('CLUSTER_COHERENCE_THRESHOLD', ENV_DEFAULTS.clusterCoherenceThreshold)
+  const COH_MIN = envInt('CLUSTER_COHERENCE_MIN', ENV_DEFAULTS.clusterCoherenceMin)
   const finalRaw: StoryCluster[] = []
   for (const c of entityMerged) {
     const subs = splitIncoherentCluster(articles, c, { threshold: COH_THRESH, minSize: COH_MIN })
@@ -206,7 +210,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   }
 
   // 6) LLM merge for paraphrases / cross-language duplicates (optional via env toggle)
-  const ENABLE_LLM_MERGE = (process.env.CLUSTER_LLM_MERGE || 'true').toLowerCase() !== 'false'
+  const ENABLE_LLM_MERGE = envBool('CLUSTER_LLM_MERGE', ENV_DEFAULTS.clusterLlmMerge)
   if (ENABLE_LLM_MERGE && postCohTitleMerged.length > 1) {
     try {
       const mergedLLM = await mergeClustersByLLM(postCohTitleMerged, articleMap)
@@ -214,7 +218,7 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
       printSamples('After LLM merge', mergedLLM)
       // Optional expansion to reach 10–20 sources per event
       // Defaults are configured in textCluster.ts and can be overridden via env vars
-      const EXPAND = (process.env.CLUSTER_EXPAND || 'true').toLowerCase() !== 'false'
+      const EXPAND = envBool('CLUSTER_EXPAND', ENV_DEFAULTS.clusterExpand)
       if (EXPAND) {
         const expanded = mergedLLM.map((c) => expandClusterMembership(articles, c))
         printSamples('After expansion', expanded)
@@ -242,8 +246,10 @@ async function enrichClusters(
   articleMap: Map<string, Article>
 ): Promise<StoryCluster[]> {
   const enrichedClusters: StoryCluster[] = []
-  const DO_SUMMARY_DURING_ENRICH =
-    (process.env.CLUSTER_SUMMARIZE_DURING_ENRICH || 'false').toLowerCase() !== 'false'
+  const DO_SUMMARY_DURING_ENRICH = envBool(
+    'CLUSTER_SUMMARIZE_DURING_ENRICH',
+    ENV_DEFAULTS.clusterSummarizeDuringEnrich
+  )
 
   for (let i = 0; i < rawClusters.length; i++) {
     const cluster = rawClusters[i]
@@ -311,8 +317,8 @@ async function enrichClusters(
       })
 
       // Prefer diversity: cap per-domain to avoid single-source dominance
-      const perDomainMax = parseInt(process.env.CLUSTER_PER_DOMAIN_MAX || '3', 10)
-      const displayCap = parseInt(process.env.CLUSTER_DISPLAY_CAP || '40', 10)
+      const perDomainMax = envInt('CLUSTER_PER_DOMAIN_MAX', ENV_DEFAULTS.clusterPerDomainMax)
+      const displayCap = envInt('CLUSTER_DISPLAY_CAP', ENV_DEFAULTS.clusterDisplayCap)
       const domainCounts = new Map<string, number>()
       const diverse: Article[] = []
       for (const a of articlesInCluster.sort(
@@ -334,8 +340,8 @@ async function enrichClusters(
       articlesInCluster = diverse
 
       const summary = DO_SUMMARY_DURING_ENRICH ? await summarizeCluster(articlesInCluster) : ''
-      const MINW = parseInt(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH || '320', 10)
-      const MINH = parseInt(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT || '200', 10)
+      const MINW = envInt('NEXT_PUBLIC_MIN_IMAGE_WIDTH', ENV_DEFAULTS.nextPublicMinImageWidth)
+      const MINH = envInt('NEXT_PUBLIC_MIN_IMAGE_HEIGHT', ENV_DEFAULTS.nextPublicMinImageHeight)
       const imageSourceArticles = articlesInCluster.some(hasUsefulImage)
         ? articlesInCluster
         : dedupedArticles
@@ -400,15 +406,18 @@ export async function getStoryClusters(articles: Article[]): Promise<{
 
     // Compute severity and scores, then sort
     const sevBoosts = {
-      'War/Conflict': Number(process.env.SEVERITY_BOOST_WAR || 10),
-      'Mass Casualty/Deaths': Number(process.env.SEVERITY_BOOST_DEATHS || 7),
-      'National Politics': Number(process.env.SEVERITY_BOOST_POLITICS || 3),
-      'Economy/Markets': Number(process.env.SEVERITY_BOOST_ECONOMY || 2),
-      'Tech/Business': Number(process.env.SEVERITY_BOOST_TECH || 1),
-      Other: Number(process.env.SEVERITY_BOOST_OTHER || 0),
+      'War/Conflict': envNumber('SEVERITY_BOOST_WAR', ENV_DEFAULTS.severityBoostWar),
+      'Mass Casualty/Deaths': envNumber('SEVERITY_BOOST_DEATHS', ENV_DEFAULTS.severityBoostDeaths),
+      'National Politics': envNumber(
+        'SEVERITY_BOOST_POLITICS',
+        ENV_DEFAULTS.severityBoostPolitics
+      ),
+      'Economy/Markets': envNumber('SEVERITY_BOOST_ECONOMY', ENV_DEFAULTS.severityBoostEconomy),
+      'Tech/Business': envNumber('SEVERITY_BOOST_TECH', ENV_DEFAULTS.severityBoostTech),
+      Other: envNumber('SEVERITY_BOOST_OTHER', ENV_DEFAULTS.severityBoostOther),
     }
 
-    const USE_LLM_SEVERITY = (process.env.SEVERITY_USE_LLM || 'true').toLowerCase() !== 'false'
+    const USE_LLM_SEVERITY = envBool('SEVERITY_USE_LLM', ENV_DEFAULTS.severityUseLlm)
     const computed: StoryCluster[] = []
     for (const c of validClusters) {
       let severity = USE_LLM_SEVERITY ? await assessClusterSeverityLLM(c) : computeSeverity(c)
@@ -423,7 +432,7 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
 
     // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
-    const SUM_TOP = parseInt(process.env.CLUSTER_SUMMARIZE_TOP_N || '6', 10)
+    const SUM_TOP = envInt('CLUSTER_SUMMARIZE_TOP_N', ENV_DEFAULTS.clusterSummarizeTopN)
     const topToSummarize = validClusters.slice(0, SUM_TOP)
     for (let i = 0; i < topToSummarize.length; i++) {
       try {

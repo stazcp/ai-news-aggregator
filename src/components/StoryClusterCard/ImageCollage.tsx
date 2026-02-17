@@ -4,6 +4,7 @@ import NextImage from 'next/image'
 import { StoryCluster, Article } from '@/types'
 import { useEffect, useMemo, useState } from 'react'
 import { inferImageDimsFromUrl } from '@/lib/images/imageProviders'
+import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 const ImageCollage = ({
   cluster,
@@ -25,8 +26,8 @@ const ImageCollage = ({
 
   // Keep a live list of usable URLs; when an image fails or is too small, remove it
   const initialUrls = useMemo(() => {
-    const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
-    const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
+    const MIN_W = envNumber('NEXT_PUBLIC_MIN_IMAGE_WIDTH', ENV_DEFAULTS.nextPublicMinImageWidth)
+    const MIN_H = envNumber('NEXT_PUBLIC_MIN_IMAGE_HEIGHT', ENV_DEFAULTS.nextPublicMinImageHeight)
     return (cluster.imageUrls || [])
       .filter(Boolean)
       .filter((url) => {
@@ -135,9 +136,9 @@ const ImageCollage = ({
         let className =
           'relative h-full w-full min-h-[8rem] overflow-hidden rounded-xl' + layoutClass
         const srcToUse = url
-        const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
-        const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
-        const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
+        const MIN_W = envNumber('NEXT_PUBLIC_MIN_IMAGE_WIDTH', ENV_DEFAULTS.nextPublicMinImageWidth)
+        const MIN_H = envNumber('NEXT_PUBLIC_MIN_IMAGE_HEIGHT', ENV_DEFAULTS.nextPublicMinImageHeight)
+        const QUALITY = envNumber('NEXT_PUBLIC_IMAGE_QUALITY', ENV_DEFAULTS.nextPublicImageQuality)
         const correspondingArticle = articlesByUrl.get(url)
 
         return (

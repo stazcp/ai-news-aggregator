@@ -9,6 +9,7 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui
 import { Button } from '@/components/ui/button'
 import NextImage from 'next/image'
 import { useLazySummary } from '@/hooks/useLazySummary'
+import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 interface StoryClusterCardProps {
   cluster: StoryCluster
@@ -42,8 +43,8 @@ export default function StoryClusterCard({
   }, [latestArticle?.publishedAt])
 
   const heroImage = useMemo(() => {
-    const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '320')
-    const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '200')
+    const MIN_W = envNumber('NEXT_PUBLIC_MIN_IMAGE_WIDTH', ENV_DEFAULTS.nextPublicMinImageWidth)
+    const MIN_H = envNumber('NEXT_PUBLIC_MIN_IMAGE_HEIGHT', ENV_DEFAULTS.nextPublicMinImageHeight)
     const allowLowResThumb = !isExpanded
     for (const article of articles) {
       const url = article.urlToImage
