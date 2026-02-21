@@ -1,15 +1,16 @@
 import Groq from 'groq-sdk'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { Article, StoryCluster } from '@/types'
+import { ENV_DEFAULTS, envBool, envInt } from '@/lib/config/env'
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
 const GROQ_QUEUE: Array<() => void> = []
-const GROQ_MAX = parseInt(process.env.GROQ_MAX_CONCURRENCY || '2', 10)
-const GROQ_RETRY_MAX = parseInt(process.env.GROQ_RETRY_MAX || '3', 10)
-const GROQ_RETRY_BASE_MS = parseInt(process.env.GROQ_RETRY_BASE_MS || '800', 10)
+const GROQ_MAX = envInt('GROQ_MAX_CONCURRENCY', ENV_DEFAULTS.groqMaxConcurrency)
+const GROQ_RETRY_MAX = envInt('GROQ_RETRY_MAX', ENV_DEFAULTS.groqRetryMax)
+const GROQ_RETRY_BASE_MS = envInt('GROQ_RETRY_BASE_MS', ENV_DEFAULTS.groqRetryBaseMs)
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms))
@@ -80,7 +81,10 @@ function isRateLimitError(error: any): boolean {
 }
 
 export async function summarizeArticle(content: string, maxLength: number = 150): Promise<string> {
-  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
+  const ALLOW_FALLBACK = envBool(
+    'SUMMARY_FALLBACK_ON_LIMIT',
+    ENV_DEFAULTS.summaryFallbackOnLimit
+  )
   try {
     const completion = await groqCall('summarizeArticle', () =>
       groq.chat.completions.create({
@@ -125,7 +129,10 @@ export async function summarizeCluster(
   articles: Article[],
   length: 'short' | 'long' = 'long'
 ): Promise<string> {
-  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
+  const ALLOW_FALLBACK = envBool(
+    'SUMMARY_FALLBACK_ON_LIMIT',
+    ENV_DEFAULTS.summaryFallbackOnLimit
+  )
   const isShort = length === 'short'
   const baseKey = `cluster-summary-${articles
     .map((a) => a.id)
@@ -206,7 +213,10 @@ ${contentToSummarize}
 }
 
 export async function summarizeCategoryDigest(content: string): Promise<string> {
-  const ALLOW_FALLBACK = (process.env.SUMMARY_FALLBACK_ON_LIMIT || 'false').toLowerCase() === 'true'
+  const ALLOW_FALLBACK = envBool(
+    'SUMMARY_FALLBACK_ON_LIMIT',
+    ENV_DEFAULTS.summaryFallbackOnLimit
+  )
 
   const prompt = `You are an experienced news editor. Craft a compact two-to-three sentence digest (70-110 words) that captures the main developments spanning these topic highlights. Blend insights across sources, prioritize the newest and most consequential facts, and mention distinct angles when relevant. Avoid marketing language, bullet lists, and source callouts. Here are the notes to synthesize:\n\n${content}`
 

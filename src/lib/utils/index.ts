@@ -2,6 +2,7 @@ import { Article, StoryCluster } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { computeKeywordScore } from '../topics'
+import { ENV_DEFAULTS, envInt } from '@/lib/config/env'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -216,6 +217,5 @@ export function buildCategorySummaryPayload(
  * @returns The cache TTL in seconds
  */
 export const getCacheTtl = (): number => {
-  const ttl = Number(process.env.CACHE_TTL_SECONDS)
-  return isNaN(ttl) ? 43200 : ttl
+  return envInt('CACHE_TTL_SECONDS', ENV_DEFAULTS.cacheTtlSeconds)
 }

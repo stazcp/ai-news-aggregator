@@ -11,9 +11,10 @@ import {
   cleanGoogleNewsTitle,
   decodeAndBackfillGoogleNewsArticles,
 } from './googleNewsDecoder'
+import { ENV_DEFAULTS, envInt, envString } from '@/lib/config/env'
 
 // Simple log gating for feed operations
-const FEED_LOG_LEVEL = (process.env.FEED_LOG_LEVEL || 'warn').toLowerCase()
+const FEED_LOG_LEVEL = envString('FEED_LOG_LEVEL', ENV_DEFAULTS.feedLogLevel).toLowerCase()
 const LEVELS: Record<string, number> = { silent: 0, error: 1, warn: 2, info: 3, debug: 4 }
 function log(level: 'error' | 'warn' | 'info' | 'debug', ...args: any[]) {
   if ((LEVELS[FEED_LOG_LEVEL] ?? 2) >= (LEVELS[level] ?? 2)) {
@@ -379,8 +380,8 @@ export async function fetchRSSFeed(url: string, category: string): Promise<Artic
     // Use higher limit for aggregator feeds (Google News) since each item is from a different source
     const isAggregator = isGoogleNewsFeed(url)
     const PER_FEED_LIMIT = isAggregator
-      ? parseInt(process.env.AGGREGATOR_FEED_ITEMS_LIMIT || '50', 10)
-      : parseInt(process.env.FEED_ITEMS_PER_FEED || '5', 10)
+      ? envInt('AGGREGATOR_FEED_ITEMS_LIMIT', ENV_DEFAULTS.aggregatorFeedItemsLimit)
+      : envInt('FEED_ITEMS_PER_FEED', ENV_DEFAULTS.feedItemsPerFeed)
     const articles: Article[] = feed.items
       .slice(0, PER_FEED_LIMIT)
       .map((item, index) => {
@@ -538,7 +539,7 @@ export async function fetchAllNews(): Promise<Article[]> {
   // Batch RSS feeds to prevent overwhelming servers and avoid connection exhaustion
   const allFeeds: Array<{ url: string; category: string }> = []
 
-  const FEED_BLOCKLIST = (process.env.FEED_BLOCKLIST || '')
+  const FEED_BLOCKLIST = envString('FEED_BLOCKLIST', ENV_DEFAULTS.feedBlocklist)
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
@@ -637,7 +638,7 @@ export async function fetchAllNews(): Promise<Article[]> {
   }
 
   log('debug', `🔄 Sorting ${allArticles.length} articles by publish date`)
-  const GLOBAL_LIMIT = parseInt(process.env.NEWS_GLOBAL_LIMIT || '100', 10)
+  const GLOBAL_LIMIT = envInt('NEWS_GLOBAL_LIMIT', ENV_DEFAULTS.newsGlobalLimit)
   const sortedAll = allArticles
     .filter((article) => article && article.title) // Remove any invalid articles
     .sort((a, b) => {

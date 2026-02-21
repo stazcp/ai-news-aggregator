@@ -119,18 +119,25 @@ npm install
 # Required: Groq API key for AI clustering and summarization
 GROQ_API_KEY=your_groq_api_key_here
 
+# Optional: Redis cache (if omitted, app falls back to in-memory cache)
+UPSTASH_REDIS_REST_URL=your_upstash_url
+UPSTASH_REDIS_REST_TOKEN=your_upstash_token
+
+# Optional: secure full-cache clear endpoints
+CACHE_CLEAR_TOKEN=your_cache_clear_token
+
 # Optional: Summaries UX
 # When true (default), summaries are requested manually via a compact button
 # and the summary card shrinks to fit its content until the summary is loaded.
 NEXT_PUBLIC_SUMMARY_ON_DEMAND=true
 
 # Optional: Clustering configuration
-PRECLUSTER_THRESHOLD=0.42          # Similarity threshold for pre-clustering
+PRECLUSTER_THRESHOLD=0.38          # Similarity threshold for pre-clustering
 PRECLUSTER_MIN_SIZE=2              # Minimum articles per cluster
-PRECLUSTER_MAX_GROUP=40            # Maximum articles per cluster
-CLUSTER_JACCARD_MERGE=0.45         # Jaccard threshold for merging
-CLUSTER_TITLE_MERGE=0.72           # Title similarity threshold
-CLUSTER_COHERENCE_THRESHOLD=0.52   # Coherence splitting threshold
+PRECLUSTER_MAX_GROUP=60            # Maximum articles per cluster
+CLUSTER_JACCARD_MERGE=0.40         # Jaccard threshold for merging
+CLUSTER_TITLE_MERGE=0.70           # Title similarity threshold
+CLUSTER_COHERENCE_THRESHOLD=0.54   # Coherence splitting threshold
 CLUSTER_LLM_MERGE=true             # Enable LLM-based merging
 CLUSTER_EXPAND=true                # Enable cluster expansion
 

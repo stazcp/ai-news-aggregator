@@ -5,6 +5,7 @@ import {
   generateTopStorySummaries,
   enrichClustersWithSummaries,
 } from './homepageGenerator'
+import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
 
 interface RefreshProgress {
   stage: string
@@ -16,7 +17,10 @@ interface RefreshProgress {
 
 export async function refreshCacheInBackground(): Promise<void> {
   // Skip background refresh in local development unless explicitly enabled
-  const ALLOW_LOCAL = /^(1|true|yes)$/i.test(process.env.ALLOW_LOCAL_BACKGROUND_REFRESH || '')
+  const ALLOW_LOCAL = envBool(
+    'ALLOW_LOCAL_BACKGROUND_REFRESH',
+    ENV_DEFAULTS.allowLocalBackgroundRefresh
+  )
   if (process.env.NODE_ENV === 'development' && !ALLOW_LOCAL) {
     console.log(
       '⏭️ Skipping background refresh in development (set ALLOW_LOCAL_BACKGROUND_REFRESH=1 to enable)'

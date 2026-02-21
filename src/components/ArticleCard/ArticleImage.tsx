@@ -2,6 +2,7 @@
 
 import Image from 'next/image'
 import { useState } from 'react'
+import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 interface ArticleImageProps {
   src: string
@@ -12,9 +13,15 @@ interface ArticleImageProps {
 }
 
 export default function ArticleImage({ src, alt, className = '', onError, onNoImage }: ArticleImageProps) {
-  const MIN_W = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_WIDTH ?? '480')
-  const MIN_H = Number(process.env.NEXT_PUBLIC_MIN_IMAGE_HEIGHT ?? '300')
-  const QUALITY = Number(process.env.NEXT_PUBLIC_IMAGE_QUALITY ?? '85')
+  const MIN_W = envNumber(
+    'NEXT_PUBLIC_MIN_IMAGE_WIDTH',
+    ENV_DEFAULTS.articleCardMinImageWidth
+  )
+  const MIN_H = envNumber(
+    'NEXT_PUBLIC_MIN_IMAGE_HEIGHT',
+    ENV_DEFAULTS.articleCardMinImageHeight
+  )
+  const QUALITY = envNumber('NEXT_PUBLIC_IMAGE_QUALITY', ENV_DEFAULTS.nextPublicImageQuality)
   const [tooSmall, setTooSmall] = useState(false)
 
   const handleError = () => {
