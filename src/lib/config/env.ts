@@ -13,9 +13,9 @@ export const ENV_DEFAULTS = {
   // Feed intake
   feedLogLevel: 'warn',
   feedBlocklist: '',
-  aggregatorFeedItemsLimit: 50,
-  feedItemsPerFeed: 15,
-  newsGlobalLimit: 800,
+  aggregatorFeedItemsLimit: 100,
+  feedItemsPerFeed: 25,
+  newsGlobalLimit: 2000,
 
   // Clustering
   preclusterThreshold: 0.38,
@@ -35,12 +35,12 @@ export const ENV_DEFAULTS = {
   clusterLlmMerge: true,
   clusterExpand: true,
   clusterExpandSim: 0.42,
-  clusterExpandMaxAdd: 50,
+  clusterExpandMaxAdd: 80,
   clusterExpandTimeHours: 168,
   clusterExpandCategoryStrict: false,
   clusterSummarizeDuringEnrich: false,
-  clusterPerDomainMax: 3,
-  clusterDisplayCap: 40,
+  clusterPerDomainMax: 8,
+  clusterDisplayCap: 50,
   clusterSummarizeTopN: 6,
 
   // Severity and ranking
