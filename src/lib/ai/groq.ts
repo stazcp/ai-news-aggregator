@@ -415,14 +415,14 @@ export async function assessClusterSeverityLLM(
 You are rating the NEWS SEVERITY of a single event cluster. Output ONLY JSON with keys: level (0-5), label (string), reasons (string array).
 
 Guidelines:
-- 5 War/Conflict: active war, missile/drone strikes, widespread violence.
-- 4 Mass Casualty/Deaths: many killed, disasters, major outbreaks.
-- 3 National Politics: head-of-state/government, elections, parliament, impeachment.
-- 2 Economy/Markets: major macro shifts, crises.
-- 1 Tech/Business: launches, earnings, corporate news.
-- 0 Other: everything else.
+- 5 War/Conflict: active war, missile/drone strikes, widespread violence, military operations.
+- 4 Mass Casualty/Deaths: many killed, disasters, major disease outbreaks, mass casualty events.
+- 3 National Politics: policy decisions, legislation, elections, government appointments, official state actions, diplomatic relations. NOT personal lifestyle, fashion, travel, or family matters of officials — those are Other (0).
+- 2 Economy/Markets: major macroeconomic shifts, financial crises, significant trade policy, central bank decisions.
+- 1 Tech/Business: product launches, earnings, IPOs, mergers, significant corporate news.
+- 0 Other: lifestyle, entertainment, celebrity, fashion, sports, personal stories about public figures, and anything not clearly captured above.
 
-Be conservative and justify briefly in reasons. Consider the headlines collectively and recency.
+Be conservative: when in doubt assign the lower level. Justify briefly in reasons. Consider the headlines collectively and recency.
 Cluster JSON follows:
 ${JSON.stringify(brief)}
     `

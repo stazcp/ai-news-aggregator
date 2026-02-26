@@ -117,7 +117,7 @@ export function scoreCluster(
   }
 
   const sizeScore = Math.log(1 + n) // diminishing returns
-  const domainScore = domains
+  const domainScore = Math.log(1 + domains) // log-scaled: prevents large clusters dominating on raw volume
   const imageScore = imageBonus
   const recencyScore = recency
 

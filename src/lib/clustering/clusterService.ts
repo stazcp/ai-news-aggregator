@@ -10,6 +10,7 @@ import {
   mergeClustersByTitle,
   mergeClustersByEntity,
   expandClusterMembership,
+  buildTfIdf,
 } from './textCluster'
 import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 
@@ -210,28 +211,42 @@ async function getRawClusters(articles: Article[]): Promise<StoryCluster[]> {
   }
 
   // 6) LLM merge for paraphrases / cross-language duplicates (optional via env toggle)
+  let preFinal = postCohTitleMerged
   const ENABLE_LLM_MERGE = envBool('CLUSTER_LLM_MERGE', ENV_DEFAULTS.clusterLlmMerge)
   if (ENABLE_LLM_MERGE && postCohTitleMerged.length > 1) {
     try {
       const mergedLLM = await mergeClustersByLLM(postCohTitleMerged, articleMap)
       console.log(`🤝 LLM merged to ${mergedLLM.length} clusters`)
       printSamples('After LLM merge', mergedLLM)
-      // Optional expansion to reach 10–20 sources per event
-      // Defaults are configured in textCluster.ts and can be overridden via env vars
-      const EXPAND = envBool('CLUSTER_EXPAND', ENV_DEFAULTS.clusterExpand)
-      if (EXPAND) {
-        const expanded = mergedLLM.map((c) => expandClusterMembership(articles, c))
-        printSamples('After expansion', expanded)
-        return expanded
-      }
-      return mergedLLM
+      preFinal = mergedLLM
     } catch (e) {
-      console.warn('LLM merge step failed; falling back to coherence output', e)
-      return postCohTitleMerged
+      console.warn('LLM merge step failed; continuing with coherence output', e)
     }
   }
 
-  return postCohTitleMerged
+  // 7) Expand clusters to reach 10–20 sources per event (TF-IDF centroid matching)
+  const { vecs: expandVecs } = buildTfIdf(articles)
+  const expanded = preFinal.map((c) =>
+    expandClusterMembership(articles, c, { prebuiltVecs: expandVecs })
+  )
+  printSamples('After expansion', expanded)
+
+  // Post-expansion coherence guard: expansion can pull in unrelated articles
+  const postExpand: StoryCluster[] = []
+  for (const c of expanded) {
+    const subs = splitIncoherentCluster(articles, c, { threshold: COH_THRESH, minSize: COH_MIN })
+    if (subs.length > 0) {
+      postExpand.push(...subs)
+    } else {
+      if ((c.articleIds?.length || 0) >= COH_MIN) postExpand.push(c)
+    }
+  }
+  const remerged = mergeClustersByTitle(postExpand, { threshold: TITLE_THRESH })
+  if (remerged.length < expanded.length) {
+    console.log(`🧹 Post-expansion coherence: ${expanded.length} → ${remerged.length} clusters`)
+  }
+  printSamples('After post-expansion coherence', remerged)
+  return remerged
 }
 
 /**
