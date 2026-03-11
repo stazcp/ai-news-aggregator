@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
 import { getSummaryCacheKey } from '@/lib/ai/summaryCache'
+import { getCacheTtl } from '@/lib/utils'
 
 export async function POST(request: Request) {
   try {
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
 
       // Cache for longer time for clusters since they're more expensive to generate
       const cacheTime =
-        summaryPurpose === 'cluster' ? 7200 : summaryPurpose === 'category' ? 5400 : 3600
+        summaryPurpose === 'category' ? getCacheTtl() : summaryPurpose === 'cluster' ? 7200 : 3600
       await setCachedData(cacheKey, summary, cacheTime)
 
       console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)
