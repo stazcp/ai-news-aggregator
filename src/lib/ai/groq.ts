@@ -218,7 +218,7 @@ export async function summarizeCategoryDigest(content: string): Promise<string> 
     ENV_DEFAULTS.summaryFallbackOnLimit
   )
 
-  const prompt = `You are an experienced news editor. Craft a compact two-to-three sentence digest (70-110 words) that captures the main developments spanning these topic highlights. Blend insights across sources, prioritize the newest and most consequential facts, and mention distinct angles when relevant. Avoid marketing language, bullet lists, and source callouts. Here are the notes to synthesize:\n\n${content}`
+  const prompt = `You are an experienced news editor. Write the tightest possible digest that still captures every major development across these topic highlights — typically two to three sentences, never more than four even if there is a lot happening. Compress hard: one strong sentence per story thread, no filler, no source callouts, no bullet lists. Here are the notes to synthesize:\n\n${content}`
 
   try {
     const completion = await groqCall('summarizeCategory', () =>
@@ -232,7 +232,7 @@ export async function summarizeCategoryDigest(content: string): Promise<string> 
         ],
         model: 'llama-3.3-70b-versatile',
         temperature: 0.35,
-        max_tokens: 220,
+        max_tokens: 280,
       })
     )
 

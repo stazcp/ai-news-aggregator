@@ -35,7 +35,7 @@ export function CategorySummary({
         clusters,
         [], // No standalone articles - we only summarize clustered stories
         {
-          maxClusters: 4,
+          maxClusters: 7,
           maxArticlesPerCluster: 3,
           maxStandaloneArticles: 0,
         }
