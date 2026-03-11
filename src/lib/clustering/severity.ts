@@ -79,12 +79,12 @@ export function scoreCluster(
   const wImages = options?.wImages ?? envNumber('SCORE_W_IMAGES', ENV_DEFAULTS.scoreWImages)
   const wRecency = options?.wRecency ?? envNumber('SCORE_W_RECENCY', ENV_DEFAULTS.scoreWRecency)
   const severityBoosts = options?.severityBoosts ?? {
-    'War/Conflict': 10,
-    'Mass Casualty/Deaths': 7,
-    'National Politics': 3,
-    'Economy/Markets': 2,
-    'Tech/Business': 1,
-    Other: 0,
+    'War/Conflict': envNumber('SEVERITY_BOOST_WAR', ENV_DEFAULTS.severityBoostWar),
+    'Mass Casualty/Deaths': envNumber('SEVERITY_BOOST_DEATHS', ENV_DEFAULTS.severityBoostDeaths),
+    'National Politics': envNumber('SEVERITY_BOOST_POLITICS', ENV_DEFAULTS.severityBoostPolitics),
+    'Economy/Markets': envNumber('SEVERITY_BOOST_ECONOMY', ENV_DEFAULTS.severityBoostEconomy),
+    'Tech/Business': envNumber('SEVERITY_BOOST_TECH', ENV_DEFAULTS.severityBoostTech),
+    Other: envNumber('SEVERITY_BOOST_OTHER', ENV_DEFAULTS.severityBoostOther),
   }
 
   const articles = c.articles || []
