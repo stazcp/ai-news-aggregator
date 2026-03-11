@@ -139,7 +139,6 @@ CLUSTER_JACCARD_MERGE=0.40         # Jaccard threshold for merging
 CLUSTER_TITLE_MERGE=0.70           # Title similarity threshold
 CLUSTER_COHERENCE_THRESHOLD=0.54   # Coherence splitting threshold
 CLUSTER_LLM_MERGE=true             # Enable LLM-based merging
-CLUSTER_EXPAND=true                # Enable cluster expansion
 
 # Optional: Severity scoring
 SEVERITY_USE_LLM=true              # Use LLM for severity assessment
