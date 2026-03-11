@@ -232,7 +232,9 @@ export function mergeClustersByOverlap(
   return merged
 }
 
-// Split an incoherent cluster into tighter subclusters using a higher similarity threshold
+// Split an incoherent cluster into tighter subclusters using a higher similarity threshold.
+// Orphaned articles (in subclusters below minSize) are assigned to their nearest
+// surviving subcluster so no articles are silently discarded.
 export function splitIncoherentCluster(
   articles: Article[],
   cluster: StoryCluster,
@@ -241,8 +243,54 @@ export function splitIncoherentCluster(
   const set = new Set(cluster.articleIds)
   const subset = articles.filter((a) => set.has(a.id))
   if (subset.length < minSize) return []
-  const subs = preClusterArticles(subset, { threshold, minSize, maxGroup: 50 })
-  return subs
+
+  const allSubs = preClusterArticles(subset, { threshold, minSize: 1, maxGroup: 50 })
+  const surviving: StoryCluster[] = []
+  const orphanIds: string[] = []
+
+  for (const sub of allSubs) {
+    if (sub.articleIds.length >= minSize) {
+      surviving.push(sub)
+    } else {
+      orphanIds.push(...sub.articleIds)
+    }
+  }
+
+  if (surviving.length === 0) return []
+  if (orphanIds.length === 0) return surviving
+
+  const { vecs } = buildTfIdf(subset)
+
+  const centroids: Vec[] = surviving.map((sub) => {
+    const c: Vec = new Map()
+    for (const id of sub.articleIds) {
+      const v = vecs.get(id)
+      if (!v) continue
+      for (const [t, w] of v) c.set(t, (c.get(t) || 0) + w)
+    }
+    return c
+  })
+
+  for (const oid of orphanIds) {
+    const ov = vecs.get(oid)
+    if (!ov) {
+      surviving[0].articleIds.push(oid)
+      continue
+    }
+    let bestIdx = 0
+    let bestSim = -1
+    for (let i = 0; i < centroids.length; i++) {
+      const sim = centroidSim(centroids[i], ov)
+      if (sim > bestSim) {
+        bestSim = sim
+        bestIdx = i
+      }
+    }
+    surviving[bestIdx].articleIds.push(oid)
+    for (const [t, w] of ov) centroids[bestIdx].set(t, (centroids[bestIdx].get(t) || 0) + w)
+  }
+
+  return surviving
 }
 
 function titleTokens(title: string): Set<string> {
@@ -526,6 +574,7 @@ export function expandClusterMembership(
     maxAdd?: number
     timeWindowHours?: number
     categoryStrict?: boolean
+    prebuiltVecs?: Map<string, Vec>
   } = {}
 ): StoryCluster {
   const simThreshold = opts.simThreshold ?? envNumber('CLUSTER_EXPAND_SIM', ENV_DEFAULTS.clusterExpandSim)
@@ -541,8 +590,7 @@ export function expandClusterMembership(
   const members = allArticles.filter((a) => idSet.has(a.id))
   if (members.length === 0) return cluster
 
-  const { vecs } = buildTfIdf(allArticles)
-  // Build centroid of current members
+  const vecs = opts.prebuiltVecs ?? buildTfIdf(allArticles).vecs
   const centroid: Vec = new Map()
   for (const m of members) {
     const vm = vecs.get(m.id)

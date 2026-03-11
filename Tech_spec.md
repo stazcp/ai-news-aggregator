@@ -204,7 +204,42 @@ Features not yet planned that are required to move from proof-of-concept to a pr
 
 Surface which outlets are **not** covering a story. "45 outlets covered this; Fox News, MSNBC, and RT did not." Missing coverage is as revealing as divergent coverage and falls directly out of existing cluster data.
 
-### 2. Story Continuity / Timeline Persistence
+### 2. Related Clusters / Story Threading
+
+When a major event produces multiple valid sub-clusters (e.g. "Iran War" spawning "Oil Reserve Release", "FBI Drone Warning", "Iran World Cup Ban"), forcing them all into one cluster produces an incoherent summary. Keeping them separate leaves the UI fragmented with no visible connection.
+
+**Goal:** Keep sub-clusters as distinct clusters with clean summaries, but surface their relationship to the parent story.
+
+**Data model addition:**
+
+```ts
+// StoryCluster
+relatedClusterIds?: string[]   // clusters that are follow-ups / sub-angles of this one
+parentClusterId?: string       // if this cluster is a sub-angle of a larger story
+```
+
+**Pipeline step** (post `getRawClusters`, before `enrichClusters`):
+
+1. For every cluster pair, check:
+   - Shared entities ≥ 2 (same event fingerprint)
+   - Time window overlap (both published within 48h)
+   - NOT already merged (cross-cluster TF-IDF coherence < merge threshold — they're related but distinct)
+2. The larger cluster (by article count) becomes the parent; smaller becomes a `relatedClusterId`
+3. Cycles / transitive chains collapse to a single parent (the largest cluster)
+
+**UI behaviour:**
+- Parent cluster card shows "Related Coverage" pill with count
+- Expanding it shows linked sub-cluster cards inline (title + source count + summary)
+- Sub-clusters are hidden from the main feed ranking so they don't crowd the top stories list
+
+**Why not just merge everything?**
+A cluster covering "Iran military strikes + oil reserves + World Cup ban + drone threat" cannot be summarised coherently. Four separate summaries linked together are far more useful than one incoherent mega-summary.
+
+**Prerequisite:** Stable cluster IDs across renders (currently clusters are ephemeral — this feature requires Story Continuity, see §3).
+
+---
+
+### 3. Story Continuity / Timeline Persistence
 
 Currently every refresh is a stateless snapshot. Stories evolve over days/weeks. Need:
 
