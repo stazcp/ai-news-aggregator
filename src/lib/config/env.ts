@@ -34,7 +34,7 @@ export const ENV_DEFAULTS = {
   clusterCoherenceMin: 2,
   clusterLlmMerge: true,
   clusterExpandSim: 0.58,
-  clusterExpandMaxAdd: 20,
+  clusterExpandMaxAdd: 45,
   clusterExpandTimeHours: 48,
   clusterExpandCategoryStrict: true,
   clusterSummarizeDuringEnrich: false,
