@@ -32,6 +32,9 @@ export interface StoryCluster {
     label: string
     reasons?: string[]
   }
+  // Stable ID (hash of sorted articleIds) and related cluster links
+  id?: string
+  relatedClusterIds?: string[]
 }
 
 export interface NewsResponse {

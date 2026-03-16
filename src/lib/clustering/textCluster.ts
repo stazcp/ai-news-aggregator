@@ -159,7 +159,7 @@ export function preClusterArticles(
   }: { threshold?: number; minSize?: number; maxGroup?: number } = {}
 ): StoryCluster[] {
   if (articles.length === 0) return []
-  const { vecs, norms } = buildTfIdf(articles)
+  const { vecs } = buildTfIdf(articles)
 
   // Sort newest first to bias clusters toward current events
   const sorted = [...articles].sort(
@@ -621,6 +621,94 @@ export function expandClusterMembership(
   const toAdd = candidates.slice(0, maxAdd).map((c) => c.id)
   const articleIds = Array.from(new Set([...cluster.articleIds, ...toAdd]))
   return { ...cluster, articleIds }
+}
+
+/**
+ * Link related clusters as sub-angles of the same story without merging them.
+ * Clusters that share entities AND pass a lower coherence threshold are linked:
+ * the larger cluster (by articleIds) gets the smaller cluster's id in relatedClusterIds.
+ */
+export function linkRelatedClusters(
+  clusters: StoryCluster[],
+  articleMap: Map<string, Article>,
+  {
+    minSharedEntities = 2,
+    minEntityLength = 4,
+    minCoherence = 0.03,
+    maxRelatedPerCluster = 5,
+  }: {
+    minSharedEntities?: number
+    minEntityLength?: number
+    minCoherence?: number
+    maxRelatedPerCluster?: number
+  } = {}
+): StoryCluster[] {
+  if (clusters.length <= 1) return clusters
+
+  const allIds = new Set(clusters.flatMap((c) => c.articleIds || []))
+  const allArticles = [...allIds].map((id) => articleMap.get(id)).filter(Boolean) as Article[]
+  const { vecs, norms } = buildTfIdf(allArticles)
+
+  const clusterEntities = clusters.map((c) => {
+    const entities = extractClusterEntities(c, articleMap)
+    return new Set([...entities].filter((e) => e.length >= minEntityLength))
+  })
+
+  // Track candidate related pairs: { parentIdx, childIdx, sim }
+  type Pair = { parentIdx: number; childIdx: number; sim: number }
+  const pairs: Pair[] = []
+
+  for (let i = 0; i < clusters.length; i++) {
+    for (let j = i + 1; j < clusters.length; j++) {
+      let sharedCount = 0
+      for (const entity of clusterEntities[i]) {
+        if (clusterEntities[j].has(entity)) sharedCount++
+      }
+      if (sharedCount < minSharedEntities) continue
+
+      const sim = crossClusterSimilarity(
+        clusters[i].articleIds || [],
+        clusters[j].articleIds || [],
+        vecs,
+        norms
+      )
+      if (sim < minCoherence) continue
+
+      // Larger cluster is parent; smaller is child
+      const iSize = (clusters[i].articleIds || []).length
+      const jSize = (clusters[j].articleIds || []).length
+      if (iSize >= jSize) {
+        pairs.push({ parentIdx: i, childIdx: j, sim })
+      } else {
+        pairs.push({ parentIdx: j, childIdx: i, sim })
+      }
+    }
+  }
+
+  // Group pairs by parent, sort by sim desc, cap at maxRelatedPerCluster
+  const byParent = new Map<number, Pair[]>()
+  for (const p of pairs) {
+    const list = byParent.get(p.parentIdx) || []
+    list.push(p)
+    byParent.set(p.parentIdx, list)
+  }
+
+  const result = clusters.map((c) => ({ ...c }))
+  for (const [parentIdx, pairList] of byParent) {
+    pairList.sort((a, b) => b.sim - a.sim)
+    const childIds = pairList
+      .slice(0, maxRelatedPerCluster)
+      .map((p) => clusters[p.childIdx].id)
+      .filter(Boolean) as string[]
+    if (childIds.length > 0) {
+      result[parentIdx].relatedClusterIds = childIds
+      console.log(
+        `[linkRelatedClusters] "${clusters[parentIdx].clusterTitle}" → related: ${childIds.join(', ')}`
+      )
+    }
+  }
+
+  return result
 }
 
 // Expose private helpers for unit testing only

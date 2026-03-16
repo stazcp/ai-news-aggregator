@@ -13,14 +13,18 @@ import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 interface StoryClusterCardProps {
   cluster: StoryCluster
+  relatedClusters?: StoryCluster[]
   isFirst?: boolean // Indicates if this is the first story (above-the-fold)
   onExpansionChange?: (expanded: boolean) => void
+  onRelatedClick?: (id: string) => void
 }
 
 export default function StoryClusterCard({
   cluster,
+  relatedClusters,
   isFirst = false,
   onExpansionChange,
+  onRelatedClick,
 }: StoryClusterCardProps) {
   const articles = cluster.articles || []
   const sourceCount = articles.length
@@ -163,6 +167,28 @@ export default function StoryClusterCard({
           </div>
         </div>
 
+        {/* Related Coverage */}
+        {relatedClusters && relatedClusters.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <p className="text-xs text-muted-foreground mb-2">Related Coverage</p>
+            <div className="flex flex-wrap gap-2">
+              {relatedClusters.map((rc, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => rc.id && onRelatedClick?.(rc.id)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-muted/40 text-xs hover:bg-muted hover:border-accent/50 transition-colors cursor-pointer"
+                >
+                  <span className="truncate max-w-[180px]">{rc.clusterTitle}</span>
+                  <span className="text-muted-foreground shrink-0">
+                    · {rc.articles?.length ?? rc.articleIds.length}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Collapsible Sources */}
         <div className="border-t border-border/60 pt-4">
           <button
@@ -213,7 +239,7 @@ export default function StoryClusterCard({
   }
 
   return (
-    <section>
+    <section id={cluster.id ? `cluster-${cluster.id}` : undefined}>
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
