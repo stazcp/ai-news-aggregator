@@ -254,10 +254,26 @@ export async function summarizeCategoryDigest(content: string): Promise<string> 
   }
 }
 
+/**
+ * Strip Google News RSS source suffix from article titles.
+ * Titles often arrive as "Article Title – Source Name" or "Title | Source".
+ * The LLM copies these verbatim, producing garbage cluster titles.
+ */
+export function cleanTitle(title: string): string {
+  if (!title) return title
+  // Em-dash separator (Google News standard): "Title – Source Name"
+  const emDash = title.lastIndexOf(' – ')
+  if (emDash > 8) return title.slice(0, emDash).trim()
+  // Pipe separator: "Title | Source Name"
+  const pipe = title.lastIndexOf(' | ')
+  if (pipe > 8) return title.slice(0, pipe).trim()
+  return title
+}
+
 export async function clusterArticles(articles: Article[]): Promise<StoryCluster[]> {
   const articleSummaries = articles.map((a) => ({
     id: a.id,
-    title: a.title,
+    title: cleanTitle(a.title),
     description: (a.description || '').substring(0, 160),
     publishedAt: a.publishedAt,
     source: a.source?.name,
@@ -274,6 +290,8 @@ Strict rules:
 - Prefer clusters within ~72 hours; different dates often mean different events.
 - If unsure, return {"clusters": []}.
 - Cluster titles must be descriptive of the event (avoid generic titles like "Live Coverage").
+- Do NOT copy article titles verbatim as cluster titles — synthesize a clean topic title.
+- Do NOT include source names (e.g. "BBC", "Reuters", "Fox News") in cluster titles.
 
 Articles JSON:
 ${JSON.stringify(articleSummaries)}
@@ -304,7 +322,7 @@ ${JSON.stringify(articleSummaries)}
             },
             { role: 'user', content: prompt },
           ],
-          model: 'llama-3.1-8b-instant',
+          model: 'llama-3.3-70b-versatile',
           temperature: 0.1,
           response_format: { type: 'json_object' },
         })
@@ -325,7 +343,7 @@ ${JSON.stringify(articleSummaries)}
               { role: 'system', content: 'Output valid JSON only. No explanations.' },
               { role: 'user', content: strictPrompt },
             ],
-            model: 'llama-3.1-8b-instant',
+            model: 'llama-3.3-70b-versatile',
             temperature: 0,
             max_tokens: 800,
           })
