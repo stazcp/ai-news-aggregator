@@ -382,12 +382,6 @@ async function enrichClusters(
       const imageUrls = Array.from(new Set(validImageArticles.map((a) => a.urlToImage))).slice(0, 4)
 
       enrichedClusters.push({ ...cluster, articles: articlesInCluster, summary, imageUrls })
-
-      // Artificial Delay to avoid rate limits
-      if (i < rawClusters.length - 1) {
-        // Only delay if there are more clusters
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-      }
     } catch (error) {
       if (isRateLimitError(error)) {
         console.warn(`⚠️ Rate limit hit during cluster summarization. Stopping further processing.`)
@@ -435,12 +429,24 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     }
 
     const USE_LLM_SEVERITY = envBool('SEVERITY_USE_LLM', ENV_DEFAULTS.severityUseLlm)
+    const LLM_SEVERITY_TOP_N = envInt('SEVERITY_LLM_TOP_N', ENV_DEFAULTS.severityLlmTopN)
+
+    // Fast-score all clusters first to find the top candidates for LLM severity
+    const fastScored = validClusters.map((c) => {
+      const severity = computeSeverity(c)
+      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
+      return { ...c, severity, score }
+    })
+    fastScored.sort((a, b) => (b.score || 0) - (a.score || 0))
+
+    // Run LLM severity only on the top N clusters — accurate ranking where it matters
     const computed: StoryCluster[] = []
-    for (const c of validClusters) {
-      let severity = USE_LLM_SEVERITY ? await assessClusterSeverityLLM(c) : computeSeverity(c)
-      // Fallback if LLM returns neutral
-      if (!USE_LLM_SEVERITY || !severity || severity.level === 0) {
-        severity = computeSeverity(c)
+    for (let i = 0; i < fastScored.length; i++) {
+      const c = fastScored[i]
+      let severity = c.severity
+      if (USE_LLM_SEVERITY && i < LLM_SEVERITY_TOP_N) {
+        const llmSeverity = await assessClusterSeverityLLM(c)
+        if (llmSeverity && llmSeverity.level !== 0) severity = llmSeverity
       }
       const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
       computed.push({ ...c, severity, score })
@@ -467,6 +473,9 @@ export async function getStoryClusters(articles: Article[]): Promise<{
         if (!topToSummarize[i].summary) {
           const s = await summarizeCluster(topToSummarize[i].articles || [])
           topToSummarize[i].summary = s
+          if (i < topToSummarize.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+          }
         }
       } catch (e) {
         if (isRateLimitError(e)) break
