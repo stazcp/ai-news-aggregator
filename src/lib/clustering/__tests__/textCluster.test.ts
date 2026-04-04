@@ -4,6 +4,7 @@ import {
   mergeClustersByOverlap,
   mergeClustersByTitle,
   mergeClustersByEntity,
+  linkRelatedClusters,
   _testExports,
 } from '../textCluster'
 
@@ -417,5 +418,67 @@ describe('mergeClustersByEntity', () => {
     })
 
     expect(merged).toHaveLength(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// linkRelatedClusters
+// ---------------------------------------------------------------------------
+describe('linkRelatedClusters', () => {
+  // Build two clusters that share entities and have overlapping article content
+  // so they pass the coherence check, but use minCoherence=0 to avoid flakiness
+  // from TF-IDF scores varying with article content.
+  const iranArticles = [
+    makeArticle({ id: 'i1', title: 'Iran launches missile strikes against Israel targets' }),
+    makeArticle({ id: 'i2', title: 'Israel responds to Iran missile attack with airstrikes' }),
+    makeArticle({ id: 'i3', title: 'Iran Israel conflict escalates as US warns Iran' }),
+  ]
+  const iranArticles2 = [
+    makeArticle({ id: 'j1', title: 'Iran war updates as Israel prepares response' }),
+    makeArticle({ id: 'j2', title: 'US involvement in Iran Israel war grows' }),
+    makeArticle({ id: 'j3', title: 'Iran Israel ceasefire talks stall amid conflict' }),
+  ]
+  const articleMap = new Map([...iranArticles, ...iranArticles2].map((a) => [a.id, a]))
+
+  const clusterA = { ...makeCluster('Iran Israel Conflict', ['i1', 'i2', 'i3']), id: 'cluster-aaa' }
+  const clusterB = { ...makeCluster('Iran War Updates', ['j1', 'j2', 'j3']), id: 'cluster-bbb' }
+
+  it('links both clusters to each other (bidirectional)', () => {
+    const result = linkRelatedClusters([clusterA, clusterB], articleMap, {
+      minSharedEntities: 1,
+      minEntityLength: 4,
+      minCoherence: 0,
+    })
+
+    const a = result.find((c) => c.id === 'cluster-aaa')!
+    const b = result.find((c) => c.id === 'cluster-bbb')!
+
+    expect(a.relatedClusterIds).toContain('cluster-bbb')
+    expect(b.relatedClusterIds).toContain('cluster-aaa')
+  })
+
+  it('returns single cluster unchanged', () => {
+    const result = linkRelatedClusters([clusterA], articleMap)
+    expect(result[0].relatedClusterIds).toBeUndefined()
+  })
+
+  it('does not link clusters with too few shared entities', () => {
+    const unrelated = [
+      makeArticle({ id: 'u1', title: 'Stock market hits record high on earnings' }),
+      makeArticle({ id: 'u2', title: 'Wall Street gains as tech stocks surge' }),
+    ]
+    const unrelatedMap = new Map([...iranArticles, ...unrelated].map((a) => [a.id, a]))
+    const clusterC = { ...makeCluster('Stock Market Rally', ['u1', 'u2']), id: 'cluster-ccc' }
+
+    const result = linkRelatedClusters([clusterA, clusterC], unrelatedMap, {
+      minSharedEntities: 2,
+      minEntityLength: 4,
+      minCoherence: 0,
+    })
+
+    const a = result.find((c) => c.id === 'cluster-aaa')!
+    const c = result.find((c) => c.id === 'cluster-ccc')!
+    expect(a.relatedClusterIds).toBeUndefined()
+    expect(c.relatedClusterIds).toBeUndefined()
   })
 })

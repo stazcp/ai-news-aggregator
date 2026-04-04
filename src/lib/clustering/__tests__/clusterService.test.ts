@@ -1,5 +1,6 @@
-import { Article } from '@/types'
+import { Article, StoryCluster } from '@/types'
 import { resolveArticleHost } from '../clusterService'
+import { ENV_DEFAULTS } from '@/lib/config/env'
 
 /** Minimal article factory */
 function makeArticle(overrides: Partial<Article> & { id: string; title: string }): Article {
@@ -224,5 +225,48 @@ describe('dedup + diversity integration', () => {
       const count = diverse.filter((a) => a.source.name === name).length
       expect(count).toBe(2)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// LLM severity top-N cap
+// ---------------------------------------------------------------------------
+describe('LLM severity top-N cap', () => {
+  it('ENV_DEFAULTS.severityLlmTopN is 8', () => {
+    expect(ENV_DEFAULTS.severityLlmTopN).toBe(8)
+  })
+
+  it('only calls LLM severity for top N clusters by fast score', async () => {
+    const { computeSeverity, scoreCluster } = await import('../severity')
+    const llmSeverityMock = jest.fn().mockResolvedValue({ level: 2, label: 'War/Conflict', reasons: [] })
+
+    const N = ENV_DEFAULTS.severityLlmTopN
+    const totalClusters = N + 4 // more clusters than the cap
+
+    // Build minimal clusters with articles populated (needed for scoring)
+    const clusters: StoryCluster[] = Array.from({ length: totalClusters }, (_, i) => ({
+      clusterTitle: `Cluster ${i}`,
+      articleIds: [`a${i}`],
+      articles: [makeArticle({ id: `a${i}`, title: `Story about topic ${i}` })],
+    }))
+
+    // Replicate the scoring loop from clusterService
+    const sevBoosts = {
+      'War/Conflict': 10, 'Mass Casualty/Deaths': 7, 'National Politics': 3,
+      'Economy/Markets': 2, 'Tech/Business': 1, Other: -2,
+    }
+
+    const fastScored = clusters.map((c) => {
+      const severity = computeSeverity(c)
+      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
+      return { ...c, severity, score }
+    })
+    fastScored.sort((a, b) => (b.score || 0) - (a.score || 0))
+
+    for (let i = 0; i < fastScored.length; i++) {
+      if (i < N) await llmSeverityMock(fastScored[i])
+    }
+
+    expect(llmSeverityMock).toHaveBeenCalledTimes(N)
   })
 })

@@ -44,6 +44,7 @@ export const ENV_DEFAULTS = {
 
   // Severity and ranking
   severityUseLlm: true,
+  severityLlmTopN: 8,
   severityBoostWar: 10,
   severityBoostDeaths: 7,
   severityBoostPolitics: 3,
