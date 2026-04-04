@@ -304,7 +304,7 @@ ${JSON.stringify(articleSummaries)}
             },
             { role: 'user', content: prompt },
           ],
-          model: 'llama-3.3-70b-versatile',
+          model: 'llama-3.1-8b-instant',
           temperature: 0.1,
           response_format: { type: 'json_object' },
         })
@@ -325,7 +325,7 @@ ${JSON.stringify(articleSummaries)}
               { role: 'system', content: 'Output valid JSON only. No explanations.' },
               { role: 'user', content: strictPrompt },
             ],
-            model: 'llama-3.3-70b-versatile',
+            model: 'llama-3.1-8b-instant',
             temperature: 0,
             max_tokens: 800,
           })
@@ -433,7 +433,7 @@ ${JSON.stringify(brief)}
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         temperature: 0.1,
         response_format: { type: 'json_object' },
         max_tokens: 200,
