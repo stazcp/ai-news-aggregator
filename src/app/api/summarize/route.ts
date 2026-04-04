@@ -45,10 +45,8 @@ export async function POST(request: Request) {
         summary = await summarizeArticle(content)
       }
 
-      // Category digests are tied to the news data cycle (12h). Clusters cache for 2h,
-      // articles for 1h — both can be regenerated cheaply on demand.
-      const cacheTime =
-        summaryPurpose === 'category' ? getCacheTtl() : summaryPurpose === 'cluster' ? 7200 : 3600
+      // All summaries are tied to the news data cycle — no point caching shorter than the refresh interval
+      const cacheTime = getCacheTtl()
       await setCachedData(cacheKey, summary, cacheTime)
 
       console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)

@@ -11,7 +11,9 @@ import {
   mergeClustersByEntity,
   expandClusterMembership,
   buildTfIdf,
+  linkRelatedClusters,
 } from './textCluster'
+import { simpleHash } from '@/lib/utils'
 import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 
 /**
@@ -445,6 +447,17 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     }
     // Sort by score BEFORE doing any server-side summarization
     validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
+
+    // Assign stable IDs (hash of sorted articleIds)
+    validClusters = validClusters.map((c) => ({
+      ...c,
+      id: `cluster-${simpleHash([...c.articleIds].sort().join('|'))}`,
+    }))
+
+    // Link related clusters (same story, different angle) without merging
+    // Use the original full articleMap (all raw articles), not the diversity-filtered c.articles,
+    // so TF-IDF has full coverage and cross-cluster coherence scores are meaningful.
+    validClusters = linkRelatedClusters(validClusters, articleMap)
 
     // Summarize only top-N clusters to reduce Groq load; others lazy-load on client
     const SUM_TOP = envInt('CLUSTER_SUMMARIZE_TOP_N', ENV_DEFAULTS.clusterSummarizeTopN)

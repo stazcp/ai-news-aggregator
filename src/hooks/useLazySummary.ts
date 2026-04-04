@@ -5,6 +5,7 @@ import { useIntersectionObserver } from '@/hooks/useIntersectionObserver'
 import { StoryCluster } from '@/types'
 import { useQuery } from '@tanstack/react-query'
 import { getClusterSummaryId } from '@/lib/ai/summaryCache'
+import { ENV_DEFAULTS } from '@/lib/config/env'
 
 interface UseLazySummaryArgs {
   articleId?: string
@@ -144,8 +145,8 @@ export function useLazySummary({
     enabled: enabled,
     initialData:
       variant === 'cluster' && hasServerSummaryForVariant ? cleanedClusterSummary : undefined,
-    staleTime: variant === 'cluster' ? 7200_000 : 3600_000,
-    gcTime: variant === 'cluster' ? 7200_000 : 3600_000,
+    staleTime: ENV_DEFAULTS.cacheTtlSeconds * 1000,
+    gcTime: ENV_DEFAULTS.cacheTtlSeconds * 1000,
     queryFn: async () => {
       const payload =
         variant === 'cluster'
