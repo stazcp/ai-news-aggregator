@@ -48,7 +48,10 @@ function isRateLimitError(error: any): boolean {
     errorMessage.includes('429') ||
     errorCode === 'rate_limit_exceeded' ||
     error.status === 429 ||
-    errorMessage.includes('Rate limit reached')
+    errorMessage.includes('Rate limit reached') ||
+    // Groq returns 403 for spend limit exceeded (not auth failures, which also 403
+    // but include "invalid_api_key" in the error code)
+    (error.status === 403 && errorCode !== 'invalid_api_key')
   )
 }
 
