@@ -685,25 +685,29 @@ export function linkRelatedClusters(
     }
   }
 
-  // Group pairs by parent, sort by sim desc, cap at maxRelatedPerCluster
-  const byParent = new Map<number, Pair[]>()
+  // Group pairs by each cluster index (bidirectional), sort by sim desc, cap at maxRelatedPerCluster
+  const byCluster = new Map<number, Pair[]>()
   for (const p of pairs) {
-    const list = byParent.get(p.parentIdx) || []
-    list.push(p)
-    byParent.set(p.parentIdx, list)
+    const parentList = byCluster.get(p.parentIdx) || []
+    parentList.push(p)
+    byCluster.set(p.parentIdx, parentList)
+
+    const childList = byCluster.get(p.childIdx) || []
+    childList.push(p)
+    byCluster.set(p.childIdx, childList)
   }
 
   const result = clusters.map((c) => ({ ...c }))
-  for (const [parentIdx, pairList] of byParent) {
+  for (const [idx, pairList] of byCluster) {
     pairList.sort((a, b) => b.sim - a.sim)
-    const childIds = pairList
+    const relatedIds = pairList
       .slice(0, maxRelatedPerCluster)
-      .map((p) => clusters[p.childIdx].id)
+      .map((p) => clusters[p.parentIdx === idx ? p.childIdx : p.parentIdx].id)
       .filter(Boolean) as string[]
-    if (childIds.length > 0) {
-      result[parentIdx].relatedClusterIds = childIds
+    if (relatedIds.length > 0) {
+      result[idx].relatedClusterIds = relatedIds
       console.log(
-        `[linkRelatedClusters] "${clusters[parentIdx].clusterTitle}" → related: ${childIds.join(', ')}`
+        `[linkRelatedClusters] "${clusters[idx].clusterTitle}" → related: ${relatedIds.join(', ')}`
       )
     }
   }
