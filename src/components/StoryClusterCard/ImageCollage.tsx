@@ -118,13 +118,13 @@ const ImageCollage = ({
 
   // Client-side URL upscaling removed. We rely solely on server-side resolution in clusterService.
 
-  if (urls.length === 0) return null
-
   const autoRowHeight = useMemo(() => {
     if (urls.length <= 1) return 'minmax(clamp(12rem, 30vw, 18rem), 1fr)'
     if (urls.length === 2) return 'minmax(clamp(10rem, 26vw, 16rem), 1fr)'
     return 'minmax(clamp(8.5rem, 22vw, 14rem), 1fr)'
   }, [urls.length])
+
+  if (urls.length === 0) return null
 
   return (
     <div
