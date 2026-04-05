@@ -1,8 +1,7 @@
 import { Article, StoryCluster } from '@/types'
 import { inferImageDimsFromUrl } from '../images/imageProviders'
-import { clusterArticles, summarizeCluster, mergeClustersByLLM } from '../ai/groq'
+import { clusterArticles, summarizeCluster, mergeClustersByLLM, batchAssessSeverityLLM } from '../ai/groq'
 import { computeSeverity, scoreCluster } from './severity'
-import { assessClusterSeverityLLM } from '../ai/groq'
 import {
   preClusterArticles,
   mergeClustersByOverlap,
@@ -434,28 +433,44 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     const USE_LLM_SEVERITY = envBool('SEVERITY_USE_LLM', ENV_DEFAULTS.severityUseLlm)
     const LLM_SEVERITY_TOP_N = envInt('SEVERITY_LLM_TOP_N', ENV_DEFAULTS.severityLlmTopN)
 
-    // Fast-score all clusters first to find the top candidates for LLM severity
-    const fastScored = validClusters.map((c) => {
-      const severity = computeSeverity(c)
-      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
-      return { ...c, severity, score }
-    })
-    fastScored.sort((a, b) => (b.score || 0) - (a.score || 0))
+    // Step 1: fast category-based severity for all clusters
+    const withSeverity = validClusters.map((c) => ({
+      ...c,
+      severity: computeSeverity(c) as StoryCluster['severity'] & { ambiguous?: boolean },
+    }))
 
-    // Run LLM severity only on the top N clusters — accurate ranking where it matters
-    const computed: StoryCluster[] = []
-    for (let i = 0; i < fastScored.length; i++) {
-      const c = fastScored[i]
-      let severity = c.severity
-      if (USE_LLM_SEVERITY && i < LLM_SEVERITY_TOP_N) {
-        const llmSeverity = await assessClusterSeverityLLM(c)
-        if (llmSeverity && llmSeverity.level !== 0) severity = llmSeverity
+    // Step 2: fast-score for ranking
+    withSeverity.sort(
+      (a, b) =>
+        scoreCluster(b, { severityBoosts: sevBoosts }) -
+        scoreCluster(a, { severityBoosts: sevBoosts })
+    )
+
+    // Step 3: one batch LLM call for ambiguous clusters in top N
+    if (USE_LLM_SEVERITY) {
+      const topN = withSeverity.slice(0, LLM_SEVERITY_TOP_N)
+      const ambiguousInTopN = topN.filter((c) => c.severity?.ambiguous)
+      if (ambiguousInTopN.length > 0) {
+        console.log(`🔎 Batch LLM severity for ${ambiguousInTopN.length} ambiguous top clusters`)
+        const llmResults = await batchAssessSeverityLLM(ambiguousInTopN)
+        llmResults.forEach((llmSev, i) => {
+          if (llmSev) ambiguousInTopN[i].severity = llmSev
+        })
       }
-      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
-      computed.push({ ...c, severity, score })
     }
-    // Sort by score BEFORE doing any server-side summarization
-    validClusters = computed.sort((a, b) => (b.score || 0) - (a.score || 0))
+
+    // Step 4: final score with settled severities; strip internal ambiguous flag
+    validClusters = withSeverity
+      .map((c) => {
+        const { ambiguous: _drop, ...cleanSeverity } = (c.severity as any) ?? {}
+        const severity = cleanSeverity as StoryCluster['severity']
+        return {
+          ...c,
+          severity,
+          score: scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts }),
+        }
+      })
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
 
     // Assign stable IDs (hash of sorted articleIds)
     validClusters = validClusters.map((c) => ({
