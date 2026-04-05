@@ -107,7 +107,7 @@ export default function StoryClusterCard({
     variant: 'cluster',
     length: 'short',
     disabled: false,
-    eager: isFirst || !isExpanded,
+    eager: isFirst,
   })
 
   // Early return after all hooks
