@@ -419,15 +419,12 @@ export async function getStoryClusters(articles: Article[]): Promise<{
 
     // Compute severity and scores, then sort
     const sevBoosts = {
-      'War/Conflict': envNumber('SEVERITY_BOOST_WAR', ENV_DEFAULTS.severityBoostWar),
-      'Mass Casualty/Deaths': envNumber('SEVERITY_BOOST_DEATHS', ENV_DEFAULTS.severityBoostDeaths),
-      'National Politics': envNumber(
-        'SEVERITY_BOOST_POLITICS',
-        ENV_DEFAULTS.severityBoostPolitics
-      ),
-      'Economy/Markets': envNumber('SEVERITY_BOOST_ECONOMY', ENV_DEFAULTS.severityBoostEconomy),
-      'Tech/Business': envNumber('SEVERITY_BOOST_TECH', ENV_DEFAULTS.severityBoostTech),
-      Other: envNumber('SEVERITY_BOOST_OTHER', ENV_DEFAULTS.severityBoostOther),
+      'War/Conflict': envNumber('SEVERITY_MULT_WAR', ENV_DEFAULTS.severityMultWar),
+      'Mass Casualty/Deaths': envNumber('SEVERITY_MULT_DEATHS', ENV_DEFAULTS.severityMultDeaths),
+      'National Politics': envNumber('SEVERITY_MULT_POLITICS', ENV_DEFAULTS.severityMultPolitics),
+      'Economy/Markets': envNumber('SEVERITY_MULT_ECONOMY', ENV_DEFAULTS.severityMultEconomy),
+      'Tech/Business': envNumber('SEVERITY_MULT_TECH', ENV_DEFAULTS.severityMultTech),
+      Other: 1.0,
     }
 
     const USE_LLM_SEVERITY = envBool('SEVERITY_USE_LLM', ENV_DEFAULTS.severityUseLlm)
@@ -442,8 +439,8 @@ export async function getStoryClusters(articles: Article[]): Promise<{
     // Step 2: fast-score for ranking
     withSeverity.sort(
       (a, b) =>
-        scoreCluster(b, { severityBoosts: sevBoosts }) -
-        scoreCluster(a, { severityBoosts: sevBoosts })
+        scoreCluster(b, { severityMultipliers: sevBoosts }) -
+        scoreCluster(a, { severityMultipliers: sevBoosts })
     )
 
     // Step 3: one batch LLM call for ambiguous clusters in top N
@@ -467,7 +464,7 @@ export async function getStoryClusters(articles: Article[]): Promise<{
         return {
           ...c,
           severity,
-          score: scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts }),
+          score: scoreCluster({ ...c, severity }, { severityMultipliers: sevBoosts }),
         }
       })
       .sort((a, b) => (b.score || 0) - (a.score || 0))

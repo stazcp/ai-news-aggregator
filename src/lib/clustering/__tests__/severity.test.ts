@@ -101,10 +101,47 @@ describe('isAmbiguousCategory', () => {
 })
 
 describe('scoreCluster', () => {
-  it('returns higher score for clusters with known high-severity label', () => {
-    const warCluster = { ...makeCluster('Politics'), severity: { level: 5, label: 'War/Conflict', reasons: [] } }
-    const otherCluster = { ...makeCluster('Sports'), severity: { level: 0, label: 'Other', reasons: [] } }
+  it('war cluster beats same-size other cluster when both are fresh', () => {
+    const recentIso = new Date(Date.now() - 30 * 60 * 1000).toISOString() // 30 min ago
+    const makeRecent = (category: string, label: string, level: number) => ({
+      ...makeCluster(category),
+      articles: Array.from({ length: 3 }, (_, i) => ({
+        id: `x${i}`, title: `Article ${i}`, description: '', content: '',
+        url: `https://example.com/${i}`, urlToImage: '', publishedAt: recentIso,
+        source: { name: 'Test', url: 'https://example.com' }, category,
+      })),
+      severity: { level, label, reasons: [] as string[] },
+    })
+    const warCluster = makeRecent('World News', 'War/Conflict', 5)
+    const otherCluster = makeRecent('Sports', 'Other', 0)
     expect(scoreCluster(warCluster)).toBeGreaterThan(scoreCluster(otherCluster))
+  })
+
+  it('fresh story with many sources beats stale war story', () => {
+    const recentIso = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()  // 1h ago
+    const staleIso = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()  // 30h ago
+
+    const staleWar = {
+      clusterTitle: 'Old War',
+      articleIds: ['w1', 'w2', 'w3'],
+      severity: { level: 5, label: 'War/Conflict', reasons: [] },
+      articles: Array.from({ length: 3 }, (_, i) => ({
+        id: `w${i}`, title: `War article ${i}`, description: '', content: '',
+        url: `https://example.com/w${i}`, urlToImage: '', publishedAt: staleIso,
+        source: { name: 'Test', url: 'https://example.com' }, category: 'World News',
+      })),
+    }
+    const freshPolitics = {
+      clusterTitle: 'Breaking News',
+      articleIds: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'],
+      severity: { level: 3, label: 'National Politics', reasons: [] },
+      articles: Array.from({ length: 6 }, (_, i) => ({
+        id: `p${i}`, title: `Politics article ${i}`, description: '', content: '',
+        url: `https://example.com/p${i}`, urlToImage: '', publishedAt: recentIso,
+        source: { name: 'Test', url: 'https://example.com' }, category: 'Politics',
+      })),
+    }
+    expect(scoreCluster(freshPolitics)).toBeGreaterThan(scoreCluster(staleWar))
   })
 
   it('returns a number', () => {
