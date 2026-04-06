@@ -1,67 +1,59 @@
 import { StoryCluster } from '@/types'
 import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
+import rssConfig from '../news/rss-feeds.json'
 
-// Simple keyword-based severity model; optional LLM can replace/augment later.
-// Returns {level,label,reasons}. Higher level = higher severity.
+type CategoryMeta =
+  | { level: number; label: string }
+  | { ambiguous: true }
 
-const RULES: Array<{ label: string; level: number; patterns: RegExp[] }> = [
-  {
-    label: 'War/Conflict',
-    level: 5,
-    patterns: [
-      /war|invasion|missile|airstrike|shelling|artillery|frontline|offensive|counteroffensive/i,
-      /drone strike|ballistic|cruise missile|rocket attack/i,
-      /mobilization|troops|military escalation|ceasefire/i,
-    ],
-  },
-  {
-    label: 'Mass Casualty/Deaths',
-    level: 4,
-    patterns: [
-      /killed|dead|deaths|casualties|fatalities|mass shooting|stampede|crash|collapse/i,
-      /earthquake|hurricane|typhoon|wildfire|floods?|tsunami|landslide/i,
-      /outbreak|pandemic|epidemic/i,
-    ],
-  },
-  {
-    label: 'National Politics',
-    level: 3,
-    patterns: [/election|president|prime minister|parliament|congress|senate|cabinet|impeach/i],
-  },
-  {
-    label: 'Economy/Markets',
-    level: 2,
-    patterns: [/inflation|recession|gdp|unemployment|interest rate|market crash|bond yield/i],
-  },
-  {
-    label: 'Tech/Business',
-    level: 1,
-    patterns: [/iphone|launch|earnings|ipo|merger|acquisition|crypto|token|blockchain/i],
-  },
-]
+const CATEGORY_META: Record<string, CategoryMeta> =
+  (rssConfig as any).categoryMeta ?? {}
 
-function textFromCluster(c: StoryCluster): string {
-  const titles = [c.clusterTitle || '', ...(c.articles || []).map((a) => a.title || '')]
-  const briefs = (c.articles || []).map((a) => a.description || '').filter(Boolean)
-  return [...titles, ...briefs].join(' \n ')
-}
+/**
+ * Derive severity from the dominant feed category of the cluster's articles.
+ * Returns the mapped severity when the category is unambiguous, or level 0
+ * with ambiguous=true when the category needs LLM classification.
+ * Unknown categories (not in categoryMeta) are also treated as ambiguous.
+ */
+export function computeSeverity(c: StoryCluster): {
+  level: number
+  label: string
+  reasons: string[]
+  ambiguous: boolean
+} {
+  const articles = c.articles || []
 
-export function computeSeverity(c: StoryCluster): { level: number; label: string; reasons: string[] } {
-  const text = textFromCluster(c)
-  const reasons: string[] = []
-  let bestLevel = 0
-  let bestLabel = 'Other'
+  // Tally article categories to find dominant one
+  const counts = new Map<string, number>()
+  for (const a of articles) {
+    if (a.category) counts.set(a.category, (counts.get(a.category) || 0) + 1)
+  }
 
-  for (const rule of RULES) {
-    const matched = rule.patterns.some((re) => re.test(text))
-    if (matched && rule.level > bestLevel) {
-      bestLevel = rule.level
-      bestLabel = rule.label
-      reasons.push(rule.label)
+  let dominantCategory = ''
+  let maxCount = 0
+  for (const [cat, count] of counts) {
+    if (count > maxCount) {
+      maxCount = count
+      dominantCategory = cat
     }
   }
 
-  return { level: bestLevel, label: bestLabel, reasons }
+  const meta = dominantCategory ? CATEGORY_META[dominantCategory] : undefined
+
+  if (!meta || 'ambiguous' in meta) {
+    return { level: 0, label: 'Other', reasons: [], ambiguous: true }
+  }
+
+  return {
+    level: meta.level,
+    label: meta.label,
+    reasons: [dominantCategory],
+    ambiguous: false,
+  }
+}
+
+export function isAmbiguousCategory(c: StoryCluster): boolean {
+  return computeSeverity(c).ambiguous
 }
 
 export function scoreCluster(
@@ -70,21 +62,25 @@ export function scoreCluster(
     wArticles?: number
     wDomains?: number
     wImages?: number
-    wRecency?: number
-    severityBoosts?: Record<string, number>
+    wVelocity?: number
+    velocityWindowHours?: number
+    severityMultipliers?: Record<string, number>
   }
 ): number {
   const wArticles = options?.wArticles ?? envNumber('SCORE_W_ARTICLES', ENV_DEFAULTS.scoreWArticles)
   const wDomains = options?.wDomains ?? envNumber('SCORE_W_DOMAINS', ENV_DEFAULTS.scoreWDomains)
   const wImages = options?.wImages ?? envNumber('SCORE_W_IMAGES', ENV_DEFAULTS.scoreWImages)
-  const wRecency = options?.wRecency ?? envNumber('SCORE_W_RECENCY', ENV_DEFAULTS.scoreWRecency)
-  const severityBoosts = options?.severityBoosts ?? {
-    'War/Conflict': envNumber('SEVERITY_BOOST_WAR', ENV_DEFAULTS.severityBoostWar),
-    'Mass Casualty/Deaths': envNumber('SEVERITY_BOOST_DEATHS', ENV_DEFAULTS.severityBoostDeaths),
-    'National Politics': envNumber('SEVERITY_BOOST_POLITICS', ENV_DEFAULTS.severityBoostPolitics),
-    'Economy/Markets': envNumber('SEVERITY_BOOST_ECONOMY', ENV_DEFAULTS.severityBoostEconomy),
-    'Tech/Business': envNumber('SEVERITY_BOOST_TECH', ENV_DEFAULTS.severityBoostTech),
-    Other: envNumber('SEVERITY_BOOST_OTHER', ENV_DEFAULTS.severityBoostOther),
+  const wVelocity = options?.wVelocity ?? envNumber('SCORE_W_VELOCITY', ENV_DEFAULTS.scoreWVelocity)
+  const velocityWindowHours =
+    options?.velocityWindowHours ??
+    envNumber('SCORE_VELOCITY_WINDOW_HOURS', ENV_DEFAULTS.scoreVelocityWindowHours)
+  const severityMultipliers = options?.severityMultipliers ?? {
+    'War/Conflict': envNumber('SEVERITY_MULT_WAR', ENV_DEFAULTS.severityMultWar),
+    'Mass Casualty/Deaths': envNumber('SEVERITY_MULT_DEATHS', ENV_DEFAULTS.severityMultDeaths),
+    'National Politics': envNumber('SEVERITY_MULT_POLITICS', ENV_DEFAULTS.severityMultPolitics),
+    'Economy/Markets': envNumber('SEVERITY_MULT_ECONOMY', ENV_DEFAULTS.severityMultEconomy),
+    'Tech/Business': envNumber('SEVERITY_MULT_TECH', ENV_DEFAULTS.severityMultTech),
+    Other: 1.0,
   }
 
   const articles = c.articles || []
@@ -100,32 +96,34 @@ export function scoreCluster(
       })
       .filter(Boolean)
   ).size
+
   const images = (c.imageUrls || []).length
   const BONUS_GE2 = envNumber('SCORE_IMAGE_BONUS_GE2', ENV_DEFAULTS.scoreImageBonusGe2)
   const BONUS_GE1 = envNumber('SCORE_IMAGE_BONUS_GE1', ENV_DEFAULTS.scoreImageBonusGe1)
   const PENALTY_NONE = envNumber('SCORE_IMAGE_PENALTY_NONE', ENV_DEFAULTS.scoreImagePenaltyNone)
   const imageBonus = images >= 2 ? BONUS_GE2 : images >= 1 ? BONUS_GE1 : PENALTY_NONE
 
-  // Recency: boost clusters whose latest is within ~24h
-  let recency = 0
-  try {
-    const latest = Math.max(...articles.map((a) => new Date(a.publishedAt).getTime()))
-    const hours = Math.max(0, (Date.now() - latest) / 36e5)
-    recency = Math.exp(-hours / 24) // 1.0 at now, ~0.37 at 24h
-  } catch {
-    recency = 0
-  }
+  // Velocity: ratio of articles published within the window × log of their count
+  // High velocity = story is actively gaining coverage right now
+  const now = Date.now()
+  const windowMs = velocityWindowHours * 3.6e6
+  const recentCount = articles.filter((a) => {
+    try {
+      return now - new Date(a.publishedAt).getTime() <= windowMs
+    } catch {
+      return false
+    }
+  }).length
+  const velocity = n > 0 ? recentCount / n : 0
+  const hotBoost = velocity * Math.log(1 + recentCount)
 
-  const sizeScore = Math.log(1 + n) // diminishing returns
-  const domainScore = Math.log(1 + domains) // log-scaled: prevents large clusters dominating on raw volume
-  const imageScore = imageBonus
-  const recencyScore = recency
+  const base =
+    wArticles * Math.log(1 + n) +
+    wDomains * Math.log(1 + domains) +
+    wImages * imageBonus +
+    wVelocity * hotBoost
 
-  const base = wArticles * sizeScore + wDomains * domainScore + wImages * imageScore + wRecency * recencyScore
-
-  // Severity boost
-  const sev = c.severity?.label || 'Other'
-  const boost = severityBoosts[sev] ?? 0
-
-  return base + boost
+  // Severity nudges the outcome but cannot overpower a cold story
+  const multiplier = severityMultipliers[c.severity?.label || 'Other'] ?? 1.0
+  return base * multiplier
 }

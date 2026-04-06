@@ -251,14 +251,14 @@ describe('LLM severity top-N cap', () => {
     }))
 
     // Replicate the scoring loop from clusterService
-    const sevBoosts = {
-      'War/Conflict': 10, 'Mass Casualty/Deaths': 7, 'National Politics': 3,
-      'Economy/Markets': 2, 'Tech/Business': 1, Other: -2,
+    const sevMultipliers = {
+      'War/Conflict': 1.3, 'Mass Casualty/Deaths': 1.25, 'National Politics': 1.15,
+      'Economy/Markets': 1.1, 'Tech/Business': 1.05, Other: 1.0,
     }
 
     const fastScored = clusters.map((c) => {
       const severity = computeSeverity(c)
-      const score = scoreCluster({ ...c, severity }, { severityBoosts: sevBoosts })
+      const score = scoreCluster({ ...c, severity }, { severityMultipliers: sevMultipliers })
       return { ...c, severity, score }
     })
     fastScored.sort((a, b) => (b.score || 0) - (a.score || 0))

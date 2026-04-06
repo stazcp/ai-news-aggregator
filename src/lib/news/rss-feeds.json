@@ -1,4 +1,29 @@
 {
+  "categoryMeta": {
+    "Sports":        { "level": 0, "label": "Other" },
+    "Culture":       { "level": 0, "label": "Other" },
+    "Science":       { "level": 0, "label": "Other" },
+    "Health":        { "level": 0, "label": "Other" },
+    "Environment":   { "level": 0, "label": "Other" },
+    "Opinion":       { "level": 0, "label": "Other" },
+    "Fact-Check":    { "level": 0, "label": "Other" },
+    "Crypto":        { "level": 1, "label": "Tech/Business" },
+    "Technology":    { "level": 1, "label": "Tech/Business" },
+    "AI":            { "level": 1, "label": "Tech/Business" },
+    "Business":      { "level": 2, "label": "Economy/Markets" },
+    "Finance":       { "level": 2, "label": "Economy/Markets" },
+    "Politics":      { "level": 3, "label": "National Politics" },
+    "US Politics":   { "level": 3, "label": "National Politics" },
+    "US Legal":      { "level": 3, "label": "National Politics" },
+    "World News":    { "ambiguous": true },
+    "US News":       { "ambiguous": true },
+    "Middle East":   { "ambiguous": true },
+    "Africa":        { "ambiguous": true },
+    "Europe":        { "ambiguous": true },
+    "Latin America": { "ambiguous": true },
+    "Analysis":      { "ambiguous": true },
+    "Investigations":{ "ambiguous": true }
+  },
   "imageHostnames": {
     "cdnPatterns": [
       "ichef.bbci.co.uk",

@@ -405,6 +405,113 @@ ${JSON.stringify(articleSummaries)}
 }
 
 /**
+ * Assess severity for multiple clusters in a single LLM call.
+ * Only submits clusters not already in cache; caches each result individually.
+ * Returns an array aligned 1:1 with the input clusters array.
+ */
+export async function batchAssessSeverityLLM(
+  clusters: StoryCluster[]
+): Promise<Array<{ level: number; label: string; reasons: string[] } | null>> {
+  if (clusters.length === 0) return []
+
+  type SeverityResult = { level: number; label: string; reasons: string[] }
+  const results: Array<SeverityResult | null> = new Array(clusters.length).fill(null)
+  const uncachedIndices: number[] = []
+
+  // Check individual caches first
+  await Promise.all(
+    clusters.map(async (c, i) => {
+      const cacheKey = `sev-llm-${(c.articleIds || []).slice(0, 20).sort().join('-')}`
+      const cached = await getCachedData(cacheKey)
+      if (cached) {
+        results[i] = cached as SeverityResult
+      } else {
+        uncachedIndices.push(i)
+      }
+    })
+  )
+
+  if (uncachedIndices.length === 0) return results
+
+  const briefs = uncachedIndices.map((origIdx, localIdx) => {
+    const c = clusters[origIdx]
+    const arts = (c.articles || []).slice(0, 4)
+    return {
+      index: localIdx,
+      title: c.clusterTitle,
+      size: c.articles?.length || 0,
+      headlines: arts.map((a) => a.title).filter(Boolean),
+    }
+  })
+
+  const prompt = `You are rating the NEWS SEVERITY of multiple story clusters. Return ONLY JSON: {"results": [{"index": number, "level": 0-5, "label": string, "reasons": string[]}, ...]}.
+
+Guidelines:
+- 5 War/Conflict: active war, military strikes, widespread violence, military operations.
+- 4 Mass Casualty/Deaths: many killed, disasters, major outbreaks, mass casualty events.
+- 3 National Politics: policy decisions, elections, government appointments, official diplomacy. NOT personal lifestyle/family matters of officials — those are 0.
+- 2 Economy/Markets: financial crises, major trade policy, central bank decisions.
+- 1 Tech/Business: product launches, earnings, IPOs, significant corporate news.
+- 0 Other: lifestyle, entertainment, sports, personal stories, anything else.
+
+Be conservative: default to the lower level when uncertain. Include one reason per cluster.
+Clusters:
+${JSON.stringify(briefs)}`
+
+  try {
+    const completion = await groqCall('batchAssessSeverityLLM', () =>
+      groq.chat.completions.create({
+        messages: [
+          { role: 'system', content: 'Return valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        model: 'llama-3.1-8b-instant',
+        temperature: 0.1,
+        response_format: { type: 'json_object' },
+        max_tokens: 60 * uncachedIndices.length + 100,
+      })
+    )
+
+    const content = completion.choices[0]?.message?.content || '{}'
+    let obj: any
+    try {
+      obj = JSON.parse(content)
+    } catch {
+      const s = content.indexOf('{')
+      const e = content.lastIndexOf('}')
+      obj = s >= 0 && e > s ? JSON.parse(content.slice(s, e + 1)) : { results: [] }
+    }
+
+    const llmResults: any[] = Array.isArray(obj?.results) ? obj.results : []
+    // Build a localIdx → result map
+    const byLocalIdx = new Map<number, SeverityResult>()
+    for (const r of llmResults) {
+      if (typeof r?.index === 'number') {
+        byLocalIdx.set(r.index, {
+          level: Number(r.level) || 0,
+          label: typeof r.label === 'string' ? r.label : 'Other',
+          reasons: Array.isArray(r.reasons) ? r.reasons.slice(0, 4).map(String) : [],
+        })
+      }
+    }
+
+    // Write results back and cache each one
+    await Promise.all(
+      uncachedIndices.map(async (origIdx, localIdx) => {
+        const sev = byLocalIdx.get(localIdx) ?? { level: 0, label: 'Other', reasons: [] }
+        results[origIdx] = sev
+        const cacheKey = `sev-llm-${(clusters[origIdx].articleIds || []).slice(0, 20).sort().join('-')}`
+        await setCachedData(cacheKey, sev, 1800)
+      })
+    )
+  } catch (e) {
+    console.warn('batchAssessSeverityLLM failed; ambiguous clusters will stay as Other', e)
+  }
+
+  return results
+}
+
+/**
  * Assess cluster severity using the LLM.
  * Returns an object with {level 0-5, label, reasons[]} where higher is more severe.
  * Cached to limit cost.
