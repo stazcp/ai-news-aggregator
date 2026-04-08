@@ -14,7 +14,8 @@ import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 interface StoryClusterCardProps {
   cluster: StoryCluster
   relatedClusters?: StoryCluster[]
-  isFirst?: boolean // Indicates if this is the first story (above-the-fold)
+  isFirst?: boolean
+  isHighlighted?: boolean
   onExpansionChange?: (expanded: boolean) => void
   onRelatedClick?: (id: string) => void
 }
@@ -23,6 +24,7 @@ export default function StoryClusterCard({
   cluster,
   relatedClusters,
   isFirst = false,
+  isHighlighted = false,
   onExpansionChange,
   onRelatedClick,
 }: StoryClusterCardProps) {
@@ -176,10 +178,13 @@ export default function StoryClusterCard({
                 <button
                   key={i}
                   type="button"
+                  title={rc.clusterTitle}
                   onClick={() => rc.id && onRelatedClick?.(rc.id)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-muted/40 text-xs hover:bg-muted hover:border-accent/50 transition-colors cursor-pointer"
+                  className="group/pill inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/40 text-xs hover:bg-accent/10 hover:border-accent/60 hover:shadow-sm transition-all duration-200 cursor-pointer"
                 >
-                  <span className="truncate max-w-[180px]">{rc.clusterTitle}</span>
+                  <span className="truncate max-w-[240px] group-hover/pill:max-w-[400px] transition-all duration-200">
+                    {rc.clusterTitle}
+                  </span>
                   <span className="text-muted-foreground shrink-0">
                     · {rc.articles?.length ?? rc.articleIds.length}
                   </span>
@@ -243,7 +248,8 @@ export default function StoryClusterCard({
       <Card
         className={
           'relative h-full overflow-hidden border-border/60 shadow-sm transition-all duration-200 hover:border-border hover:shadow-md hover:ring-1 hover:ring-accent/30 ' +
-          (!isExpanded ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring' : '')
+          (!isExpanded ? 'group cursor-pointer focus-visible:ring-2 focus-visible:ring-ring ' : '') +
+          (isHighlighted ? 'ring-2 ring-accent/70 shadow-lg shadow-accent/10 animate-[highlight-pulse_2s_ease-out]' : '')
         }
         {...cardInteractiveProps}
       >

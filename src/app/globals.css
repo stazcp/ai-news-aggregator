@@ -184,3 +184,16 @@ body {
     transform: translateX(100%);
   }
 }
+
+/* Highlight pulse for related-coverage scroll target */
+@keyframes highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(156, 163, 175, 0.5);
+  }
+  30% {
+    box-shadow: 0 0 20px 4px rgba(156, 163, 175, 0.3);
+  }
+  100% {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+}

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import StoryClusterCard from './StoryClusterCard'
 import { StoryCluster } from '@/types'
 
@@ -14,9 +14,10 @@ interface NewsListProps {
 }
 
 export default function NewsList({ storyClusters }: NewsListProps) {
-  const [expandedClusters, setExpandedClusters] = useState<Set<number>>(new Set([0])) // First cluster starts expanded
+  const [expandedClusters, setExpandedClusters] = useState<Set<number>>(new Set([0]))
   const [showMoreStories, setShowMoreStories] = useState(false)
   const [pendingScrollId, setPendingScrollId] = useState<string | null>(null)
+  const [highlightedClusterId, setHighlightedClusterId] = useState<string | null>(null)
 
   const clusterMap = useMemo(
     () => new Map(storyClusters.filter((c) => c.id).map((c) => [c.id!, c])),
@@ -35,23 +36,32 @@ export default function NewsList({ storyClusters }: NewsListProps) {
     setPendingScrollId(null)
   }, [pendingScrollId, expandedClusters, showMoreStories])
 
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const handleRelatedClick = useCallback(
     (id: string) => {
       const idx = storyClusters.findIndex((c) => c.id === id)
       if (idx === -1) return
-      // Open "More Stories" section if the target lives there
       if (idx >= TOP_STORIES_COUNT) setShowMoreStories(true)
-      // Expand the target cluster
       setExpandedClusters((prev) => {
         const next = new Set(prev)
         next.add(idx)
         return next
       })
-      // Schedule scroll — fires after the batched render above commits
       setPendingScrollId(id)
+
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+      setHighlightedClusterId(id)
+      highlightTimerRef.current = setTimeout(() => setHighlightedClusterId(null), 2500)
     },
     [storyClusters]
   )
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current)
+    }
+  }, [])
 
   const handleClusterExpansion = useCallback((index: number, isExpanded: boolean) => {
     setExpandedClusters((prev) => {
@@ -117,6 +127,7 @@ export default function NewsList({ storyClusters }: NewsListProps) {
                   cluster={cluster}
                   relatedClusters={relatedClusters}
                   isFirst={index === 0}
+                  isHighlighted={highlightedClusterId === cluster.id}
                   onExpansionChange={(expanded) => handleClusterExpansion(index, expanded)}
                   onRelatedClick={handleRelatedClick}
                 />
@@ -165,6 +176,7 @@ export default function NewsList({ storyClusters }: NewsListProps) {
                       cluster={cluster}
                       relatedClusters={relatedClusters}
                       isFirst={false}
+                      isHighlighted={highlightedClusterId === cluster.id}
                       onExpansionChange={(expanded) => handleClusterExpansion(actualIndex, expanded)}
                       onRelatedClick={handleRelatedClick}
                     />
