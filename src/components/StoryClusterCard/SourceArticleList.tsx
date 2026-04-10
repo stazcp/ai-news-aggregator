@@ -50,10 +50,17 @@ interface SourceArticleListProps {
   articles: Article[]
   className?: string
   showHeader?: boolean
+  collapsible?: boolean
 }
 
-const SourceArticleList = ({ articles, className, showHeader = true }: SourceArticleListProps) => {
+const SourceArticleList = ({
+  articles,
+  className,
+  showHeader = true,
+  collapsible = false,
+}: SourceArticleListProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isRevealed, setIsRevealed] = useState(!collapsible)
   const sourceCount = articles.length
   if (!articles || articles.length === 0) {
     return null
@@ -64,32 +71,62 @@ const SourceArticleList = ({ articles, className, showHeader = true }: SourceArt
 
   return (
     <div className={containerClassName}>
-      {showHeader && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+      {collapsible && (
+        <div className="border-t border-border/60 pt-4">
+          <button
+            type="button"
+            onClick={() => setIsRevealed((v) => !v)}
+            aria-expanded={isRevealed}
+            className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-accent transition-colors cursor-pointer"
+          >
             Coverage from {sourceCount} sources
-            <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-          </span>
-          <span className="text-xs uppercase tracking-wide text-muted-foreground/70">Live updates</span>
+            <span className={`transition-transform ${isRevealed ? 'rotate-180' : ''}`} aria-hidden>
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </button>
         </div>
       )}
 
-      <div className="space-y-2">
-        {visibleArticles.map((article, index) => (
-          <SourceArticle key={article.id} article={article} index={index} />
-        ))}
-      </div>
+      {isRevealed && (
+        <>
+          {showHeader && !collapsible && (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+                Coverage from {sourceCount} sources
+                <span className="hidden sm:inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+              </span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground/70">Live updates</span>
+            </div>
+          )}
 
-      {articles.length > 4 && (
-        <div className="pt-2">
-          <Button
-            variant="outline"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full cursor-pointer"
-          >
-            {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
-          </Button>
-        </div>
+          <div className="space-y-2">
+            {visibleArticles.map((article, index) => (
+              <SourceArticle key={article.id} article={article} index={index} />
+            ))}
+          </div>
+
+          {articles.length > 4 && (
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full cursor-pointer"
+              >
+                {isExpanded ? 'Show Less' : `View ${articles.length - 4} More Sources`}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -2,13 +2,12 @@
 
 import React, { useState, useMemo } from 'react'
 import { StoryCluster } from '@/types'
-import ImageCollage from './ImageCollage'
-import ClusterSummary from '@/components/Summary/ClusterSummary'
-import SourceArticleList from './SourceArticleList'
+import ClusterExpandedContent from './ClusterExpandedContent'
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@/components/ui'
 import { Button } from '@/components/ui/button'
 import NextImage from 'next/image'
 import { useLazySummary } from '@/hooks/useLazySummary'
+import { formatPublishedLabel } from '@/lib/utils'
 import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 interface StoryClusterCardProps {
@@ -29,22 +28,12 @@ export default function StoryClusterCard({
   const articles = cluster.articles || []
   const sourceCount = articles.length
   const latestArticle = articles[0]
-  const [hasImages, setHasImages] = useState<boolean>((cluster?.imageUrls?.length || 0) > 0)
   const [isExpanded, setIsExpanded] = useState<boolean>(isFirst)
-  const [showSources, setShowSources] = useState<boolean>(false)
 
-  const publishedLabel = useMemo(() => {
-    try {
-      return new Date(latestArticle.publishedAt).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      })
-    } catch {
-      return ''
-    }
-  }, [latestArticle?.publishedAt])
+  const publishedLabel = useMemo(
+    () => formatPublishedLabel(latestArticle?.publishedAt),
+    [latestArticle?.publishedAt]
+  )
 
   const heroImage = useMemo(() => {
     const MIN_W = envNumber('NEXT_PUBLIC_MIN_IMAGE_WIDTH', ENV_DEFAULTS.nextPublicMinImageWidth)
@@ -151,72 +140,11 @@ export default function StoryClusterCard({
 
   const expandedContent = (
     <CardContent className="p-0">
-      <div className="flex flex-col gap-6 p-6">
-        <div
-          className={`grid gap-6 ${
-            hasImages
-              ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-stretch'
-              : ''
-          }`}
-        >
-          {hasImages && (
-            <ImageCollage cluster={cluster} onChangeCount={(count) => setHasImages(count > 0)} />
-          )}
-          <div className="flex flex-col gap-6 lg:h-full lg:justify-between">
-            <ClusterSummary cluster={cluster} eager />
-          </div>
-        </div>
-
-        {/* Related Coverage */}
-        {relatedClusters && relatedClusters.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-border/50">
-            <p className="text-xs text-muted-foreground mb-2">Related Coverage</p>
-            <div className="flex flex-wrap gap-2">
-              {relatedClusters.map((rc, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => rc.id && onRelatedClick?.(rc.id)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-muted/40 text-xs hover:bg-muted hover:border-accent/50 transition-colors cursor-pointer"
-                >
-                  <span className="truncate max-w-[180px]">{rc.clusterTitle}</span>
-                  <span className="text-muted-foreground shrink-0">
-                    · {rc.articles?.length ?? rc.articleIds.length}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Collapsible Sources */}
-        <div className="border-t border-border/60 pt-4">
-          <button
-            type="button"
-            onClick={() => setShowSources((v) => !v)}
-            aria-expanded={showSources}
-            className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-accent transition-colors cursor-pointer"
-          >
-            Coverage from {sourceCount} sources
-            <span className={`transition-transform ${showSources ? 'rotate-180' : ''}`} aria-hidden>
-              <svg
-                className="w-4 h-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </span>
-          </button>
-        </div>
-        {showSources && (
-          <SourceArticleList articles={articles} className="pt-2" showHeader={false} />
-        )}
-      </div>
+      <ClusterExpandedContent
+        cluster={cluster}
+        relatedClusters={relatedClusters}
+        onRelatedClick={onRelatedClick}
+      />
     </CardContent>
   )
 

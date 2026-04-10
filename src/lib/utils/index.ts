@@ -8,6 +8,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function formatPublishedLabel(dateString: string | undefined): string {
+  if (!dateString) return ''
+  try {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Simple hash function for generating deterministic IDs from strings
  * Uses bit shifting and character codes to create collision-resistant hashes
