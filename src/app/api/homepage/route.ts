@@ -2,15 +2,31 @@ import { NextResponse } from 'next/server'
 import { getCachedData } from '@/lib/cache'
 import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
 import { HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
+import { ENV_DEFAULTS, envString } from '@/lib/config/env'
 
 interface HomepageData extends BaseHomepageData {
   fromCache: boolean
   cacheAge?: number
 }
 
+type HomepageRefreshMode = 'cron-only' | 'request-refresh' | 'request-generate'
+
+function getHomepageRefreshMode(): HomepageRefreshMode {
+  const configured = envString('HOMEPAGE_REFRESH_MODE', ENV_DEFAULTS.homepageRefreshMode).trim()
+  if (
+    configured === 'cron-only' ||
+    configured === 'request-refresh' ||
+    configured === 'request-generate'
+  ) {
+    return configured
+  }
+  return 'cron-only'
+}
+
 export async function GET(): Promise<NextResponse<HomepageData | { error: string }>> {
   try {
     console.log('🏠 Homepage API called')
+    const refreshMode = getHomepageRefreshMode()
 
     // Try cached homepage result first (instant response)
     const cachedHomepage = await getCachedData('homepage-result')
@@ -24,8 +40,11 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       const cacheAgeMinutes = Math.floor(cacheAge / (1000 * 60))
       const sixHoursInMs = 6 * 60 * 60 * 1000
 
-      // Check if we should trigger background refresh
-      if (cacheAge > sixHoursInMs) {
+      // Optional escape hatch for environments that still want request-driven refreshes.
+      if (
+        (refreshMode === 'request-refresh' || refreshMode === 'request-generate') &&
+        cacheAge > sixHoursInMs
+      ) {
         console.log(`🔄 Triggering background refresh (cache is ${cacheAgeMinutes} minutes old)`)
         // Don't await - let this run in background
         refreshCacheInBackground().catch((error) => {
@@ -40,7 +59,7 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       })
     }
 
-    // No cache - this should be rare with fixed CACHE_PREFIX
+    // No cache - with cron-owned refreshes this means the cache has not been warmed yet
     console.warn('⚠️ Cache miss detected!')
 
     // Check if a refresh is already in progress
@@ -59,12 +78,21 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       )
     }
 
-    // No refresh in progress and no cache - this is the first request
-    // Allow blocking generation for initial seed (emergency fallback)
+    if (refreshMode !== 'request-generate') {
+      return NextResponse.json(
+        {
+          error:
+            `Homepage cache is not ready yet. Current homepage refresh mode is "${refreshMode}".`,
+        },
+        { status: 503, headers: { 'Retry-After': '60' } }
+      )
+    }
+
+    // Escape hatch for environments that still want a blocking first-generation path.
     console.warn(
       '🚨 No cache and no refresh in progress - generating initial data (this may take 30-60s)'
     )
-    console.warn('📋 This should only happen once. If frequent, check CACHE_PREFIX configuration.')
+    console.warn('📋 This should only happen when HOMEPAGE_REFRESH_MODE=request-generate.')
 
     try {
       const { generateFreshHomepage } = await import('@/lib/homepage/homepageGenerator')

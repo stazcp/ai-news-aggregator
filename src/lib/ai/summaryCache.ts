@@ -2,6 +2,12 @@ import { StoryCluster } from '@/types'
 
 export type SummaryPurpose = 'article' | 'cluster' | 'category'
 
+const NON_CACHEABLE_SUMMARY_VALUES = new Set([
+  'summary not available',
+  'summary could not be generated.',
+  'an error occurred while generating the cluster summary.',
+])
+
 /**
  * Create a consistent cache key for AI summaries regardless of the caller.
  */
@@ -23,4 +29,11 @@ export function getClusterSummaryId(cluster: StoryCluster): string {
     : (cluster.articles || []).map((a) => a.id)
   const key = ids.filter(Boolean).sort().join('-')
   return key ? `cluster-${key}` : `cluster-${(cluster.clusterTitle || 'unknown').trim()}`
+}
+
+export function shouldPersistSummaryToCache(summary: string | null | undefined): summary is string {
+  if (typeof summary !== 'string') return false
+  const normalized = summary.trim().toLowerCase()
+  if (!normalized) return false
+  return !NON_CACHEABLE_SUMMARY_VALUES.has(normalized)
 }

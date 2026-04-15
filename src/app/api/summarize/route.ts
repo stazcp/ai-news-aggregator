@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
-import { getSummaryCacheKey } from '@/lib/ai/summaryCache'
+import { getSummaryCacheKey, shouldPersistSummaryToCache } from '@/lib/ai/summaryCache'
 import { getCacheTtl } from '@/lib/utils'
 
 export async function POST(request: Request) {
@@ -46,10 +46,13 @@ export async function POST(request: Request) {
       }
 
       // All summaries are tied to the news data cycle — no point caching shorter than the refresh interval
-      const cacheTime = getCacheTtl()
-      await setCachedData(cacheKey, summary, cacheTime)
-
-      console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)
+      if (shouldPersistSummaryToCache(summary)) {
+        const cacheTime = getCacheTtl()
+        await setCachedData(cacheKey, summary, cacheTime)
+        console.log(`✅ [AI Generated] ${summaryType} summary cached for: ${articleId}`)
+      } else {
+        console.warn(`⚠️ [AI Generated] Skipping cache for non-cacheable ${summaryType} summary`)
+      }
     } else {
       console.log(`🔄 [Cache Hit] Using cached ${summaryType} summary for: ${articleId}`)
     }
