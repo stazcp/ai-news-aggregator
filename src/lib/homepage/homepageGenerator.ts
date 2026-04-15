@@ -3,7 +3,12 @@ import { getStoryClusters, getUnclusteredArticles } from '../clustering/clusterS
 import { setCachedData, getCachedData } from '../cache'
 import { TOPIC_KEYWORDS } from '../topics'
 import { summarizeArticle, summarizeCluster } from '../ai/groq'
-import { getSummaryCacheKey, SummaryPurpose, getClusterSummaryId } from '../ai/summaryCache'
+import {
+  getSummaryCacheKey,
+  SummaryPurpose,
+  getClusterSummaryId,
+  shouldPersistSummaryToCache,
+} from '../ai/summaryCache'
 import { StoryCluster, Article } from '@/types'
 import { getCacheTtl } from '../utils'
 
@@ -147,6 +152,11 @@ async function generateAndCacheSummary(
       summary = await summarizeArticle(content)
     } else {
       throw new Error('Invalid content type for summary generation')
+    }
+
+    if (!shouldPersistSummaryToCache(summary)) {
+      console.warn(`⚠️ Skipping cache for non-cacheable summary: ${articleId}`)
+      return
     }
 
     const cacheTtl = getCacheTtl()
