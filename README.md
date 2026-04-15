@@ -123,6 +123,11 @@ GROQ_API_KEY=your_groq_api_key_here
 UPSTASH_REDIS_REST_URL=your_upstash_url
 UPSTASH_REDIS_REST_TOKEN=your_upstash_token
 
+# Optional: additional cache namespaces to try on reads before treating a key as a miss.
+# Useful in local development to reuse the production-warmed homepage cache without
+# writing local changes into the production namespace.
+CACHE_READ_FALLBACK_PREFIXES=prod:
+
 # Optional: secure full-cache clear endpoints
 CACHE_CLEAR_TOKEN=your_cache_clear_token
 
@@ -151,6 +156,12 @@ SEVERITY_BOOST_TECH=1              # Boost for tech stories
 # Optional: Performance tuning
 CLUSTER_DIAGNOSTICS=true           # Enable clustering diagnostics
 ```
+
+Homepage generation is controlled by `HOMEPAGE_REFRESH_MODE`:
+
+- `cron-only` (default): `/api/homepage` only serves cached data.
+- `request-refresh`: stale cached data can trigger a background refresh on request.
+- `request-generate`: request traffic may refresh stale cache and generate data on cache miss.
 
 4. **Run the development server**
 

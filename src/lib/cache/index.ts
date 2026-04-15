@@ -1,7 +1,7 @@
 // Shared cache adapter: prefers Upstash Redis (@upstash/redis) if configured,
 // otherwise uses in-memory Map. This preserves the same API across the app.
 import { Redis } from '@upstash/redis'
-import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
+import { ENV_DEFAULTS, envBool, envString } from '@/lib/config/env'
 
 // Allow forcing Redis off via env for local testing
 const DISABLE_REDIS = envBool('CACHE_DISABLE_REDIS', ENV_DEFAULTS.cacheDisableRedis)
@@ -60,21 +60,36 @@ const getCachePrefix = () => {
 }
 
 // Helper to add prefix to keys
-const prefixKey = (key: string) => `${getCachePrefix()}${key}`
+const prefixKey = (key: string, prefix = getCachePrefix()) => `${prefix}${key}`
+
+const getCacheReadPrefixes = (): string[] => {
+  const primary = getCachePrefix()
+  const fallbacks = envString(
+    'CACHE_READ_FALLBACK_PREFIXES',
+    ENV_DEFAULTS.cacheReadFallbackPrefixes
+  )
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  return Array.from(new Set([primary, ...fallbacks]))
+}
 
 export async function getCachedData(key: string): Promise<any> {
-  const prefixedKey = prefixKey(key)
-
   // Redis first (cross-instance)
   if (redis) {
-    try {
-      const value = await redis.get(prefixedKey)
-      if (value !== null && value !== undefined) return value
-    } catch {}
+    for (const prefix of getCacheReadPrefixes()) {
+      try {
+        const value = await redis.get(prefixKey(key, prefix))
+        if (value !== null && value !== undefined) return value
+      } catch {}
+    }
   }
   // Memory cache fallback (per instance)
-  const cached = memoryCache.get(prefixedKey)
-  if (cached && cached.expires > Date.now()) return cached.data
+  for (const prefix of getCacheReadPrefixes()) {
+    const cached = memoryCache.get(prefixKey(key, prefix))
+    if (cached && cached.expires > Date.now()) return cached.data
+  }
   return null
 }
 

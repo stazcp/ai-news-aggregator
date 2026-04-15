@@ -2,7 +2,9 @@ export const ENV_DEFAULTS = {
   // Cache
   cacheDisableRedis: false,
   cacheTtlSeconds: 43200,
+  cacheReadFallbackPrefixes: '',
   allowLocalBackgroundRefresh: false,
+  homepageRefreshMode: 'cron-only',
 
   // Groq
   groqMaxConcurrency: 2,
