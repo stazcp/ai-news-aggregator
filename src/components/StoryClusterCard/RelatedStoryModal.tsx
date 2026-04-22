@@ -67,10 +67,10 @@ export default function RelatedStoryModal({
     >
       <div
         ref={contentRef}
-        className="relative mx-auto my-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-y-auto rounded-2xl border border-border/60 bg-card text-foreground shadow-2xl sm:my-8 sm:max-h-[calc(100dvh-4rem)]"
+        className="relative mx-auto my-3 flex max-h-[calc(100dvh-1.5rem)] w-[min(98vw,92rem)] flex-col overflow-y-auto rounded-2xl border border-border/60 bg-card text-foreground shadow-2xl sm:my-6 sm:max-h-[calc(100dvh-3rem)]"
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 border-b border-border/60 bg-muted/40 backdrop-blur px-6 py-5">
+        <div className="sticky top-0 z-10 border-b border-border/60 bg-muted/55 px-5 py-4 backdrop-blur sm:px-7 sm:py-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-3">
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -111,6 +111,7 @@ export default function RelatedStoryModal({
           cluster={cluster}
           relatedClusters={relatedClusters}
           onRelatedClick={onRelatedClick}
+          variant="modal"
         />
       </div>
     </dialog>
