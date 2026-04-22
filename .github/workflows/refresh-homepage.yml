@@ -6,8 +6,12 @@ on:
     - cron: '0 18 * * *' # 6 PM UTC - Evening news cycle (US East Coast 2 PM, West Coast 11 AM)
   workflow_dispatch:
 
+env:
+  PROJECT_PAUSED: '1'
+
 jobs:
   refresh:
+    if: ${{ env.PROJECT_PAUSED != '1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

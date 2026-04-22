@@ -6,6 +6,7 @@ import {
   enrichClustersWithSummaries,
 } from './homepageGenerator'
 import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 interface RefreshProgress {
   stage: string
@@ -16,6 +17,11 @@ interface RefreshProgress {
 }
 
 export async function refreshCacheInBackground(): Promise<void> {
+  if (isProjectPaused()) {
+    console.log('⏸️ Background refresh skipped because the project is paused')
+    return
+  }
+
   // Skip background refresh in local development unless explicitly enabled
   const ALLOW_LOCAL = envBool(
     'ALLOW_LOCAL_BACKGROUND_REFRESH',

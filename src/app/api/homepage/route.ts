@@ -3,6 +3,7 @@ import { getCachedData } from '@/lib/cache'
 import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
 import { HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
 import { ENV_DEFAULTS, envString } from '@/lib/config/env'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 interface HomepageData extends BaseHomepageData {
   fromCache: boolean
@@ -24,29 +25,32 @@ function getHomepageRefreshMode(): HomepageRefreshMode {
 }
 
 export async function GET(): Promise<NextResponse<HomepageData | { error: string }>> {
+  if (isProjectPaused()) {
+    return NextResponse.json(
+      { error: 'Project paused. Live homepage generation has been disabled.' },
+      { status: 410 }
+    )
+  }
+
   try {
     console.log('🏠 Homepage API called')
     const refreshMode = getHomepageRefreshMode()
 
-    // Try cached homepage result first (instant response)
     const cachedHomepage = await getCachedData('homepage-result')
 
     if (cachedHomepage) {
       console.log('⚡ Serving cached homepage data')
 
-      // Calculate cache age
       const lastUpdate = cachedHomepage.lastUpdated
       const cacheAge = lastUpdate ? Date.now() - new Date(lastUpdate).getTime() : Infinity
       const cacheAgeMinutes = Math.floor(cacheAge / (1000 * 60))
       const sixHoursInMs = 6 * 60 * 60 * 1000
 
-      // Optional escape hatch for environments that still want request-driven refreshes.
       if (
         (refreshMode === 'request-refresh' || refreshMode === 'request-generate') &&
         cacheAge > sixHoursInMs
       ) {
         console.log(`🔄 Triggering background refresh (cache is ${cacheAgeMinutes} minutes old)`)
-        // Don't await - let this run in background
         refreshCacheInBackground().catch((error) => {
           console.error('Background refresh failed:', error)
         })
@@ -59,14 +63,11 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       })
     }
 
-    // No cache - with cron-owned refreshes this means the cache has not been warmed yet
     console.warn('⚠️ Cache miss detected!')
 
-    // Check if a refresh is already in progress
     const refreshInProgress = await getCachedData('refresh-in-progress')
 
     if (refreshInProgress) {
-      // Refresh already in progress - return 503 and let client retry
       console.log('⏳ Refresh already in progress, returning 503')
       return NextResponse.json(
         {
@@ -88,7 +89,6 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       )
     }
 
-    // Escape hatch for environments that still want a blocking first-generation path.
     console.warn(
       '🚨 No cache and no refresh in progress - generating initial data (this may take 30-60s)'
     )
@@ -104,7 +104,6 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
       })
     } catch (genError) {
       console.error('❌ Failed to generate initial data:', genError)
-      // Trigger background refresh for next time
       refreshCacheInBackground().catch(console.error)
       throw genError
     }

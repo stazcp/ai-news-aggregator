@@ -3,8 +3,16 @@ import { getCachedData, setCachedData } from '@/lib/cache'
 import { summarizeArticle, summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
 import { getSummaryCacheKey, shouldPersistSummaryToCache } from '@/lib/ai/summaryCache'
 import { getCacheTtl } from '@/lib/utils'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 export async function POST(request: Request) {
+  if (isProjectPaused()) {
+    return NextResponse.json(
+      { error: 'Project paused. AI summarization has been disabled.' },
+      { status: 410 }
+    )
+  }
+
   try {
     const { articleId, content, isCluster, clusterTitle, purpose, length } = await request.json()
 
@@ -24,13 +32,11 @@ export async function POST(request: Request) {
     )
     const summaryType = summaryPurpose
 
-    // Log AI resource usage for optimization tracking
     console.log(`🤖 [AI Summary Request] Type: ${summaryType}, ID: ${articleId}`)
     if (isCluster) {
       console.log(`📊 [Cluster Summary] Title: ${clusterTitle}`)
     }
 
-    // Check cache first
     let summary = await getCachedData(cacheKey)
 
     if (!summary) {
@@ -41,11 +47,9 @@ export async function POST(request: Request) {
       } else if (summaryPurpose === 'category') {
         summary = await summarizeCategoryDigest(content)
       } else {
-        // Regular article summary
         summary = await summarizeArticle(content)
       }
 
-      // All summaries are tied to the news data cycle — no point caching shorter than the refresh interval
       if (shouldPersistSummaryToCache(summary)) {
         const cacheTime = getCacheTtl()
         await setCachedData(cacheKey, summary, cacheTime)

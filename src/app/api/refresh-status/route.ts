@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getRefreshStatus } from '@/lib/homepage/backgroundRefresh'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 interface RefreshStatusResponse {
   status: 'idle' | 'refreshing' | 'error'
@@ -12,6 +13,18 @@ interface RefreshStatusResponse {
 }
 
 export async function GET(): Promise<NextResponse<RefreshStatusResponse>> {
+  if (isProjectPaused()) {
+    return NextResponse.json({
+      status: 'idle',
+      stage: 'Project paused',
+      progress: 100,
+      lastUpdate: null,
+      timestamp: Date.now(),
+      cacheAge: undefined,
+      justCompleted: false,
+    })
+  }
+
   try {
     const refreshData = await getRefreshStatus()
 
@@ -25,7 +38,6 @@ export async function GET(): Promise<NextResponse<RefreshStatusResponse>> {
       })
     }
 
-    // Determine status based on the stage
     let status: 'idle' | 'refreshing' | 'error' = 'idle'
     let justCompleted = false
 
@@ -40,10 +52,9 @@ export async function GET(): Promise<NextResponse<RefreshStatusResponse>> {
       status = 'refreshing'
     }
 
-    // Calculate cache age if we have a start time
     let cacheAge: number | undefined
     if (refreshData.startTime && status === 'idle') {
-      cacheAge = Math.floor((Date.now() - refreshData.startTime) / (1000 * 60)) // minutes
+      cacheAge = Math.floor((Date.now() - refreshData.startTime) / (1000 * 60))
     }
 
     const response: RefreshStatusResponse = {
