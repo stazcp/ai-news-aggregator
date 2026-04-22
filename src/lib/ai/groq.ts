@@ -218,7 +218,24 @@ export async function summarizeCategoryDigest(content: string): Promise<string> 
     ENV_DEFAULTS.summaryFallbackOnLimit
   )
 
-  const prompt = `You are an experienced news editor. Write the tightest possible digest that still captures every major development across these topic highlights — typically two to three sentences, never more than four even if there is a lot happening. Compress hard: one strong sentence per story thread, no filler, no source callouts, no bullet lists. Here are the notes to synthesize:\n\n${content}`
+  const prompt = `You are writing a compact "what matters today" digest for someone who can already see the cluster titles below it.
+Your job is not to recap each cluster. Your job is to answer: what 2-3 forces define the day, and why do they matter?
+
+Return ONLY valid JSON with this shape:
+{"lede": string, "takeaways": string[]}
+
+Rules:
+- Lede: one sentence, 14-22 words.
+- Takeaways: 2-3 items, each one sentence, 10-18 words.
+- Focus on the biggest themes across the top clusters and why the day matters.
+- Add value through synthesis, prioritization, momentum, implications, or what changed.
+- Do NOT restate every cluster title or rewrite the visible headlines.
+- Do NOT mention more than three story threads total.
+- Skip low-signal side stories if they do not shape the day.
+- No source callouts, no markdown, no bullets inside strings, no filler.
+
+Cluster notes:
+${content}`
 
   try {
     const completion = await groqCall('summarizeCategory', () =>
@@ -226,17 +243,20 @@ export async function summarizeCategoryDigest(content: string): Promise<string> 
         messages: [
           {
             role: 'system',
-            content: 'You are a concise but thorough news editor who writes balanced digests.',
+            content:
+              'You are a concise senior news editor. Return valid JSON only. Optimize for synthesis, selectivity, and signal over repetition.',
           },
           { role: 'user', content: prompt },
         ],
         model: 'llama-3.3-70b-versatile',
-        temperature: 0.35,
-        max_tokens: 280,
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        max_tokens: 170,
       })
     )
 
-    return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
+    const content = completion.choices[0]?.message?.content?.trim()
+    return content || 'Summary not available'
   } catch (error) {
     if (isRateLimitError(error)) {
       console.warn('⚠️ Rate/Spend limit during category summarization')

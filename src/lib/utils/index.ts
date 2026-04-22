@@ -122,6 +122,45 @@ export interface CategorySummaryPayload {
   articleCount: number
 }
 
+export interface CategoryDigest {
+  lede: string
+  takeaways: string[]
+}
+
+export function parseCategoryDigestSummary(summary: string | undefined): CategoryDigest {
+  const normalized = (summary || '').trim()
+  if (!normalized) return { lede: '', takeaways: [] }
+
+  try {
+    const parsed = JSON.parse(normalized)
+    if (parsed && typeof parsed === 'object') {
+      const lede = typeof parsed.lede === 'string' ? parsed.lede.trim() : ''
+      const takeaways = Array.isArray(parsed.takeaways)
+        ? parsed.takeaways
+            .map((item: unknown) => (typeof item === 'string' ? item.trim() : ''))
+            .filter(Boolean)
+            .slice(0, 3)
+        : []
+      if (lede || takeaways.length) {
+        return { lede, takeaways }
+      }
+    }
+  } catch {}
+
+  const sentences = normalized
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+
+  if (sentences.length === 0) return { lede: normalized, takeaways: [] }
+
+  return {
+    lede: sentences[0],
+    takeaways: sentences.slice(1, 3),
+  }
+}
+
 /**
  * Build a normalized payload for category-level summaries using top clusters and headlines.
  */
@@ -166,21 +205,26 @@ export function buildCategorySummaryPayload(
   topClusters.forEach((cluster, index) => {
     const lines: string[] = []
     lines.push(`${index + 1}. ${cluster.clusterTitle}`)
+    lines.push(`Articles: ${(cluster.articles || []).length}`)
+    if (cluster.severity?.label && cluster.severity.label !== 'Other') {
+      lines.push(`Weight: ${cluster.severity.label}`)
+    }
 
     const articles = (cluster.articles || []).slice(0, Math.max(1, maxArticlesPerCluster))
-    articles.forEach((article) => {
-      addArticle(article)
-      const snippet = truncate(
-        sanitize(article.description || article.content || '', 'No description provided.'),
-        220
-      )
-      const source = article.source?.name ? ` (${article.source.name})` : ''
-      lines.push(`- ${article.title}${source}: ${snippet}`)
-    })
+    articles.forEach((article) => addArticle(article))
 
-    if (cluster.summary) {
-      lines.push(`Summary cue: ${truncate(sanitize(cluster.summary), 280)}`)
-    }
+    const cue = cluster.summary
+      ? truncate(sanitize(cluster.summary), 240)
+      : truncate(
+          articles
+            .map((article) => sanitize(article.title))
+            .filter(Boolean)
+            .slice(0, 2)
+            .join(' | '),
+          200
+        )
+
+    if (cue) lines.push(`Cue: ${cue}`)
 
     clusterSections.push(lines.join('\n'))
   })
@@ -205,7 +249,10 @@ export function buildCategorySummaryPayload(
   sections.push(`Topic: ${topicLabel}`)
 
   if (clusterSections.length) {
-    sections.push('Top story groups:\n' + clusterSections.join('\n\n'))
+    sections.push(
+      'Top clusters (use these to infer the dominant day-level themes, not to restate each headline):\n' +
+        clusterSections.join('\n\n')
+    )
   }
 
   if (standaloneLines.length) {
