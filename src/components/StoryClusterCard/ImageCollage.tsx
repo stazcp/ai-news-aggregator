@@ -8,9 +8,11 @@ import { ENV_DEFAULTS, envNumber } from '@/lib/config/env'
 
 const ImageCollage = ({
   cluster,
+  variant = 'card',
   onChangeCount,
 }: {
   cluster: StoryCluster
+  variant?: 'card' | 'modal'
   onChangeCount?: (count: number) => void
 }) => {
   // Build quick lookup from URL -> article
@@ -119,16 +121,24 @@ const ImageCollage = ({
   // Client-side URL upscaling removed. We rely solely on server-side resolution in clusterService.
 
   const autoRowHeight = useMemo(() => {
-    if (urls.length <= 1) return 'minmax(clamp(12rem, 30vw, 18rem), 1fr)'
-    if (urls.length === 2) return 'minmax(clamp(10rem, 26vw, 16rem), 1fr)'
-    return 'minmax(clamp(8.5rem, 22vw, 14rem), 1fr)'
-  }, [urls.length])
+    if (variant === 'modal') {
+      if (urls.length <= 1) return 'minmax(clamp(14rem, 24vw, 22rem), 1fr)'
+      if (urls.length === 2) return 'minmax(clamp(11rem, 18vw, 16rem), 1fr)'
+      return 'minmax(clamp(9.5rem, 15vw, 13rem), 1fr)'
+    }
+
+    if (urls.length <= 1) return 'minmax(clamp(12rem, 24vw, 18rem), 1fr)'
+    if (urls.length === 2) return 'minmax(clamp(9.5rem, 18vw, 14rem), 1fr)'
+    return 'minmax(clamp(8rem, 14vw, 11rem), 1fr)'
+  }, [urls.length, variant])
 
   if (urls.length === 0) return null
 
   return (
     <div
-      className="grid grid-cols-2 gap-2 overflow-hidden rounded-xl "
+      className={`grid grid-cols-2 gap-2 overflow-hidden rounded-xl ${
+        variant === 'modal' ? 'xl:sticky xl:top-24' : ''
+      }`}
       style={{ gridAutoRows: autoRowHeight }}
     >
       {urls.map((url, index) => {
