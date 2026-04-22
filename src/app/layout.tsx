@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import QueryProvider from '@/components/QueryProvider'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { Analytics } from '@vercel/analytics/next'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -25,6 +26,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const paused = isProjectPaused()
+
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
@@ -33,8 +36,8 @@ export default function RootLayout({
             {children}
           </TooltipProvider>
         </QueryProvider>
-        <Analytics />
       </body>
+      {!paused && <Analytics />}
     </html>
   )
 }

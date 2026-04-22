@@ -1,7 +1,14 @@
 import 'tsconfig-paths/register'
-import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 async function main(): Promise<void> {
+  if (isProjectPaused()) {
+    console.log('Project paused. Homepage refresh CLI exited without running.')
+    return
+  }
+
+  const { refreshCacheInBackground } = await import('@/lib/homepage/backgroundRefresh')
+
   console.log('🚀 Starting homepage cache refresh (CLI)')
   const start = Date.now()
 

@@ -2,8 +2,16 @@ import { NextResponse } from 'next/server'
 import { fetchAllNews } from '@/lib/news/newsService'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { Article } from '@/types'
+import { isProjectPaused } from '@/lib/config/projectState'
 
 export async function GET(request: Request) {
+  if (isProjectPaused()) {
+    return NextResponse.json(
+      { error: 'Project paused. News ingestion has been disabled.' },
+      { status: 410 }
+    )
+  }
+
   const { searchParams } = new URL(request.url)
   const category = searchParams.get('category')
   const page = parseInt(searchParams.get('page') || '1')
@@ -11,14 +19,12 @@ export async function GET(request: Request) {
 
   const cacheKey = `news=${category || 'all'}-${page}-${limit}`
 
-  // Try cache first
   let articles: Article[] = await getCachedData(cacheKey)
   if (!articles) {
     articles = await fetchAllNews()
-    await setCachedData(cacheKey, articles, 300) // 5 min cache
+    await setCachedData(cacheKey, articles, 300)
   }
 
-  // Filter and paginate
   const filtered = category ? articles.filter((article) => article.category === category) : articles
 
   const startIndex = (page - 1) * limit

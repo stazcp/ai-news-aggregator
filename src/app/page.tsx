@@ -4,21 +4,45 @@ import { HomepageData } from '@/hooks/useHomepageData'
 import { NewsListSkeleton } from '@/components/ui/Skeleton'
 import HomeLayout from '@/components/HomePage/HomeLayout'
 import { Suspense } from 'react'
+import { isProjectPaused } from '@/lib/config/projectState'
 
-export const revalidate = 0 // Disable static generation, always run server-side
+export const revalidate = 0
 
 export default async function Home({
   searchParams,
 }: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  void searchParams
+
+  if (isProjectPaused()) {
+    return (
+      <main className="min-h-screen bg-stone-950 text-stone-100">
+        <div className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-20">
+          <p className="mb-4 text-sm uppercase tracking-[0.3em] text-stone-400">Project Paused</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            AI News Aggregator is offline.
+          </h1>
+          <p className="mt-6 max-w-2xl text-base leading-7 text-stone-300 sm:text-lg">
+            The live refresh pipeline, AI summaries, and production traffic paths have been
+            disabled to stop ongoing infrastructure and model spend.
+          </p>
+          <div className="mt-10 rounded-2xl border border-stone-800 bg-stone-900/70 p-6">
+            <p className="text-sm text-stone-200">
+              If this project comes back later, it should be restarted intentionally with fresh
+              credentials, an explicit budget, and new schedules.
+            </p>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   console.log('🏠 SSR: Loading homepage with initial data...')
 
-  // Get initial data for SSR (non-blocking, fast)
   let initialData: HomepageData | null = null
 
   try {
-    // Only try to get cached data for SSR - don't generate fresh data here
     const cachedHomepage = await getCachedData('homepage-result')
 
     if (cachedHomepage) {
@@ -35,7 +59,6 @@ export default async function Home({
     }
   } catch (error) {
     console.error('❌ SSR: Failed to get initial data:', error)
-    // Continue without initial data - client will handle the loading
   }
 
   return (
@@ -52,6 +75,13 @@ export default async function Home({
 }
 
 export async function generateMetadata() {
+  if (isProjectPaused()) {
+    return {
+      title: 'AI News Aggregator - Offline',
+      description: 'This project is paused and no longer serving live AI-generated news updates.',
+    }
+  }
+
   return {
     title: 'AI News Aggregator - Latest News with AI Summaries',
     description: 'Get the latest news with AI-powered summaries. Fast, accurate, and up-to-date.',
