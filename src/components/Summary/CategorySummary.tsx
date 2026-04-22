@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { StoryCluster } from '@/types'
-import { buildCategorySummaryPayload, simpleHash } from '@/lib/utils'
+import { buildCategorySummaryPayload, parseCategoryDigestSummary, simpleHash } from '@/lib/utils'
 import { useLazySummary } from '@/hooks/useLazySummary'
 import { SummaryBase } from './SummaryBase'
 import { AISummaryTitle, Badge, CategorySummaryContentSkeleton } from '@/components/ui'
@@ -35,8 +35,8 @@ export function CategorySummary({
         clusters,
         [], // No standalone articles - we only summarize clustered stories
         {
-          maxClusters: 7,
-          maxArticlesPerCluster: 3,
+          maxClusters: 4,
+          maxArticlesPerCluster: 2,
           maxStandaloneArticles: 0,
         }
       ),
@@ -70,6 +70,8 @@ export function CategorySummary({
       requestSummary()
     }
   }, [isSummaryOpen, requestSummary, payload])
+
+  const digest = parseCategoryDigestSummary(summary)
 
   // Early returns after all hooks
   if (!payload || !isSummaryOpen) {
@@ -127,7 +129,24 @@ export function CategorySummary({
               </div>
             </div>
             <AISummaryTitle />
-            <p className="text-base leading-relaxed text-foreground/90">{summary}</p>
+            {digest.lede ? (
+              <p className="text-base sm:text-lg leading-relaxed text-foreground font-medium">
+                {digest.lede}
+              </p>
+            ) : null}
+            {digest.takeaways.length > 0 ? (
+              <ul className="space-y-3">
+                {digest.takeaways.map((item, index) => (
+                  <li
+                    key={`${index}-${item}`}
+                    className="flex items-start gap-3 text-sm sm:text-[15px] leading-relaxed text-foreground/85"
+                  >
+                    <span className="mt-2 inline-flex h-1.5 w-1.5 rounded-full bg-foreground/55 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="inline-flex h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               <span>{articleCountLabel}</span>
