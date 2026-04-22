@@ -137,7 +137,7 @@ export function parseCategoryDigestSummary(summary: string | undefined): Categor
       const lede = typeof parsed.lede === 'string' ? parsed.lede.trim() : ''
       const takeaways = Array.isArray(parsed.takeaways)
         ? parsed.takeaways
-            .map((item) => (typeof item === 'string' ? item.trim() : ''))
+            .map((item: unknown) => (typeof item === 'string' ? item.trim() : ''))
             .filter(Boolean)
             .slice(0, 3)
         : []
