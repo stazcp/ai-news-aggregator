@@ -11,6 +11,7 @@ import {
 } from '../ai/summaryCache'
 import { StoryCluster, Article } from '@/types'
 import { getCacheTtl } from '../utils'
+import { ENV_DEFAULTS, envBool } from '@/lib/config/env'
 
 export interface HomepageData {
   storyClusters: StoryCluster[]
@@ -76,7 +77,11 @@ export async function generateTopStorySummaries(
   console.log('🤖 Generating AI summaries for top stories...')
 
   const topClusters = storyClusters.slice(0, 10) // Top 10 clusters
-  const topArticles = articles.slice(0, 15) // Top 15 articles
+  const prewarmArticleSummaries = !envBool(
+    'NEXT_PUBLIC_SUMMARY_ON_DEMAND',
+    ENV_DEFAULTS.nextPublicSummaryOnDemand
+  )
+  const topArticles = prewarmArticleSummaries ? articles.slice(0, 15) : []
 
   let completed = 0
   const total = topClusters.length + topArticles.length
@@ -85,7 +90,13 @@ export async function generateTopStorySummaries(
   const clusterPromises = topClusters.map(async (cluster) => {
     try {
       const clusterId = getClusterSummaryId(cluster)
-      await generateAndCacheSummary(clusterId, cluster.articles || [], true, cluster.clusterTitle)
+      await generateAndCacheSummary(
+        clusterId,
+        cluster.articles || [],
+        true,
+        cluster.clusterTitle,
+        cluster.summary
+      )
       completed++
       if (progressCallback) {
         await progressCallback(completed, total)
@@ -130,7 +141,8 @@ async function generateAndCacheSummary(
   articleId: string,
   content: string | Article[],
   isCluster: boolean,
-  clusterTitle?: string
+  clusterTitle?: string,
+  existingSummary?: string
 ): Promise<void> {
   const purpose: SummaryPurpose = isCluster ? 'cluster' : 'article'
   const cacheKey = getSummaryCacheKey(purpose, articleId)
@@ -144,7 +156,9 @@ async function generateAndCacheSummary(
   try {
     let summary: string
 
-    if (isCluster && Array.isArray(content)) {
+    if (isCluster && shouldPersistSummaryToCache(existingSummary)) {
+      summary = existingSummary
+    } else if (isCluster && Array.isArray(content)) {
       // Use the cluster-specific summarizer for multi-sentence cohesive summaries
       summary = await summarizeCluster(content)
     } else if (typeof content === 'string') {
