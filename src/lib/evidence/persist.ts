@@ -50,8 +50,14 @@ async function insertChunks(
   batchSize = 200
 ): Promise<void> {
   const sql = getSql()
-  for (let start = 0; start < rows.length; start += batchSize) {
-    const batch = rows.slice(start, start + batchSize)
+  let start = 0
+  while (start < rows.length) {
+    let end = Math.min(start + batchSize, rows.length)
+    // Never split one article's chunks across batches: a crash between
+    // batches would leave it partially chunked, and backfill only revisits
+    // articles with zero chunks.
+    while (end < rows.length && rows[end].articleId === rows[end - 1].articleId) end++
+    const batch = rows.slice(start, end)
     const embeddings = await embedTexts(batch.map((c) => c.text))
     await sql`
       INSERT INTO article_chunks (article_id, chunk_index, text, embedding)
@@ -64,6 +70,7 @@ async function insertChunks(
       ) AS x(a, i, t, e)
       ON CONFLICT (article_id, chunk_index) DO NOTHING
     `
+    start = end
   }
 }
 
