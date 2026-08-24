@@ -1,6 +1,4 @@
-import { config } from 'dotenv'
-config({ path: '.env.local' })
-
+import './load-env'
 import { fetchAllNews } from '@/lib/news/newsService'
 import { backfillMissingChunks, persistArticles } from '@/lib/evidence/persist'
 

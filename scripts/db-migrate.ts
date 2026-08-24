@@ -1,6 +1,4 @@
-import { config } from 'dotenv'
-config({ path: '.env.local' })
-
+import './load-env'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { neon } from '@neondatabase/serverless'

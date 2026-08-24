@@ -1,4 +1,4 @@
-import { chunkText, contentHash } from '../persist'
+import { articleBody, chunkText, contentHash } from '../persist'
 import { Article } from '@/types'
 
 function makeArticle(url: string): Article {
@@ -25,6 +25,35 @@ describe('contentHash', () => {
     expect(contentHash(makeArticle('https://example.com/a'))).not.toBe(
       contentHash(makeArticle('https://example.com/b'))
     )
+  })
+})
+
+describe('articleBody', () => {
+  it('keeps the full content when the description is its lead paragraph', () => {
+    const article = makeArticle('https://example.com/a')
+    article.description = 'short desc'
+    article.content = 'short desc plus much longer full article text'
+    expect(articleBody(article)).toBe('short desc plus much longer full article text')
+  })
+
+  it('keeps both parts when neither contains the other', () => {
+    const article = makeArticle('https://example.com/a')
+    article.description = 'summary text'
+    article.content = 'different full text'
+    expect(articleBody(article)).toBe('summary text\n\ndifferent full text')
+  })
+
+  it('collapses identical description and content', () => {
+    const article = makeArticle('https://example.com/a')
+    article.description = 'same text'
+    article.content = 'same text'
+    expect(articleBody(article)).toBe('same text')
+  })
+
+  it('falls back to the title when there is no body text', () => {
+    const article = makeArticle('https://example.com/a')
+    article.description = undefined
+    expect(articleBody(article)).toBe('Test Article')
   })
 })
 

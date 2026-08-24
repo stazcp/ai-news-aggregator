@@ -30,10 +30,12 @@ export function chunkText(text: string): string[] {
   return chunks
 }
 
-function articleBody(article: Article): string {
-  const parts = [article.description, article.content].filter(Boolean) as string[]
-  const deduped = parts.filter((p, i) => parts.findIndex((q) => q.includes(p) || p.includes(q)) === i)
-  return deduped.join('\n\n').trim() || article.title
+export function articleBody(article: Article): string {
+  const parts = [...new Set([article.description, article.content].filter(Boolean) as string[])]
+  // Drop any part fully contained in a longer one (description is often the
+  // lead paragraph of content) — keep the longer text, never the shorter.
+  const kept = parts.filter((p) => !parts.some((q) => q !== p && q.includes(p)))
+  return kept.join('\n\n').trim() || article.title
 }
 
 function toDate(value: string): string {
@@ -41,23 +43,28 @@ function toDate(value: string): string {
   return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
 }
 
+// Batched: each INSERT carries ~200 rows of ~5KB embedding literals, keeping
+// individual Neon HTTP requests well under request-size limits.
 async function insertChunks(
-  rows: { articleId: string; index: number; text: string }[]
+  rows: { articleId: string; index: number; text: string }[],
+  batchSize = 200
 ): Promise<void> {
-  if (rows.length === 0) return
   const sql = getSql()
-  const embeddings = await embedTexts(rows.map((c) => c.text))
-  await sql`
-    INSERT INTO article_chunks (article_id, chunk_index, text, embedding)
-    SELECT a, i, t, e::vector
-    FROM unnest(
-      ${rows.map((c) => c.articleId)}::text[],
-      ${rows.map((c) => c.index)}::int[],
-      ${rows.map((c) => c.text)}::text[],
-      ${embeddings.map((e) => `[${e.join(',')}]`)}::text[]
-    ) AS x(a, i, t, e)
-    ON CONFLICT (article_id, chunk_index) DO NOTHING
-  `
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize)
+    const embeddings = await embedTexts(batch.map((c) => c.text))
+    await sql`
+      INSERT INTO article_chunks (article_id, chunk_index, text, embedding)
+      SELECT a, i, t, e::vector
+      FROM unnest(
+        ${batch.map((c) => c.articleId)}::text[],
+        ${batch.map((c) => c.index)}::int[],
+        ${batch.map((c) => c.text)}::text[],
+        ${embeddings.map((e) => `[${e.join(',')}]`)}::text[]
+      ) AS x(a, i, t, e)
+      ON CONFLICT (article_id, chunk_index) DO NOTHING
+    `
+  }
 }
 
 /**
@@ -66,18 +73,22 @@ async function insertChunks(
  */
 export async function backfillMissingChunks(batchSize = 200): Promise<number> {
   const sql = getSql()
+  // Whitespace-only articles yield no chunks and would be re-selected forever;
+  // excluding them per run guarantees every pass makes progress.
+  const unchunkable: string[] = []
   let total = 0
   for (;;) {
     const missing = await sql`
       SELECT a.id, a.title, a.body FROM articles a
       LEFT JOIN article_chunks c ON c.article_id = a.id
-      WHERE c.id IS NULL
+      WHERE c.id IS NULL AND NOT (a.id = ANY(${unchunkable}))
       LIMIT ${batchSize}
     `
     if (missing.length === 0) return total
     const rows: { articleId: string; index: number; text: string }[] = []
     for (const article of missing) {
       const chunks = chunkText(`${article.title}\n\n${article.body}`)
+      if (chunks.length === 0) unchunkable.push(article.id as string)
       chunks.forEach((text, index) => rows.push({ articleId: article.id as string, index, text }))
     }
     await insertChunks(rows)

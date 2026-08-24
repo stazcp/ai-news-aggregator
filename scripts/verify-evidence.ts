@@ -1,6 +1,4 @@
-import { config } from 'dotenv'
-config({ path: '.env.local' })
-
+import './load-env'
 import { getSql } from '@/lib/evidence/db'
 import { embedTexts } from '@/lib/evidence/embeddings'
 
