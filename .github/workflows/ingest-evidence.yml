@@ -42,3 +42,9 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           TRANSFORMERS_CACHE_DIR: .cache/transformers
           FEED_LOG_LEVEL: warn
+
+      - name: Extract entities
+        run: pnpm run extract:entities
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
