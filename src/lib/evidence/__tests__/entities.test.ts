@@ -102,4 +102,56 @@ describe('extractEntities', () => {
       expect(ids(matched)).toEqual(expect.arrayContaining(['ent-opec', 'ent-united-states']))
     })
   })
+
+  describe('review regressions', () => {
+    const salienceOf = (mentions: ReturnType<typeof extractEntities>, id: string) =>
+      mentions.find((m) => m.entityId === id)?.salience
+
+    it('counts overlapping terms for the same entity once per text span', () => {
+      // Title-only mention: exactly one count + title boost, even though
+      // "Nvidia"/"NVIDIA" both exist as terms.
+      expect(salienceOf(extractEntities('Nvidia beats estimates', ''), 'ent-nvidia')).toBeCloseTo(0.6)
+      // "U.S. Federal Reserve" contains "Federal Reserve": one mention, not two.
+      expect(
+        salienceOf(extractEntities('', 'The U.S. Federal Reserve met.'), 'ent-federal-reserve')
+      ).toBeCloseTo(0.2)
+      // "OPEC+" also contains "OPEC": one mention.
+      expect(salienceOf(extractEntities('', 'OPEC+ met today.'), 'ent-opec')).toBeCloseTo(0.2)
+    })
+
+    it('decodes HTML entities and curly apostrophes before matching', () => {
+      expect(ids(extractEntities('', 'Johnson &amp; Johnson reported earnings.'))).toContain(
+        'ent-johnson-johnson'
+      )
+      expect(ids(extractEntities('', 'Johnson &amp;amp; Johnson reported earnings.'))).toContain(
+        'ent-johnson-johnson'
+      )
+      expect(ids(extractEntities('', 'The People’s Bank of China eased policy.'))).toContain('ent-pboc')
+    })
+
+    it('rejects sentence-initial acronym collocations and all-caps shouting', () => {
+      expect(ids(extractEntities('', 'Fed up with delays, commuters protested.'))).not.toContain(
+        'ent-federal-reserve'
+      )
+      const shouting = extractEntities('WHO SAID IT FIRST? THE UN DID, NOT THE OTHERS.', '')
+      expect(ids(shouting)).not.toContain('ent-who')
+      expect(ids(shouting)).not.toContain('ent-united-nations')
+      // Normal case still matches.
+      expect(ids(extractEntities('', 'The Fed raised rates.'))).toContain('ent-federal-reserve')
+      expect(ids(extractEntities('', 'The WHO declared an emergency.'))).toContain('ent-who')
+    })
+
+    it('does not mislink generic phrases through removed aliases', () => {
+      expect(ids(extractEntities('', "The National People's Congress convened."))).not.toContain(
+        'ent-us-congress'
+      )
+      expect(ids(extractEntities('', 'A shell company was used in the scheme.'))).not.toContain(
+        'ent-shell'
+      )
+      expect(ids(extractEntities('', 'Bank of America posted profits.'))).not.toContain(
+        'ent-united-states'
+      )
+      expect(ids(extractEntities('', 'Shell plc posted profits.'))).toContain('ent-shell')
+    })
+  })
 })

@@ -47,7 +47,8 @@ export const ENTITY_DICTIONARY: EntityEntry[] = [
   { id: 'ent-pentagon', name: 'U.S. Department of Defense', type: 'regulator', aliases: ['Pentagon', 'Defense Department', 'Department of Defense'] },
   { id: 'ent-doe', name: 'U.S. Department of Energy', type: 'regulator', aliases: ['Department of Energy', 'Energy Department'] },
   { id: 'ent-white-house', name: 'White House', type: 'regulator', aliases: [] },
-  { id: 'ent-us-congress', name: 'U.S. Congress', type: 'regulator', aliases: ['US Congress', 'Congress'] },
+  // No bare 'Congress' alias — "National People's Congress" would mislink.
+  { id: 'ent-us-congress', name: 'U.S. Congress', type: 'regulator', aliases: ['US Congress'] },
   { id: 'ent-european-commission', name: 'European Commission', type: 'regulator', aliases: [] },
   { id: 'ent-cma', name: 'Competition and Markets Authority', type: 'regulator', aliases: ['CMA'] },
   { id: 'ent-ema', name: 'European Medicines Agency', type: 'regulator', aliases: ['EMA'] },
@@ -116,7 +117,8 @@ export const ENTITY_DICTIONARY: EntityEntry[] = [
   // ── Companies: oil, gas & LNG ────────────────────────────────────────────
   { id: 'ent-exxon', name: 'ExxonMobil', type: 'company', aliases: ['Exxon', 'Exxon Mobil'] },
   { id: 'ent-chevron', name: 'Chevron', type: 'company', aliases: [] },
-  { id: 'ent-shell', name: 'Shell', type: 'company', aliases: ['Shell plc', 'Royal Dutch Shell'] },
+  // No bare 'Shell' — "a shell company" would mislink.
+  { id: 'ent-shell', name: 'Shell plc', type: 'company', aliases: ['Royal Dutch Shell'] },
   { id: 'ent-bp', name: 'BP', type: 'company', aliases: [] },
   { id: 'ent-totalenergies', name: 'TotalEnergies', type: 'company', aliases: [] },
   { id: 'ent-conocophillips', name: 'ConocoPhillips', type: 'company', aliases: [] },
@@ -299,7 +301,8 @@ export const ENTITY_DICTIONARY: EntityEntry[] = [
   { id: 'ent-masayoshi-son', name: 'Masayoshi Son', type: 'person', aliases: [] },
 
   // ── Geography: countries ─────────────────────────────────────────────────
-  { id: 'ent-united-states', name: 'United States', type: 'geography', aliases: ['U.S.', 'US', 'USA', 'America'] },
+  // No bare 'America' — "Bank of America" would mislink the geography.
+  { id: 'ent-united-states', name: 'United States', type: 'geography', aliases: ['U.S.', 'US', 'USA'] },
   { id: 'ent-china', name: 'China', type: 'geography', aliases: ['Chinese', 'Beijing'] },
   { id: 'ent-japan', name: 'Japan', type: 'geography', aliases: ['Tokyo'] },
   { id: 'ent-germany', name: 'Germany', type: 'geography', aliases: ['Berlin'] },
