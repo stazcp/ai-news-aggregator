@@ -14,7 +14,8 @@
     "test-feeds": "node test-feeds.js",
     "refresh:cron": "tsx -r tsconfig-paths/register scripts/run-refresh.ts",
     "db:migrate": "tsx -r tsconfig-paths/register scripts/db-migrate.ts",
-    "ingest:evidence": "tsx -r tsconfig-paths/register scripts/ingest-evidence.ts"
+    "ingest:evidence": "tsx -r tsconfig-paths/register scripts/ingest-evidence.ts",
+    "backfill:source-slugs": "tsx -r tsconfig-paths/register scripts/backfill-source-slugs.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
