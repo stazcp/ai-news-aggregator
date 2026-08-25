@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { Article } from '@/types'
 import { getSql } from './db'
 import { embedTexts } from './embeddings'
+import { sourceSlug } from './sourceSlug'
 
 export interface PersistResult {
   fetched: number
@@ -135,7 +136,7 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
     INSERT INTO articles (source, url, title, category, published_at, body, raw_json, content_hash)
     SELECT s, u, t, c, p::timestamptz, b, r::jsonb, h
     FROM unnest(
-      ${fresh.map(([, a]) => a.source.name)}::text[],
+      ${fresh.map(([, a]) => sourceSlug(a.source.name, a.source.url || a.url))}::text[],
       ${fresh.map(([, a]) => a.url)}::text[],
       ${fresh.map(([, a]) => a.title)}::text[],
       ${fresh.map(([, a]) => a.category)}::text[],
