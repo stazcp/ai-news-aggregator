@@ -18,11 +18,11 @@ const HOST_OVERRIDES: Record<string, string> = {
   'news.ycombinator.com': 'hacker-news',
 }
 
-// Two-part public suffixes seen in the feed registry — enough to find the
-// registrable domain's main label without a full public-suffix list.
-const SECOND_LEVEL_SUFFIXES = new Set([
-  'ac.uk', 'co.uk', 'org.uk', 'co.jp', 'co.in', 'co.kr', 'co.nz', 'co.za',
-  'com.au', 'net.au', 'org.au', 'com.br', 'com.cn', 'com.hk', 'com.sg',
+// Generic second-level labels (co.uk, com.mx, or.jp, go.com…): when the
+// label before the TLD is one of these, the outlet label is one step deeper.
+// Covers unlisted country combinations without a full public-suffix list.
+const GENERIC_SECOND_LABELS = new Set([
+  'co', 'com', 'net', 'org', 'gov', 'edu', 'ac', 'or', 'ne', 'go', 'mil', 'int',
 ])
 
 // Canonical-slug aliases, applied to slugs from BOTH derivation paths. Keys
@@ -55,6 +55,8 @@ const SLUG_ALIASES: Record<string, string> = {
   'android-central': 'androidcentral', 'android-police': 'androidpolice',
   'live-science': 'livescience', 'the-register': 'theregister',
   'yahoo-finance': 'yahoo', 'yahoo-sports': 'yahoo',
+  // URL-label ↔ name-form parity (feeds.skynews.com, feeds.a.dj.com)
+  'skynews': 'sky', 'dj': 'wsj',
 }
 
 // Words that never identify an outlet on their own — used to discard feed
@@ -70,11 +72,13 @@ const GENERIC_WORDS = new Set([
 ])
 
 function kebab(text: string): string {
+  // \p{L}\p{N} keeps non-Latin outlet names (\u671d\u65e5\u65b0\u805e) distinct instead of
+  // collapsing every one of them into the shared 'unknown' bucket.
   return text
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '') // strip combining diacritics
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '')
 }
 
@@ -86,12 +90,11 @@ function applyAlias(slug: string): string {
 // "feeds.bbci.co.uk" → "bbci".
 function mainDomainLabel(hostname: string): string {
   const labels = hostname.split('.').filter(Boolean)
+  if (labels.every((l) => /^\d+$/.test(l))) return '' // IP address, no outlet signal
   if (labels.length <= 1) return labels[0] ?? ''
-  const lastTwo = labels.slice(-2).join('.')
-  if (SECOND_LEVEL_SUFFIXES.has(lastTwo) && labels.length >= 3) {
-    return labels[labels.length - 3]
-  }
-  return labels[labels.length - 2]
+  let idx = labels.length - 2
+  if (idx > 0 && GENERIC_SECOND_LABELS.has(labels[idx])) idx--
+  return labels[idx]
 }
 
 function slugFromHostname(hostname: string): string | null {
@@ -147,14 +150,17 @@ function slugFromName(name: string): string | null {
 }
 
 /**
- * Deterministic, total mapping from a raw RSS source (feed title + URL) to a
- * clean outlet slug. URL hostname is the primary signal; the name is the
- * fallback (aggregator hosts like news.google.com carry a clean publisher
- * name but a useless URL). Never returns an empty string.
+ * Deterministic, total mapping from a raw RSS source (feed title + URLs) to a
+ * clean outlet slug. Each candidate URL is tried in order until one yields a
+ * usable hostname — a truthy-but-useless first URL (aggregator host,
+ * malformed string) must not shadow a clean publisher article URL. The name
+ * is the final fallback. Never returns an empty string.
  */
-export function sourceSlug(name: string, url?: string): string {
-  const fromUrl = url ? slugFromUrl(url) : null
-  if (fromUrl) return applyAlias(fromUrl)
+export function sourceSlug(name: string, urls: (string | null | undefined)[] = []): string {
+  for (const url of urls) {
+    const fromUrl = url ? slugFromUrl(url) : null
+    if (fromUrl) return applyAlias(fromUrl)
+  }
   const fromName = slugFromName(name ?? '')
   return fromName ? applyAlias(fromName) : 'unknown'
 }

@@ -34,10 +34,11 @@ async function main() {
     const changed = rows
       .map((r) => ({
         id: r.id as string,
-        slug: sourceSlug(
-          (r.name as string | null) ?? (r.source as string),
-          (r.source_url as string | null) || (r.article_url as string | null) || (r.url as string)
-        ),
+        slug: sourceSlug((r.name as string | null) ?? (r.source as string), [
+          r.source_url as string | null,
+          r.article_url as string | null,
+          r.url as string,
+        ]),
         current: r.source as string,
       }))
       .filter((r) => r.slug !== r.current)
