@@ -1,4 +1,4 @@
-import { articleBody, chunkText, contentHash } from '../persist'
+import { articleBody, chunkText, contentHash, isSlimRawJson, slimRawJson } from '../persist'
 import { Article } from '@/types'
 
 function makeArticle(url: string): Article {
@@ -66,11 +66,77 @@ describe('chunkText', () => {
     expect(chunkText('hello\n\n  world')).toEqual(['hello world'])
   })
 
-  it('splits long text into overlapping chunks that cover everything', () => {
-    const text = 'x'.repeat(3000)
+  it('splits long text into overlapping chunks capped at 2 per article', () => {
+    // Non-repeating fixture: every 150-char window is unique, so an overlap
+    // regression at ANY offset fails the absolute-position assertions below
+    // (a periodic fixture let step-size bugs pass silently).
+    const text = Array.from({ length: 3000 }, (_, i) =>
+      String.fromCharCode(0x30a0 + (i % 90), 0x61 + (Math.floor(i / 90) % 26))
+    )
+      .join('')
+      .slice(0, 3000)
     const chunks = chunkText(text)
-    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.length).toBe(2)
     expect(chunks.every((c) => c.length <= 1200)).toBe(true)
-    expect(chunks.reduce((n, c) => n + c.length, 0)).toBeGreaterThanOrEqual(3000)
+    // Chunk 0 covers [0, 1200); chunk 1 starts at 1200 - 150 = 1050.
+    expect(chunks[0]).toBe(text.slice(0, 1200))
+    expect(chunks[1]).toBe(text.slice(1050, 2250))
+    expect(chunks[1].slice(0, 150)).toBe(chunks[0].slice(-150))
+  })
+
+  it('caps very long text at 2 chunks (storage diet)', () => {
+    expect(chunkText('x'.repeat(50_000)).length).toBe(2)
+  })
+})
+
+describe('slimRawJson', () => {
+  const full = {
+    ...makeArticle('https://example.com/a'),
+    content: 'full article text',
+    summary: 'an old cached summary',
+    imageWidth: 640,
+    imageHeight: 480,
+  }
+
+  it('keeps only the slim contract keys', () => {
+    const slim = JSON.parse(JSON.stringify(slimRawJson(full)))
+    expect(slim).toEqual({
+      id: 'a1',
+      title: 'Test Article',
+      url: 'https://example.com/a',
+      urlToImage: '',
+      imageWidth: 640,
+      imageHeight: 480,
+      publishedAt: new Date('2026-01-01').toISOString(),
+      source: { name: 'Test', url: 'https://example.com' },
+      category: 'World News',
+    })
+    expect(slim).not.toHaveProperty('description')
+    expect(slim).not.toHaveProperty('content')
+  })
+
+  it('omits absent optional image dimensions after serialization', () => {
+    const slim = JSON.parse(JSON.stringify(slimRawJson(makeArticle('https://example.com/a'))))
+    expect(slim).not.toHaveProperty('imageWidth')
+    expect(slim).not.toHaveProperty('imageHeight')
+  })
+
+  it('is idempotent: its own output round-trips as already slim', () => {
+    expect(isSlimRawJson(JSON.parse(JSON.stringify(slimRawJson(full))))).toBe(true)
+  })
+})
+
+describe('isSlimRawJson', () => {
+  it('rejects raw_json still carrying body text keys', () => {
+    expect(isSlimRawJson({ id: 'a1', content: 'text' })).toBe(false)
+    expect(isSlimRawJson({ id: 'a1', description: 'text' })).toBe(false)
+  })
+
+  it('rejects extra keys nested in source', () => {
+    expect(isSlimRawJson({ id: 'a1', source: { name: 'Test', url: 'u', feed: 'rss' } })).toBe(false)
+  })
+
+  it('accepts a subset of the slim keys', () => {
+    expect(isSlimRawJson({ id: 'a1', title: 't', source: { name: 'Test' } })).toBe(true)
   })
 })
