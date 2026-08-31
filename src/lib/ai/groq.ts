@@ -3,7 +3,13 @@ import { getCachedData, setCachedData } from '@/lib/cache'
 import { Article, StoryCluster } from '@/types'
 import { ENV_DEFAULTS, envBool, envInt } from '@/lib/config/env'
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+// Lazy: groq-sdk throws at construction when the key is missing, which would
+// crash consumers at import time before their own no-key guards can run.
+let _groq: Groq | null = null
+function getGroq(): Groq {
+  if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
+  return _groq
+}
 
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
@@ -87,7 +93,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
   )
   try {
     const completion = await groqCall('summarizeArticle', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           {
             role: 'system',
@@ -127,12 +133,14 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
 
 export async function summarizeCluster(
   articles: Article[],
-  length: 'short' | 'long' = 'long'
+  length: 'short' | 'long' = 'long',
+  opts?: { fallbackOnLimit?: boolean }
 ): Promise<string> {
-  const ALLOW_FALLBACK = envBool(
-    'SUMMARY_FALLBACK_ON_LIMIT',
-    ENV_DEFAULTS.summaryFallbackOnLimit
-  )
+  // Callers persisting summaries durably pass fallbackOnLimit: false so a
+  // rate/spend limit throws instead of returning joined-headline filler.
+  const ALLOW_FALLBACK =
+    opts?.fallbackOnLimit ??
+    envBool('SUMMARY_FALLBACK_ON_LIMIT', ENV_DEFAULTS.summaryFallbackOnLimit)
   const isShort = length === 'short'
   const baseKey = `cluster-summary-${articles
     .map((a) => a.id)
@@ -170,7 +178,7 @@ ${contentToSummarize}
 
   try {
     const completion = await groqCall('summarizeCluster', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           { role: 'system', content: 'You are a senior news editor.' },
           { role: 'user', content: prompt },
@@ -212,11 +220,13 @@ ${contentToSummarize}
   }
 }
 
-export async function summarizeCategoryDigest(content: string): Promise<string> {
-  const ALLOW_FALLBACK = envBool(
-    'SUMMARY_FALLBACK_ON_LIMIT',
-    ENV_DEFAULTS.summaryFallbackOnLimit
-  )
+export async function summarizeCategoryDigest(
+  content: string,
+  opts?: { fallbackOnLimit?: boolean }
+): Promise<string> {
+  const ALLOW_FALLBACK =
+    opts?.fallbackOnLimit ??
+    envBool('SUMMARY_FALLBACK_ON_LIMIT', ENV_DEFAULTS.summaryFallbackOnLimit)
 
   const prompt = `You are writing a compact "what matters today" digest for someone who can already see the cluster titles below it.
 Your job is not to recap each cluster. Your job is to answer: what 2-3 forces define the day, and why do they matter?
@@ -239,7 +249,7 @@ ${content}`
 
   try {
     const completion = await groqCall('summarizeCategory', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           {
             role: 'system',
@@ -333,7 +343,7 @@ ${JSON.stringify(articleSummaries)}
     let responseContent: string | undefined
     try {
       const completion = await groqCall('clusterArticles.json', () =>
-        groq.chat.completions.create({
+        getGroq().chat.completions.create({
           messages: [
             {
               role: 'system',
@@ -358,7 +368,7 @@ ${JSON.stringify(articleSummaries)}
           articleSummaries
         )}`
         const retry = await groqCall('clusterArticles.retry', () =>
-          groq.chat.completions.create({
+          getGroq().chat.completions.create({
             messages: [
               { role: 'system', content: 'Output valid JSON only. No explanations.' },
               { role: 'user', content: strictPrompt },
@@ -480,7 +490,7 @@ ${JSON.stringify(briefs)}`
 
   try {
     const completion = await groqCall('batchAssessSeverityLLM', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
@@ -573,7 +583,7 @@ ${JSON.stringify(brief)}
     `
 
     const completion = await groqCall('assessClusterSeverityLLM', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
@@ -663,7 +673,7 @@ ${JSON.stringify(briefs)}
 
   try {
     const completion = await groqCall('mergeClustersByLLM', () =>
-      groq.chat.completions.create({
+      getGroq().chat.completions.create({
         messages: [
           { role: 'system', content: 'You return strict JSON only.' },
           { role: 'user', content: prompt },

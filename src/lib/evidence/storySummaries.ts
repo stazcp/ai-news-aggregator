@@ -165,7 +165,11 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     let summary: string
     try {
       result.groqCalls++
-      summary = await summarizeCluster(members.map(toSummaryArticle), 'long')
+      // fallbackOnLimit: false — durable rows must never hold joined-headline
+      // filler; a limit throws and the catch below stops the run.
+      summary = await summarizeCluster(members.map(toSummaryArticle), 'long', {
+        fallbackOnLimit: false,
+      })
     } catch (error) {
       // summarizeCluster only throws on rate/spend limits — stop burning calls.
       console.warn('⚠️ Groq limit reached during story summaries; stopping this run.', error)
@@ -207,7 +211,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     let digestText: string
     try {
       result.groqCalls++
-      digestText = await summarizeCategoryDigest(notes)
+      digestText = await summarizeCategoryDigest(notes, { fallbackOnLimit: false })
     } catch (error) {
       console.warn('⚠️ Groq limit reached during category digests; stopping this run.', error)
       return result

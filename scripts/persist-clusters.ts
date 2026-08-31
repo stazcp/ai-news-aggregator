@@ -3,7 +3,7 @@ import { Article, StoryCluster } from '@/types'
 import { getStoryClusters } from '@/lib/clustering/clusterService'
 import { computeSeverity, scoreCluster } from '@/lib/clustering/severity'
 import { mergeClustersByTitle, preClusterArticles } from '@/lib/clustering/textCluster'
-import { ENV_DEFAULTS, envInt, envNumber } from '@/lib/config/env'
+import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 import { persistClusters } from '@/lib/evidence/clusterPersist'
 import { getSql } from '@/lib/evidence/db'
 import { generateSummaries } from '@/lib/evidence/storySummaries'
@@ -116,8 +116,13 @@ async function main() {
   console.log(`loaded ${articles.length} articles from the last ${WINDOW_HOURS}h, clustering…`)
 
   const groqOk = await groqReachable()
+  // The full engine's per-seed LLM refinement is UNCAPPED (~100-200 70B calls
+  // over a 2000-article window) — orders of magnitude beyond the summaries
+  // budget. Deterministic clustering is the default; the LLM engine is a
+  // deliberate opt-in, never an ambient cost.
+  const useLlmEngine = envBool('CLUSTERS_USE_LLM', false) && groqOk
   let clusters: StoryCluster[]
-  if (groqOk) {
+  if (useLlmEngine) {
     const engine = await getStoryClusters(articles)
     if (engine.rateLimited) {
       console.warn('⚠️ Clustering was rate limited; nothing to persist this run.')
@@ -125,10 +130,9 @@ async function main() {
     }
     clusters = engine.clusters
   } else {
-    console.warn(
-      '⚠️ Groq API unreachable from this network — using deterministic TF-IDF clustering ' +
-        '(no LLM refinement, no summaries this run).'
-    )
+    if (!groqOk) {
+      console.warn('⚠️ Groq API unreachable — deterministic clustering, no summaries this run.')
+    }
     clusters = deterministicClusters(articles)
   }
   console.log(`clustered into ${clusters.length} stories, persisting…`)

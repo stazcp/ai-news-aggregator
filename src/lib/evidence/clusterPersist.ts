@@ -36,16 +36,18 @@ function compareStoryIds(a: string, b: string): number {
 /**
  * Deterministic greedy matching of incoming clusters to existing stories.
  * A pair qualifies when its overlap (|intersection| / |smaller member set|)
- * is at least MIN_OVERLAP; pairs are taken best-overlap first (ties broken by
- * oldest story id, then incoming order), and each story / incoming cluster is
- * used at most once — so when several incoming clusters point at one story,
- * only the best-overlap one reuses its id.
+ * is at least MIN_OVERLAP. Qualifying pairs are ranked by ABSOLUTE shared
+ * member count first, then Jaccard, then oldest story id, then incoming
+ * order — ranking by the containment ratio alone would let a tiny fragment
+ * fully contained in a story score 1.0 and hijack its id away from the
+ * story's true continuation. Each story / incoming cluster is used at most
+ * once.
  */
 export function matchClustersToStories(
   incoming: IncomingCluster[],
   existing: ExistingStory[]
 ): Map<number, string> {
-  const pairs: { index: number; storyId: string; overlap: number }[] = []
+  const pairs: { index: number; storyId: string; shared: number; jaccard: number }[] = []
   for (const cluster of incoming) {
     const members = new Set(cluster.memberIds)
     if (members.size === 0) continue
@@ -54,12 +56,18 @@ export function matchClustersToStories(
       let shared = 0
       for (const id of story.memberIds) if (members.has(id)) shared++
       const overlap = shared / Math.min(members.size, story.memberIds.length)
-      if (overlap >= MIN_OVERLAP) pairs.push({ index: cluster.index, storyId: story.id, overlap })
+      if (overlap >= MIN_OVERLAP) {
+        const union = members.size + story.memberIds.length - shared
+        pairs.push({ index: cluster.index, storyId: story.id, shared, jaccard: shared / union })
+      }
     }
   }
   pairs.sort(
     (a, b) =>
-      b.overlap - a.overlap || compareStoryIds(a.storyId, b.storyId) || a.index - b.index
+      b.shared - a.shared ||
+      b.jaccard - a.jaccard ||
+      compareStoryIds(a.storyId, b.storyId) ||
+      a.index - b.index
   )
   const assigned = new Map<number, string>()
   const usedStories = new Set<string>()
@@ -105,6 +113,15 @@ export async function persistClusters(
     storyIds: [],
   }
   if (clusters.length === 0) return result
+
+  // Defensive sweep: memberless stories are invisible to the continuity JOIN
+  // and would otherwise sit in top-story reads forever (pre-atomic-insert
+  // crashes could create them; nothing legitimate ever has zero members).
+  await sql`
+    DELETE FROM story_clusters sc
+    WHERE NOT EXISTS (SELECT 1 FROM cluster_articles ca WHERE ca.cluster_id = sc.id)
+      AND sc.first_seen_at < now() - interval '1 hour'
+  `
 
   // Map in-memory article ids to DB ids via content_hash (sha256 of the URL),
   // so the snapshot's provenance is independent of how articles were loaded.
@@ -183,24 +200,34 @@ export async function persistClusters(
           last_seen_at = now()
         WHERE id = ${storyId}
       `
+      const added = await sql`
+        INSERT INTO cluster_articles (cluster_id, article_id)
+        SELECT ${storyId}, a FROM unnest(${memberIds}::text[]) AS x(a)
+        ON CONFLICT (cluster_id, article_id) DO NOTHING
+        RETURNING article_id
+      `
+      result.membersAdded += added.length
       result.storiesUpdated++
     } else {
+      // Single statement so the story and its members commit atomically over
+      // the Neon HTTP driver — a crash can't leave a memberless orphan story
+      // that the continuity JOIN would never find again.
       const inserted = await sql`
-        INSERT INTO story_clusters (title, category, score, severity_level, severity_label, image_urls)
-        VALUES (${cluster.clusterTitle}, ${category}, ${score}, ${severityLevel}, ${severityLabel}, ${imageUrls}::jsonb)
-        RETURNING id
+        WITH s AS (
+          INSERT INTO story_clusters (title, category, score, severity_level, severity_label, image_urls)
+          VALUES (${cluster.clusterTitle}, ${category}, ${score}, ${severityLevel}, ${severityLabel}, ${imageUrls}::jsonb)
+          RETURNING id
+        ), m AS (
+          INSERT INTO cluster_articles (cluster_id, article_id)
+          SELECT s.id, x.a FROM s, unnest(${memberIds}::text[]) AS x(a)
+          RETURNING article_id
+        )
+        SELECT s.id, (SELECT count(*) FROM m)::int AS added FROM s
       `
       storyId = inserted[0].id as string
+      result.membersAdded += inserted[0].added as number
       result.storiesCreated++
     }
-
-    const added = await sql`
-      INSERT INTO cluster_articles (cluster_id, article_id)
-      SELECT ${storyId}, a FROM unnest(${memberIds}::text[]) AS x(a)
-      ON CONFLICT (cluster_id, article_id) DO NOTHING
-      RETURNING article_id
-    `
-    result.membersAdded += added.length
     result.storyIds.push(storyId)
   }
   return result
