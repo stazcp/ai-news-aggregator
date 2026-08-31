@@ -13,6 +13,57 @@ export interface PersistResult {
 
 const CHUNK_MAX_CHARS = 1200
 const CHUNK_OVERLAP_CHARS = 150
+// Storage diet: embeddings + the HNSW index dominate DB size and scale with
+// chunk count, so cap chunks per article. The first two chunks (~2.2k chars,
+// title + lead) carry the retrieval signal at this scale; body overflow past
+// that rarely matters and articles.body keeps the full text canon anyway.
+const MAX_CHUNKS_PER_ARTICLE = 2
+
+// Slim raw_json contract: article metadata the thesis-tracker needs beyond the
+// dedicated columns (image + original source object). Body text lives ONLY in
+// articles.body — content/description are dropped here by design.
+const SLIM_RAW_KEYS = [
+  'id',
+  'title',
+  'url',
+  'urlToImage',
+  'imageWidth',
+  'imageHeight',
+  'publishedAt',
+  'source',
+  'category',
+] as const
+const SLIM_SOURCE_KEYS = ['name', 'url'] as const
+
+// Partial source: stored raw_json predating the contract may lack source keys.
+export type SlimRawJson = Omit<Pick<Article, (typeof SLIM_RAW_KEYS)[number]>, 'source'> & {
+  source: Partial<Article['source']>
+}
+
+/** Projects an article (or a previously stored raw_json) to the slim contract. */
+export function slimRawJson(article: Article): SlimRawJson {
+  return {
+    id: article.id,
+    title: article.title,
+    url: article.url,
+    urlToImage: article.urlToImage,
+    imageWidth: article.imageWidth,
+    imageHeight: article.imageHeight,
+    publishedAt: article.publishedAt,
+    source: { name: article.source?.name, url: article.source?.url },
+    category: article.category,
+  }
+}
+
+/** True when a stored raw_json object already matches the slim contract. */
+export function isSlimRawJson(raw: Record<string, unknown>): boolean {
+  const keys = Object.keys(raw) as (keyof SlimRawJson)[]
+  if (!keys.every((k) => (SLIM_RAW_KEYS as readonly string[]).includes(k))) return false
+  const source = raw.source
+  if (source === null || source === undefined) return true
+  if (typeof source !== 'object') return false
+  return Object.keys(source).every((k) => (SLIM_SOURCE_KEYS as readonly string[]).includes(k))
+}
 
 export function contentHash(article: Article): string {
   return createHash('sha256').update(article.url.trim()).digest('hex')
@@ -24,7 +75,7 @@ export function chunkText(text: string): string[] {
   if (clean.length <= CHUNK_MAX_CHARS) return [clean]
   const chunks: string[] = []
   let start = 0
-  while (start < clean.length) {
+  while (start < clean.length && chunks.length < MAX_CHUNKS_PER_ARTICLE) {
     chunks.push(clean.slice(start, start + CHUNK_MAX_CHARS))
     start += CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS
   }
@@ -142,7 +193,7 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
       ${fresh.map(([, a]) => a.category)}::text[],
       ${fresh.map(([, a]) => toDate(a.publishedAt))}::text[],
       ${fresh.map(([, a]) => articleBody(a))}::text[],
-      ${fresh.map(([, a]) => JSON.stringify(a))}::text[],
+      ${fresh.map(([, a]) => JSON.stringify(slimRawJson(a)))}::text[],
       ${fresh.map(([h]) => h)}::text[]
     ) AS x(s, u, t, c, p, b, r, h)
     ON CONFLICT (content_hash) DO NOTHING
