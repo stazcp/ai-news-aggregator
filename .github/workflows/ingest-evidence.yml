@@ -1,17 +1,24 @@
 name: Ingest Evidence
 
-# Independent of PROJECT_PAUSED: no LLM spend (embeddings run locally in the
-# runner), and the evidence archive should accumulate even while the consumer
-# site is offline.
+# Independent of PROJECT_PAUSED: LLM spend is strictly bounded (clustering is
+# deterministic by default — CLUSTERS_USE_LLM opt-in only — and summaries are
+# hard-capped at 26 Groq calls/run), and the evidence archive should accumulate
+# even while the consumer site is offline.
 on:
   schedule:
     - cron: '0 */6 * * *' # every 6 hours
   workflow_dispatch:
 
+# Overlapping runs (cron + manual dispatch) would race persistClusters into
+# duplicate stories; queue instead.
+concurrency:
+  group: ingest-evidence
+  cancel-in-progress: false
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -48,3 +55,10 @@ jobs:
         env:
           NODE_ENV: production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Persist story clusters
+        run: pnpm run clusters:persist
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
