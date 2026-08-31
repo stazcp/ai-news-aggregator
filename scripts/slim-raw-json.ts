@@ -84,6 +84,31 @@ async function main() {
     console.log(`pruned raw_json on ${pruned} articles published over ${days} days ago`)
   }
 
+  // Optional, OFF by default: EVIDENCE_PRUNE_EXCESS_CHUNKS=true deletes
+  // legacy chunks beyond the 2-per-article cap. Safe because chunking
+  // constants are unchanged, so chunks 0 and 1 are byte-identical to what the
+  // capped chunkText produces today; pruned embeddings are recomputable from
+  // articles.body. This is where the real bytes are (embeddings + HNSW).
+  if (process.env.EVIDENCE_PRUNE_EXCESS_CHUNKS === 'true') {
+    let pruned = 0
+    for (;;) {
+      const rows = await sql`
+        DELETE FROM article_chunks
+        WHERE id IN (
+          SELECT id FROM article_chunks WHERE chunk_index >= 2 LIMIT ${BATCH_SIZE}
+        )
+        RETURNING id
+      `
+      pruned += rows.length
+      if (rows.length < BATCH_SIZE) break
+    }
+    console.log(`pruned ${pruned} excess chunks (chunk_index >= 2)`)
+    if (pruned > 0) {
+      console.log('rebuilding HNSW index to release its pages…')
+      await sql.query('REINDEX INDEX idx_chunks_vector')
+    }
+  }
+
   const after = await dbStats()
   console.log(`after: db ${after.db}, raw_json bytes ${after.raw}`)
   console.log('note: freed pages return via (auto)vacuum — logical bytes drop now, file size later')

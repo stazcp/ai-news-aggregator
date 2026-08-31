@@ -56,10 +56,15 @@ export function slimRawJson(article: Article): SlimRawJson {
 }
 
 /** True when a stored raw_json object already matches the slim contract. */
-export function isSlimRawJson(raw: Record<string, unknown>): boolean {
-  const keys = Object.keys(raw) as (keyof SlimRawJson)[]
+export function isSlimRawJson(raw: unknown): boolean {
+  // jsonb null / scalars / arrays pass a SQL `raw_json IS NOT NULL` filter but
+  // aren't slimmable objects — report them as "already slim" so callers skip
+  // instead of crashing or rewriting garbage to an empty shape.
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return true
+  const rec = raw as Record<string, unknown>
+  const keys = Object.keys(rec) as (keyof SlimRawJson)[]
   if (!keys.every((k) => (SLIM_RAW_KEYS as readonly string[]).includes(k))) return false
-  const source = raw.source
+  const source = rec.source
   if (source === null || source === undefined) return true
   if (typeof source !== 'object') return false
   return Object.keys(source).every((k) => (SLIM_SOURCE_KEYS as readonly string[]).includes(k))

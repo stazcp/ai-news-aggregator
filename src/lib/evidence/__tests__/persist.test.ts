@@ -67,11 +67,20 @@ describe('chunkText', () => {
   })
 
   it('splits long text into overlapping chunks capped at 2 per article', () => {
-    const text = Array.from({ length: 3000 }, (_, i) => 'abcdefghij'[i % 10]).join('')
+    // Non-repeating fixture: every 150-char window is unique, so an overlap
+    // regression at ANY offset fails the absolute-position assertions below
+    // (a periodic fixture let step-size bugs pass silently).
+    const text = Array.from({ length: 3000 }, (_, i) =>
+      String.fromCharCode(0x30a0 + (i % 90), 0x61 + (Math.floor(i / 90) % 26))
+    )
+      .join('')
+      .slice(0, 3000)
     const chunks = chunkText(text)
     expect(chunks.length).toBe(2)
     expect(chunks.every((c) => c.length <= 1200)).toBe(true)
-    // Second chunk starts 150 chars before the first one ends (the overlap)
+    // Chunk 0 covers [0, 1200); chunk 1 starts at 1200 - 150 = 1050.
+    expect(chunks[0]).toBe(text.slice(0, 1200))
+    expect(chunks[1]).toBe(text.slice(1050, 2250))
     expect(chunks[1].slice(0, 150)).toBe(chunks[0].slice(-150))
   })
 

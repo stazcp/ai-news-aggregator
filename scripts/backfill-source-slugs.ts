@@ -25,6 +25,10 @@ async function main() {
         url
       FROM articles
       WHERE id > ${lastId}
+        -- raw_json-pruned rows (EVIDENCE_RAWJSON_NULL_AFTER_DAYS) lost their
+        -- original source provenance; recomputing from the article URL alone
+        -- would rewrite syndicated articles to the syndication host's slug.
+        AND raw_json IS NOT NULL
       ORDER BY id
       LIMIT ${BATCH_SIZE}
     `
