@@ -1,4 +1,5 @@
 import { getCachedData } from '@/lib/cache'
+import { getCachedDbHomepage } from '@/lib/homepage/dbHomepage'
 import HomeClient from '@/components/HomePage/HomeClient'
 import { HomepageData } from '@/hooks/useHomepageData'
 import { NewsListSkeleton } from '@/components/ui/Skeleton'
@@ -42,23 +43,44 @@ export default async function Home({
 
   let initialData: HomepageData | null = null
 
+  // DB-backed homepage is the primary read path; the Redis cache remains the fallback
   try {
-    const cachedHomepage = await getCachedData('homepage-result')
-
-    if (cachedHomepage) {
-      console.log('📦 SSR: Using cached homepage data')
+    const dbHomepage = await getCachedDbHomepage()
+    if (dbHomepage) {
+      console.log('🗄️ SSR: Using DB-backed homepage data')
       initialData = {
-        ...cachedHomepage,
+        ...dbHomepage,
         fromCache: true,
-        cacheAge: cachedHomepage.lastUpdated
-          ? Math.floor((Date.now() - new Date(cachedHomepage.lastUpdated).getTime()) / (1000 * 60))
+        cacheAge: dbHomepage.lastUpdated
+          ? Math.floor((Date.now() - new Date(dbHomepage.lastUpdated).getTime()) / (1000 * 60))
           : undefined,
       }
-    } else {
-      console.log('🔍 SSR: No cached data available, client will handle initial load')
     }
   } catch (error) {
-    console.error('❌ SSR: Failed to get initial data:', error)
+    console.error('❌ SSR: DB homepage read failed, falling back to cache:', error)
+  }
+
+  if (!initialData) {
+    try {
+      const cachedHomepage = await getCachedData('homepage-result')
+
+      if (cachedHomepage) {
+        console.log('📦 SSR: Using cached homepage data')
+        initialData = {
+          ...cachedHomepage,
+          fromCache: true,
+          cacheAge: cachedHomepage.lastUpdated
+            ? Math.floor(
+                (Date.now() - new Date(cachedHomepage.lastUpdated).getTime()) / (1000 * 60)
+              )
+            : undefined,
+        }
+      } else {
+        console.log('🔍 SSR: No cached data available, client will handle initial load')
+      }
+    } catch (error) {
+      console.error('❌ SSR: Failed to get initial data:', error)
+    }
   }
 
   return (
