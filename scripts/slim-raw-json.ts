@@ -103,10 +103,11 @@ async function main() {
       if (rows.length < BATCH_SIZE) break
     }
     console.log(`pruned ${pruned} excess chunks (chunk_index >= 2)`)
-    if (pruned > 0) {
-      console.log('rebuilding HNSW index to release its pages…')
-      await sql.query('REINDEX INDEX idx_chunks_vector')
-    }
+    // Unconditional while the flag is set: deletes commit per-statement, so a
+    // rerun after a failed REINDEX would otherwise see pruned=0 and skip the
+    // rebuild (the lever's main payoff) forever.
+    console.log('rebuilding HNSW index to release its pages…')
+    await sql.query('REINDEX INDEX idx_chunks_vector')
   }
 
   const after = await dbStats()
