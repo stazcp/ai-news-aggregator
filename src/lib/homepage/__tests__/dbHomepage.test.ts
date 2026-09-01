@@ -469,15 +469,29 @@ describe('getCachedDbHomepage', () => {
     expect(mockSetCachedData).not.toHaveBeenCalledWith('homepage-db-result', 'db-homepage-empty', 300)
   })
 
-  it('prefers the legacy cache over a stale snapshot, rethrowing so callers use it', async () => {
+  it('rethrows so callers use the legacy cache only when it is actually fresher', async () => {
     mockGetCachedData.mockImplementation(async (key: string) => {
-      if (key === 'homepage-result') return { storyClusters: [], unclusteredArticles: [], topics: [], lastUpdated: 'y' }
-      if (key === 'homepage-db-last-good') return { storyClusters: [{ id: 'st-old' }] }
+      if (key === 'homepage-result') return { lastUpdated: '2026-09-01T10:00:00.000Z' }
+      if (key === 'homepage-db-last-good') return { lastUpdated: '2026-09-01T09:00:00.000Z' }
       return null
     })
     mockSql.mockRejectedValue(new Error('neon unreachable'))
 
     await expect(getCachedDbHomepage()).rejects.toThrow('neon unreachable')
+  })
+
+  it('serves the snapshot when it is fresher than the legacy cache', async () => {
+    // The legacy cron snapshot lives 12h while ours refreshes hourly, so a
+    // fixed preference either way serves stale data half the time.
+    const snapshot = { lastUpdated: '2026-09-01T10:00:00.000Z' }
+    mockGetCachedData.mockImplementation(async (key: string) => {
+      if (key === 'homepage-result') return { lastUpdated: '2026-08-31T22:00:00.000Z' }
+      if (key === 'homepage-db-last-good') return snapshot
+      return null
+    })
+    mockSql.mockRejectedValue(new Error('neon unreachable'))
+
+    await expect(getCachedDbHomepage()).resolves.toBe(snapshot)
   })
 
   it('rethrows when the DB fails and nothing cached exists', async () => {

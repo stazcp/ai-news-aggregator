@@ -190,11 +190,17 @@ async function seedCategoryDigestCaches(
   // and they would compute the same cache key. Pick deterministically —
   // exact topic name first, then alphabetical — instead of letting unordered
   // DB rows decide which digest occupies the key for the whole TTL.
+  const todayUtc = new Date().toISOString().slice(0, 10)
+  const isToday = (row: DigestRow) => toUtcDateString(row.digest_date) === todayUtc
   const byLabel = new Map<string, DigestRow>()
   for (const row of [...digests].sort((a, b) => a.category.localeCompare(b.category))) {
     const { label } = resolveDigestTopic(row.category)
     const existing = byLabel.get(label)
-    if (!existing || row.category === label) byLabel.set(label, row)
+    // Today's digest always beats yesterday's; only then does the exact topic
+    // name win, so an alias category can't seed a stale day under the key.
+    if (!existing) byLabel.set(label, row)
+    else if (isToday(row) && !isToday(existing)) byLabel.set(label, row)
+    else if (row.category === label && isToday(row) === isToday(existing)) byLabel.set(label, row)
   }
   for (const row of byLabel.values()) {
     const { label, isTrending } = resolveDigestTopic(row.category)
@@ -368,18 +374,17 @@ export async function getCachedDbHomepage(): Promise<HomepageData | null> {
   try {
     fresh = await getHomepageDataFromDb()
   } catch (error) {
-    // The legacy Redis path has no writer while the refresh cron is paused, so
-    // a transient Neon blip would otherwise blank the page. Prefer the legacy
-    // snapshot when one exists (it may be fresher, and is what callers would
-    // fall back to anyway); otherwise serve our last known good copy. Failures
-    // are never memoized.
-    const legacy = await getCachedData(LEGACY_HOMEPAGE_KEY)
-    const lastGood = legacy ? null : await getCachedData(DB_LAST_GOOD_KEY)
-    if (lastGood) {
-      console.warn('⚠️ DB homepage read failed; serving last known good snapshot:', error)
-      return lastGood as HomepageData
-    }
-    throw error
+    // A transient Neon blip must not blank the page. Both fallbacks can be
+    // the stale one — the legacy cron snapshot lives 12h, ours refreshes
+    // hourly — so compare lastUpdated instead of fixing an order. Rethrowing
+    // hands the request to the caller's legacy path. Failures are never
+    // memoized.
+    const lastGood = (await getCachedData(DB_LAST_GOOD_KEY)) as HomepageData | null
+    if (!lastGood) throw error
+    const legacy = (await getCachedData(LEGACY_HOMEPAGE_KEY)) as HomepageData | null
+    if (legacy && Date.parse(legacy.lastUpdated) > Date.parse(lastGood.lastUpdated)) throw error
+    console.warn('⚠️ DB homepage read failed; serving last known good snapshot:', error)
+    return lastGood
   }
 
   // Cache writes must not be able to discard a good read.
