@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedData } from '@/lib/cache'
 import { refreshCacheInBackground } from '@/lib/homepage/backgroundRefresh'
+import { getCachedDbHomepage } from '@/lib/homepage/dbHomepage'
 import { HomepageData as BaseHomepageData } from '@/lib/homepage/homepageGenerator'
 import { ENV_DEFAULTS, envString } from '@/lib/config/env'
 import { isProjectPaused } from '@/lib/config/projectState'
@@ -35,6 +36,25 @@ export async function GET(): Promise<NextResponse<HomepageData | { error: string
   try {
     console.log('🏠 Homepage API called')
     const refreshMode = getHomepageRefreshMode()
+
+    // DB-backed homepage is the primary read path; the legacy Redis-cache path
+    // below (with its HOMEPAGE_REFRESH_MODE semantics) remains the fallback.
+    try {
+      const dbHomepage = await getCachedDbHomepage()
+      if (dbHomepage) {
+        console.log('🗄️ Serving DB-backed homepage data')
+        return NextResponse.json({
+          ...dbHomepage,
+          fromCache: true,
+          cacheAge: dbHomepage.lastUpdated
+            ? Math.floor((Date.now() - new Date(dbHomepage.lastUpdated).getTime()) / (1000 * 60))
+            : undefined,
+        })
+      }
+      console.log('🗄️ DB homepage empty, falling back to cache path')
+    } catch (dbError) {
+      console.error('❌ DB homepage read failed, falling back to cache path:', dbError)
+    }
 
     const cachedHomepage = await getCachedData('homepage-result')
 

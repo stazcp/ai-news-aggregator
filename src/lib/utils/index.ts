@@ -1,7 +1,7 @@
 import { Article, StoryCluster } from '@/types'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import { computeKeywordScore } from '../topics'
+import { computeKeywordScore, TOPIC_KEYWORDS } from '../topics'
 import { ENV_DEFAULTS, envInt } from '@/lib/config/env'
 
 export function cn(...inputs: ClassValue[]) {
@@ -55,10 +55,28 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
   Crypto: ['Crypto', 'Cryptocurrency'],
 }
 
+/**
+ * Reverse of CATEGORY_ALIASES: the UI topic a feed/story category belongs to
+ * ('World News' → 'World', 'Environment' → 'Climate'). Returns null when the
+ * category maps to no topic. Callers that need the topic the client will
+ * actually click must use this rather than keyword matching — topic keywords
+ * describe article text, not category names.
+ */
+export function topicForCategory(category: string): string | null {
+  const trimmed = category.trim()
+  if (!trimmed) return null
+  // Defined via categoryMatches — the predicate filterByTopic itself uses — so
+  // the mapping is round-trip consistent by construction: if this returns T,
+  // filterByTopic(..., T) is guaranteed to include this category's clusters.
+  // Deriving it any other way can point a digest at a disjoint cluster set
+  // (e.g. category 'Politics' is NOT included under topic 'US Politics').
+  return Object.keys(TOPIC_KEYWORDS).find((topic) => categoryMatches(topic, trimmed)) ?? null
+}
+
 function categoryMatches(topic: string, category?: string): boolean {
   if (!category) return false
   const t = topic.toLowerCase()
-  const c = category.toLowerCase()
+  const c = category.trim().toLowerCase()
   const aliases = (CATEGORY_ALIASES[topic] || [topic]).map((x) => x.toLowerCase())
   return c === t || aliases.includes(category) || aliases.includes(c)
 }
