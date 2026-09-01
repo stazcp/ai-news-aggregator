@@ -76,7 +76,7 @@ export function topicForCategory(category: string): string | null {
 function categoryMatches(topic: string, category?: string): boolean {
   if (!category) return false
   const t = topic.toLowerCase()
-  const c = category.toLowerCase()
+  const c = category.trim().toLowerCase()
   const aliases = (CATEGORY_ALIASES[topic] || [topic]).map((x) => x.toLowerCase())
   return c === t || aliases.includes(category) || aliases.includes(c)
 }
