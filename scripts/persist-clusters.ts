@@ -59,14 +59,29 @@ function toArticle(row: ArticleRow): Article {
 // Groq's edge (403 for every request), which the engine's per-seed error
 // handling would otherwise turn into ~200 doomed calls and zero clusters.
 async function groqReachable(): Promise<boolean> {
-  if (!process.env.GROQ_API_KEY) return false
+  if (!process.env.GROQ_API_KEY) {
+    console.warn('⚠️ GROQ_API_KEY is not set — no summaries will be generated.')
+    return false
+  }
   try {
     const res = await fetch('https://api.groq.com/openai/v1/models', {
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
       signal: AbortSignal.timeout(5000),
     })
-    return res.ok
-  } catch {
+    if (res.ok) return true
+    // Distinguish a rejected key from a blocked network: both used to read as
+    // "unreachable", so an expired key silently produced no summaries forever.
+    const detail = (await res.text().catch(() => '')).slice(0, 200)
+    console.warn(
+      `⚠️ Groq preflight failed: HTTP ${res.status} ${res.statusText}. ` +
+        (res.status === 401 || res.status === 403
+          ? 'The API key was rejected — rotate the GROQ_API_KEY secret.'
+          : 'Groq returned an unexpected status.') +
+        (detail ? ` Response: ${detail}` : '')
+    )
+    return false
+  } catch (error) {
+    console.warn('⚠️ Groq preflight failed: network error —', (error as Error).message)
     return false
   }
 }
