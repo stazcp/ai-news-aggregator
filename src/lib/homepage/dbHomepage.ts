@@ -1,8 +1,9 @@
 import { getSql } from '../evidence/db'
 import { getCachedData, setCachedData } from '../cache'
-import { buildCategorySummaryPayload, filterByTopic, getCacheTtl } from '../utils'
+import { buildCategorySummaryPayload, filterByTopic, getCacheTtl, topicForCategory } from '../utils'
 import { getSummaryCacheKey, shouldPersistSummaryToCache } from '../ai/summaryCache'
 import { TOPIC_KEYWORDS, matchesTopic } from '../topics'
+import { linkRelatedClusters } from '../clustering/textCluster'
 import type { HomepageData } from './homepageGenerator'
 import { Article, StoryCluster } from '@/types'
 
@@ -14,10 +15,18 @@ const UNCLUSTERED_LIMIT = 100
 const TRENDING_ENTITY_POOL = 40
 const TRENDING_TOPIC_LIMIT = 12
 const DESCRIPTION_MAX_CHARS = 300
+// Only the description prefix is ever rendered; fetching full bodies for ~400
+// rows moved megabytes per read. Headroom over DESCRIPTION_MAX_CHARS covers
+// whitespace collapsing.
+const BODY_FETCH_CHARS = 600
 // Small memo so Neon isn't hit on every request (reuses the shared cache adapter)
 const DB_MEMO_KEY = 'homepage-db-result'
 const DB_MEMO_EMPTY = 'db-homepage-empty'
 const DB_MEMO_TTL_SECONDS = 300
+// Longer-lived copy served only when a DB read throws (the legacy Redis path
+// has no writer while the refresh cron is paused).
+const DB_LAST_GOOD_KEY = 'homepage-db-last-good'
+const DB_LAST_GOOD_TTL_SECONDS = 86400
 
 // Digest rows using these categories describe the whole day, not a single topic
 const TRENDING_DIGEST_CATEGORIES = new Set(['trending', 'all', 'today', 'overall'])
@@ -121,14 +130,15 @@ export function mapTrendingTopics(
       }
     }
   }
-  if (counts.size === 0) {
-    // Same fallback as the legacy generator: predefined topics; client scores/orders.
-    return Object.keys(TOPIC_KEYWORDS)
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
+  // Always return the FULL taxonomy like the legacy generator — the client
+  // hides topics without clusters, so dropping unmatched topics here would
+  // silently delete working navigation (entity names rarely contain topic
+  // keywords). Entity signal only decides the order of the leading topics.
+  const ranked = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([topic]) => topic)
     .slice(0, limit)
+  return [...new Set([...ranked, ...Object.keys(TOPIC_KEYWORDS)])]
 }
 
 /** Keeps one digest row per category, preferring today's UTC date over yesterday's. */
@@ -155,9 +165,11 @@ function resolveDigestTopic(category: string): { label: string; isTrending: bool
   if (TOPIC_KEYWORDS[category]) {
     return { label: category, isTrending: false }
   }
-  // Map DB category names (e.g. "AI") onto the taxonomy topic the UI will click
-  const mapped = Object.keys(TOPIC_KEYWORDS).find((topic) => matchesTopic(topic, category))
-  return { label: mapped || category, isTrending: false }
+  // Map DB category names ('World News', 'Environment') onto the taxonomy topic
+  // the UI actually clicks, using the same alias table filterByTopic uses —
+  // keyword matching describes article text, not category names, so it would
+  // seed the digest under a key the client never requests.
+  return { label: topicForCategory(category) || category, isTrending: false }
 }
 
 /**
@@ -184,7 +196,11 @@ async function seedCategoryDigestCaches(
     if (!payload) continue
     const digestText = typeof row.digest === 'string' ? row.digest : JSON.stringify(row.digest)
     if (!shouldPersistSummaryToCache(digestText)) continue
-    await setCachedData(getSummaryCacheKey('category', payload.id), digestText, ttl)
+    const key = getSummaryCacheKey('category', payload.id)
+    // Never clobber a summary already at this key: seeding runs on every memo
+    // miss (~5 min), and an on-demand summary there is at least as fresh.
+    if (await getCachedData(key)) continue
+    await setCachedData(key, digestText, ttl)
   }
 }
 
@@ -210,7 +226,7 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     clusterIds.length > 0
       ? ((await sql`
           SELECT ca.cluster_id, a.id, a.title, a.url, a.source, a.category,
-                 a.published_at, a.body, a.raw_json
+                 a.published_at, left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
           FROM cluster_articles ca
           JOIN articles a ON a.id = ca.article_id
           WHERE ca.cluster_id = ANY(${clusterIds})
@@ -219,7 +235,8 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
       : []
 
   const unclusteredRows = (await sql`
-    SELECT a.id, a.title, a.url, a.source, a.category, a.published_at, a.body, a.raw_json
+    SELECT a.id, a.title, a.url, a.source, a.category, a.published_at,
+           left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
     FROM articles a
     WHERE a.published_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
       AND NOT EXISTS (
@@ -243,8 +260,10 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
   `) as EntityRow[]
 
   const todayUtc = new Date().toISOString().slice(0, 10)
+  // digest_date as text: the driver parses DATE columns to a JS Date at LOCAL
+  // midnight, which shifts the day on any server not running in UTC.
   const digestRows = (await sql`
-    SELECT category, digest_date, digest
+    SELECT category, to_char(digest_date, 'YYYY-MM-DD') AS digest_date, digest
     FROM category_digests
     WHERE digest_date IN (${todayUtc}::date, ${todayUtc}::date - 1)
   `) as DigestRow[]
@@ -290,10 +309,19 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     return null
   }
 
+  // Related-coverage pills and the related-story modal are gated on
+  // relatedClusterIds; the legacy path fills it via the same helper, which
+  // returns a new array rather than mutating in place.
+  const articleMap = new Map<string, Article>()
+  for (const cluster of storyClusters) {
+    for (const article of cluster.articles || []) articleMap.set(article.id, article)
+  }
+  const linkedClusters = linkRelatedClusters(storyClusters, articleMap)
+
   const unclusteredArticles = unclusteredRows.map(mapArticleRow)
 
   const homepageData: HomepageData = {
-    storyClusters,
+    storyClusters: linkedClusters,
     unclusteredArticles,
     rateLimitMessage: null,
     topics: mapTrendingTopics(entityRows),
@@ -303,7 +331,9 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
   }
 
   try {
-    await seedCategoryDigestCaches(storyClusters, pickLatestDigests(digestRows, todayUtc))
+    // Seed from the exact array served, so the payload id matches what the
+    // client computes.
+    await seedCategoryDigestCaches(linkedClusters, pickLatestDigests(digestRows, todayUtc))
   } catch (error) {
     console.warn('⚠️ Failed to seed category digest caches from DB:', error)
   }
@@ -320,7 +350,20 @@ export async function getCachedDbHomepage(): Promise<HomepageData | null> {
   if (memo === DB_MEMO_EMPTY) return null
   if (memo) return memo as HomepageData
 
-  const fresh = await getHomepageDataFromDb()
-  await setCachedData(DB_MEMO_KEY, fresh ?? DB_MEMO_EMPTY, DB_MEMO_TTL_SECONDS)
-  return fresh
+  try {
+    const fresh = await getHomepageDataFromDb()
+    await setCachedData(DB_MEMO_KEY, fresh ?? DB_MEMO_EMPTY, DB_MEMO_TTL_SECONDS)
+    if (fresh) await setCachedData(DB_LAST_GOOD_KEY, fresh, DB_LAST_GOOD_TTL_SECONDS)
+    return fresh
+  } catch (error) {
+    // The legacy Redis path has no writer while the refresh cron is paused, so
+    // a transient Neon blip would otherwise blank the page. Serve the last
+    // known good snapshot instead, and don't memoize the failure.
+    const lastGood = await getCachedData(DB_LAST_GOOD_KEY)
+    if (lastGood) {
+      console.warn('⚠️ DB homepage read failed; serving last known good snapshot:', error)
+      return lastGood as HomepageData
+    }
+    throw error
+  }
 }

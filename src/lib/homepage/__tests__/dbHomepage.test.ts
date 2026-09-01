@@ -5,14 +5,23 @@ import {
 } from '../dbHomepage'
 import { getSql } from '@/lib/evidence/db'
 import { getCachedData, setCachedData } from '@/lib/cache'
-import { buildCategorySummaryPayload, filterByTopic } from '@/lib/utils'
+import { buildCategorySummaryPayload, filterByTopic, topicForCategory } from '@/lib/utils'
 import { getSummaryCacheKey } from '@/lib/ai/summaryCache'
 import { TOPIC_KEYWORDS } from '@/lib/topics'
+import { linkRelatedClusters } from '@/lib/clustering/textCluster'
+import type { StoryCluster } from '@/types'
 
 jest.mock('@/lib/evidence/db')
 jest.mock('@/lib/cache')
+jest.mock('@/lib/clustering/textCluster', () => ({
+  ...jest.requireActual('@/lib/clustering/textCluster'),
+  linkRelatedClusters: jest.fn((clusters: StoryCluster[]) => clusters.map((c) => ({ ...c }))),
+}))
 
 const mockGetSql = getSql as jest.MockedFunction<typeof getSql>
+const mockLinkRelatedClusters = linkRelatedClusters as jest.MockedFunction<
+  typeof linkRelatedClusters
+>
 const mockGetCachedData = getCachedData as jest.MockedFunction<typeof getCachedData>
 const mockSetCachedData = setCachedData as jest.MockedFunction<typeof setCachedData>
 
@@ -179,6 +188,18 @@ describe('getHomepageDataFromDb', () => {
     expect(result!.rateLimitMessage).toBeNull()
   })
 
+  it('serves the related-cluster links the UI gates its coverage pills on', async () => {
+    // linkRelatedClusters returns a NEW array instead of mutating; serving the
+    // pre-link array silently drops related-coverage pills and the modal.
+    mockLinkRelatedClusters.mockImplementationOnce((clusters) =>
+      clusters.map((c, i) => ({ ...c, relatedClusterIds: i === 0 ? ['st-99'] : [] }))
+    )
+
+    const result = await getHomepageDataFromDb()
+
+    expect(result!.storyClusters[0].relatedClusterIds).toEqual(['st-99'])
+  })
+
   it('passes persisted cluster summaries through so the UI renders them without Groq', async () => {
     const result = await getHomepageDataFromDb()
 
@@ -222,10 +243,11 @@ describe('getHomepageDataFromDb', () => {
     expect(result!.unclusteredArticles[0].source.name).toBe('Ars Technica')
   })
 
-  it('maps trending entities into the existing topic taxonomy by article count', async () => {
+  it('orders topics by trending entity article count, keeping the full taxonomy', async () => {
     const result = await getHomepageDataFromDb()
 
-    expect(result!.topics).toEqual(['Artificial Intelligence', 'World', 'Crypto'])
+    expect(result!.topics.slice(0, 3)).toEqual(['Artificial Intelligence', 'World', 'Crypto'])
+    expect([...result!.topics].sort()).toEqual(Object.keys(TOPIC_KEYWORDS).sort())
   })
 
   it('falls back to the predefined topic list when no entities exist', async () => {
@@ -331,7 +353,7 @@ describe('category digest seeding', () => {
 })
 
 describe('mapTrendingTopics', () => {
-  it('skips entities that match no taxonomy topic and respects the limit', () => {
+  it('ranks entity-matched topics first but always returns the full taxonomy', () => {
     const topics = mapTrendingTopics(
       [
         { name: 'OpenAI', type: 'company', article_count: 2 },
@@ -339,7 +361,26 @@ describe('mapTrendingTopics', () => {
       ],
       1
     )
-    expect(topics).toEqual(['Artificial Intelligence'])
+    expect(topics[0]).toBe('Artificial Intelligence')
+    // Every taxonomy topic survives — the client hides the ones without
+    // clusters, so dropping them here would delete working navigation.
+    expect([...topics].sort()).toEqual(Object.keys(TOPIC_KEYWORDS).sort())
+  })
+
+  it('returns the full taxonomy when no entity matches any topic', () => {
+    const topics = mapTrendingTopics([{ name: 'Zzz', type: 'theme', article_count: 5 }])
+    expect([...topics].sort()).toEqual(Object.keys(TOPIC_KEYWORDS).sort())
+  })
+})
+
+describe('resolveDigestTopic via seeding', () => {
+  it('maps feed categories onto the taxonomy topic the client requests', () => {
+    // 'World News' is the largest DB category; the client's pill is 'World'.
+    expect(topicForCategory('World News')).toBe('World')
+    expect(topicForCategory('Environment')).toBe('Climate')
+    expect(topicForCategory('US Politics')).toBe('US Politics')
+    expect(topicForCategory('AI')).toBe('Artificial Intelligence')
+    expect(topicForCategory('Nonsense Category')).toBeNull()
   })
 })
 
