@@ -27,6 +27,10 @@ const DB_MEMO_TTL_SECONDS = 300
 // has no writer while the refresh cron is paused).
 const DB_LAST_GOOD_KEY = 'homepage-db-last-good'
 const DB_LAST_GOOD_TTL_SECONDS = 86400
+const DB_LAST_GOOD_MARKER = 'homepage-db-last-good-written'
+const DB_LAST_GOOD_REFRESH_SECONDS = 3600
+// The legacy cache key page.tsx / the homepage route fall back to
+const LEGACY_HOMEPAGE_KEY = 'homepage-result'
 
 // Digest rows using these categories describe the whole day, not a single topic
 const TRENDING_DIGEST_CATEGORIES = new Set(['trending', 'all', 'today', 'overall'])
@@ -182,7 +186,17 @@ async function seedCategoryDigestCaches(
   digests: DigestRow[]
 ): Promise<void> {
   const ttl = getCacheTtl()
-  for (const row of digests) {
+  // Several categories can resolve to one topic ('World' and 'World News'),
+  // and they would compute the same cache key. Pick deterministically —
+  // exact topic name first, then alphabetical — instead of letting unordered
+  // DB rows decide which digest occupies the key for the whole TTL.
+  const byLabel = new Map<string, DigestRow>()
+  for (const row of [...digests].sort((a, b) => a.category.localeCompare(b.category))) {
+    const { label } = resolveDigestTopic(row.category)
+    const existing = byLabel.get(label)
+    if (!existing || row.category === label) byLabel.set(label, row)
+  }
+  for (const row of byLabel.values()) {
     const { label, isTrending } = resolveDigestTopic(row.category)
     const clusters = isTrending
       ? storyClusters
@@ -350,20 +364,31 @@ export async function getCachedDbHomepage(): Promise<HomepageData | null> {
   if (memo === DB_MEMO_EMPTY) return null
   if (memo) return memo as HomepageData
 
+  let fresh: HomepageData | null
   try {
-    const fresh = await getHomepageDataFromDb()
-    await setCachedData(DB_MEMO_KEY, fresh ?? DB_MEMO_EMPTY, DB_MEMO_TTL_SECONDS)
-    if (fresh) await setCachedData(DB_LAST_GOOD_KEY, fresh, DB_LAST_GOOD_TTL_SECONDS)
-    return fresh
+    fresh = await getHomepageDataFromDb()
   } catch (error) {
     // The legacy Redis path has no writer while the refresh cron is paused, so
-    // a transient Neon blip would otherwise blank the page. Serve the last
-    // known good snapshot instead, and don't memoize the failure.
-    const lastGood = await getCachedData(DB_LAST_GOOD_KEY)
+    // a transient Neon blip would otherwise blank the page. Prefer the legacy
+    // snapshot when one exists (it may be fresher, and is what callers would
+    // fall back to anyway); otherwise serve our last known good copy. Failures
+    // are never memoized.
+    const legacy = await getCachedData(LEGACY_HOMEPAGE_KEY)
+    const lastGood = legacy ? null : await getCachedData(DB_LAST_GOOD_KEY)
     if (lastGood) {
       console.warn('⚠️ DB homepage read failed; serving last known good snapshot:', error)
       return lastGood as HomepageData
     }
     throw error
   }
+
+  // Cache writes must not be able to discard a good read.
+  await setCachedData(DB_MEMO_KEY, fresh ?? DB_MEMO_EMPTY, DB_MEMO_TTL_SECONDS)
+  // Refresh the fallback copy at most hourly — the snapshot is ~450KB, and
+  // rewriting it on every 5-minute memo miss is pure write bandwidth.
+  if (fresh && !(await getCachedData(DB_LAST_GOOD_MARKER))) {
+    await setCachedData(DB_LAST_GOOD_KEY, fresh, DB_LAST_GOOD_TTL_SECONDS)
+    await setCachedData(DB_LAST_GOOD_MARKER, '1', DB_LAST_GOOD_REFRESH_SECONDS)
+  }
+  return fresh
 }

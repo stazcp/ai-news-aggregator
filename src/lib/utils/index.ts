@@ -63,18 +63,13 @@ const CATEGORY_ALIASES: Record<string, string[]> = {
  * describe article text, not category names.
  */
 export function topicForCategory(category: string): string | null {
-  const c = category.trim().toLowerCase()
-  if (!c) return null
-  const exact = Object.keys(TOPIC_KEYWORDS).find((topic) => topic.toLowerCase() === c)
-  if (exact) return exact
-  for (const [topic, aliases] of Object.entries(CATEGORY_ALIASES)) {
-    if (topic.toLowerCase() !== c && !aliases.some((alias) => alias.toLowerCase() === c)) continue
-    // Alias keys aren't always taxonomy keys ('Politics' groups 'US Politics')
-    if (TOPIC_KEYWORDS[topic]) return topic
-    const viaAlias = aliases.find((alias) => TOPIC_KEYWORDS[alias])
-    if (viaAlias) return viaAlias
-  }
-  return null
+  if (!category.trim()) return null
+  // Defined via categoryMatches — the predicate filterByTopic itself uses — so
+  // the mapping is round-trip consistent by construction: if this returns T,
+  // filterByTopic(..., T) is guaranteed to include this category's clusters.
+  // Deriving it any other way can point a digest at a disjoint cluster set
+  // (e.g. category 'Politics' is NOT included under topic 'US Politics').
+  return Object.keys(TOPIC_KEYWORDS).find((topic) => categoryMatches(topic, category)) ?? null
 }
 
 function categoryMatches(topic: string, category?: string): boolean {

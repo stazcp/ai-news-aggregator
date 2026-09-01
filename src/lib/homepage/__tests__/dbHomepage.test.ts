@@ -168,6 +168,13 @@ afterEach(() => {
   delete process.env.CACHE_TTL_SECONDS
 })
 
+// clearAllMocks keeps implementations, so a test that makes sql reject would
+// otherwise leak into the next one.
+const originalSqlImpl = mockSql.getMockImplementation()
+afterEach(() => {
+  if (originalSqlImpl) mockSql.mockImplementation(originalSqlImpl)
+})
+
 describe('getHomepageDataFromDb', () => {
   it('returns stories in DB score order with stable ids, severity, score and imageUrls', async () => {
     const result = await getHomepageDataFromDb()
@@ -373,7 +380,7 @@ describe('mapTrendingTopics', () => {
   })
 })
 
-describe('resolveDigestTopic via seeding', () => {
+describe('topicForCategory', () => {
   it('maps feed categories onto the taxonomy topic the client requests', () => {
     // 'World News' is the largest DB category; the client's pill is 'World'.
     expect(topicForCategory('World News')).toBe('World')
@@ -381,6 +388,38 @@ describe('resolveDigestTopic via seeding', () => {
     expect(topicForCategory('US Politics')).toBe('US Politics')
     expect(topicForCategory('AI')).toBe('Artificial Intelligence')
     expect(topicForCategory('Nonsense Category')).toBeNull()
+  })
+
+  it('never returns a topic whose own filter would exclude the category', () => {
+    // Round-trip invariant: seeding a digest under a topic whose filter drops
+    // the category would describe a disjoint cluster set. 'Politics' is the
+    // real-world offender — it is NOT included under the 'US Politics' pill.
+    const categories = [
+      'World News', 'US News', 'Sports', 'Business', 'Technology', 'Culture',
+      'US Politics', 'Europe', 'Crypto', 'Politics', 'Finance', 'Science',
+      'Health', 'Middle East', 'Africa', 'Analysis', 'Environment', 'AI',
+    ]
+    for (const category of categories) {
+      const topic = topicForCategory(category)
+      if (!topic) continue
+      const cluster = {
+        clusterTitle: 't',
+        articleIds: ['a'],
+        articles: [
+          {
+            id: 'a',
+            title: 't',
+            url: 'https://example.com/a',
+            urlToImage: '',
+            publishedAt: new Date().toISOString(),
+            source: { name: 's', url: '' },
+            category,
+          },
+        ],
+      } as StoryCluster
+      expect(filterByTopic([cluster], [], topic).clusters).toHaveLength(1)
+    }
+    expect(topicForCategory('Politics')).not.toBe('US Politics')
   })
 })
 
@@ -415,5 +454,51 @@ describe('getCachedDbHomepage', () => {
     const second = await getCachedDbHomepage()
     expect(second).toBeNull()
     expect(mockSql).not.toHaveBeenCalled()
+  })
+
+  it('serves the last known good snapshot when the DB read fails and no legacy cache exists', async () => {
+    const snapshot = { storyClusters: [{ id: 'st-old' }], unclusteredArticles: [], topics: [], lastUpdated: 'x' }
+    mockGetCachedData.mockImplementation(async (key: string) => {
+      if (key === 'homepage-db-last-good') return snapshot
+      return null
+    })
+    mockSql.mockRejectedValue(new Error('neon unreachable'))
+
+    await expect(getCachedDbHomepage()).resolves.toBe(snapshot)
+    // A failure must never be memoized as empty.
+    expect(mockSetCachedData).not.toHaveBeenCalledWith('homepage-db-result', 'db-homepage-empty', 300)
+  })
+
+  it('prefers the legacy cache over a stale snapshot, rethrowing so callers use it', async () => {
+    mockGetCachedData.mockImplementation(async (key: string) => {
+      if (key === 'homepage-result') return { storyClusters: [], unclusteredArticles: [], topics: [], lastUpdated: 'y' }
+      if (key === 'homepage-db-last-good') return { storyClusters: [{ id: 'st-old' }] }
+      return null
+    })
+    mockSql.mockRejectedValue(new Error('neon unreachable'))
+
+    await expect(getCachedDbHomepage()).rejects.toThrow('neon unreachable')
+  })
+
+  it('rethrows when the DB fails and nothing cached exists', async () => {
+    mockGetCachedData.mockResolvedValue(null)
+    mockSql.mockRejectedValue(new Error('neon unreachable'))
+
+    await expect(getCachedDbHomepage()).rejects.toThrow('neon unreachable')
+  })
+
+  it('refreshes the fallback snapshot at most hourly', async () => {
+    // Marker present → the ~450KB snapshot is not rewritten on this memo miss.
+    mockGetCachedData.mockImplementation(async (key: string) =>
+      key === 'homepage-db-last-good-written' ? '1' : null
+    )
+
+    await getCachedDbHomepage()
+
+    expect(mockSetCachedData).not.toHaveBeenCalledWith(
+      'homepage-db-last-good',
+      expect.anything(),
+      expect.anything()
+    )
   })
 })
