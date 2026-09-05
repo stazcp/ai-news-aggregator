@@ -37,7 +37,13 @@ export async function POST(request: Request) {
       console.log(`📊 [Cluster Summary] Title: ${clusterTitle}`)
     }
 
-    let summary = await getCachedData(cacheKey)
+    // Redis JSON-parses on read, so a cached category digest (itself JSON)
+    // comes back as an object — re-serialize instead of failing the guard.
+    const cached = await getCachedData(cacheKey)
+    let summary =
+      cached === null || cached === undefined || typeof cached === 'string'
+        ? (cached as string | null)
+        : JSON.stringify(cached)
 
     if (!summary) {
       console.log(`⚡ [AI Generation] Generating new ${summaryType} summary for: ${articleId}`)
@@ -59,6 +65,15 @@ export async function POST(request: Request) {
       }
     } else {
       console.log(`🔄 [Cache Hit] Using cached ${summaryType} summary for: ${articleId}`)
+    }
+
+    // The generators return sentinel strings ("An error occurred while
+    // generating the cluster summary.") instead of throwing. Surfacing those
+    // as a 502 lets the client render its error state; returning them as
+    // `summary` printed the internal placeholder to readers as if it were
+    // the story's summary.
+    if (!shouldPersistSummaryToCache(summary)) {
+      return NextResponse.json({ error: 'Summary unavailable' }, { status: 502 })
     }
 
     return NextResponse.json({ summary })

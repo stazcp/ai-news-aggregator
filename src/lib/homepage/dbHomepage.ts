@@ -232,27 +232,50 @@ async function seedCategoryDigestCaches(
 export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
   const sql = getSql()
 
-  const clusterRows = (await sql`
+  // Serve something rather than nothing: if the pipeline has been down longer
+  // than STORY_WINDOW_HOURS, every story falls outside the window and the page
+  // would drop to the legacy cache — which has no writer while the refresh
+  // cron is paused, so the reader gets an error instead of day-old news. The
+  // fallback pass drops the time filter entirely rather than widening it to a
+  // fixed bound, which would silently re-break the page once the outage
+  // outlived it. Same rows, same LIMIT; the UI shows data age from lastUpdated.
+  let clusterRows = (await sql`
     SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
     FROM story_clusters
     WHERE last_seen_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
     ORDER BY score DESC NULLS LAST, last_seen_at DESC
     LIMIT ${STORY_LIMIT}
   `) as ClusterRow[]
+  const isStale = clusterRows.length === 0
+  if (isStale) {
+    clusterRows = (await sql`
+      SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
+      FROM story_clusters
+      ORDER BY score DESC NULLS LAST, last_seen_at DESC
+      LIMIT ${STORY_LIMIT}
+    `) as ClusterRow[]
+    if (clusterRows.length > 0) {
+      console.warn(
+        `⚠️ No stories within ${STORY_WINDOW_HOURS}h — serving the most recent ones ` +
+          'regardless of age. The ingest pipeline is likely failing.'
+      )
+    }
+  }
+
+  // Nothing below can change the outcome once there are no clusters (the UI
+  // renders clusters only), so stop before four more queries.
+  if (clusterRows.length === 0) return null
 
   const clusterIds = clusterRows.map((row) => row.id)
 
-  const memberRows =
-    clusterIds.length > 0
-      ? ((await sql`
-          SELECT ca.cluster_id, a.id, a.title, a.url, a.source, a.category,
-                 a.published_at, left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
-          FROM cluster_articles ca
-          JOIN articles a ON a.id = ca.article_id
-          WHERE ca.cluster_id = ANY(${clusterIds})
-          ORDER BY a.published_at DESC
-        `) as ArticleRow[])
-      : []
+  const memberRows = (await sql`
+    SELECT ca.cluster_id, a.id, a.title, a.url, a.source, a.category,
+           a.published_at, left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
+    FROM cluster_articles ca
+    JOIN articles a ON a.id = ca.article_id
+    WHERE ca.cluster_id = ANY(${clusterIds})
+    ORDER BY a.published_at DESC
+  `) as ArticleRow[]
 
   const unclusteredRows = (await sql`
     SELECT a.id, a.title, a.url, a.source, a.category, a.published_at,

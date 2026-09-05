@@ -46,6 +46,18 @@ export default function Summary({
       eager={eager}
       className={`${containerClasses} ${summary ? 'bg-accent/10' : ''} ${!!summary ? 'p-2' : ''}`}
       loadingContent={<LoadingSpinner variant="article" />}
+      // Summaries no longer retry automatically (each attempt is a paid
+      // generation), so a failure needs a way back or the block just vanishes.
+      errorContent={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleRetry}
+          className="border border-destructive/20 text-destructive hover:bg-destructive/10 cursor-pointer"
+        >
+          🔄 Retry summary
+        </Button>
+      }
       placeholderContent={
         ON_DEMAND ? (
           <div className="flex items-center gap-3">

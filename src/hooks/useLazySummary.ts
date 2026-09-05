@@ -147,6 +147,10 @@ export function useLazySummary({
       variant === 'cluster' && hasServerSummaryForVariant ? cleanedClusterSummary : undefined,
     staleTime: ENV_DEFAULTS.cacheTtlSeconds * 1000,
     gcTime: ENV_DEFAULTS.cacheTtlSeconds * 1000,
+    // Never retry: every attempt is a fresh paid generation (failed summaries
+    // are deliberately not cached), so the default 3 retries would turn one
+    // failing cluster into four model calls. The user can retry explicitly.
+    retry: false,
     queryFn: async () => {
       const payload =
         variant === 'cluster'
