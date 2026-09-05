@@ -61,6 +61,15 @@ export async function POST(request: Request) {
       console.log(`🔄 [Cache Hit] Using cached ${summaryType} summary for: ${articleId}`)
     }
 
+    // The generators return sentinel strings ("An error occurred while
+    // generating the cluster summary.") instead of throwing. Surfacing those
+    // as a 502 lets the client render its error state; returning them as
+    // `summary` printed the internal placeholder to readers as if it were
+    // the story's summary.
+    if (!shouldPersistSummaryToCache(summary)) {
+      return NextResponse.json({ error: 'Summary unavailable' }, { status: 502 })
+    }
+
     return NextResponse.json({ summary })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'

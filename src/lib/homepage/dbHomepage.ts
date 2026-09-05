@@ -9,6 +9,8 @@ import { Article, StoryCluster } from '@/types'
 
 // Stories younger than this (by cluster last_seen_at / article published_at) are shown
 const STORY_WINDOW_HOURS = 48
+// Fallback reach when nothing is fresh — stale news beats an error page.
+const STALE_WINDOW_HOURS = 24 * 14
 const STORY_LIMIT = 60
 const UNCLUSTERED_LIMIT = 100
 // Trending topics derive from entity mentions over the last 24h
@@ -232,13 +234,30 @@ async function seedCategoryDigestCaches(
 export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
   const sql = getSql()
 
-  const clusterRows = (await sql`
-    SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
-    FROM story_clusters
-    WHERE last_seen_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
-    ORDER BY score DESC NULLS LAST, last_seen_at DESC
-    LIMIT ${STORY_LIMIT}
-  `) as ClusterRow[]
+  // Widen the window rather than serve nothing: if the pipeline has been down
+  // longer than STORY_WINDOW_HOURS, every story falls outside it and the page
+  // would drop to the legacy cache — which has no writer while the refresh
+  // cron is paused, so the reader gets an error instead of day-old news. The
+  // UI already surfaces data age from lastUpdated.
+  let windowHours = STORY_WINDOW_HOURS
+  let clusterRows: ClusterRow[] = []
+  for (const hours of [STORY_WINDOW_HOURS, STALE_WINDOW_HOURS]) {
+    clusterRows = (await sql`
+      SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
+      FROM story_clusters
+      WHERE last_seen_at > now() - interval '1 hour' * ${hours}
+      ORDER BY score DESC NULLS LAST, last_seen_at DESC
+      LIMIT ${STORY_LIMIT}
+    `) as ClusterRow[]
+    windowHours = hours
+    if (clusterRows.length > 0) break
+  }
+  if (windowHours !== STORY_WINDOW_HOURS && clusterRows.length > 0) {
+    console.warn(
+      `⚠️ No stories within ${STORY_WINDOW_HOURS}h — serving up to ${windowHours}h old. ` +
+        'The ingest pipeline is likely failing.'
+    )
+  }
 
   const clusterIds = clusterRows.map((row) => row.id)
 
@@ -258,7 +277,7 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     SELECT a.id, a.title, a.url, a.source, a.category, a.published_at,
            left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
     FROM articles a
-    WHERE a.published_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
+    WHERE a.published_at > now() - interval '1 hour' * ${windowHours}
       AND NOT EXISTS (
         SELECT 1 FROM cluster_articles ca
         WHERE ca.article_id = a.id AND ca.cluster_id = ANY(${clusterIds})

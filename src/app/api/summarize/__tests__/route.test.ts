@@ -13,6 +13,12 @@ jest.mock('../../../../lib/utils', () => ({
   getCacheTtl: jest.fn(() => 43200),
 }))
 
+// PROJECT_PAUSED defaults to true, so without this every request short-
+// circuits with 410 and none of the route's logic is exercised.
+jest.mock('../../../../lib/config/projectState', () => ({
+  isProjectPaused: jest.fn(() => false),
+}))
+
 import { POST } from '../route'
 import { getCachedData, setCachedData } from '../../../../lib/cache'
 import {
@@ -42,7 +48,7 @@ describe('/api/summarize', () => {
     jest.restoreAllMocks()
   })
 
-  it('does not cache non-cacheable cluster summary placeholders', async () => {
+  it('reports an error instead of returning a placeholder as the summary', async () => {
     mockSummarizeCluster.mockResolvedValue('An error occurred while generating the cluster summary.')
 
     const request = new Request('http://localhost:3000/api/summarize', {
@@ -59,8 +65,11 @@ describe('/api/summarize', () => {
     const response = await POST(request)
     const data = await response.json()
 
-    expect(response.status).toBe(200)
-    expect(data.summary).toBe('An error occurred while generating the cluster summary.')
+    // Returning the sentinel as `summary` printed "An error occurred while
+    // generating the cluster summary." to readers as the story's summary.
+    expect(response.status).toBe(502)
+    expect(data.summary).toBeUndefined()
+    expect(data.error).toBe('Summary unavailable')
     expect(mockSetCachedData).not.toHaveBeenCalled()
   })
 
