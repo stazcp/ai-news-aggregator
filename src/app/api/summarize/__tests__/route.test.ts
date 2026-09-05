@@ -26,6 +26,7 @@ import {
   summarizeCategoryDigest,
   summarizeCluster,
 } from '../../../../lib/ai/groq'
+import { isProjectPaused } from '../../../../lib/config/projectState'
 
 const mockGetCachedData = getCachedData as jest.MockedFunction<typeof getCachedData>
 const mockSetCachedData = setCachedData as jest.MockedFunction<typeof setCachedData>
@@ -34,10 +35,15 @@ const mockSummarizeCategoryDigest = summarizeCategoryDigest as jest.MockedFuncti
   typeof summarizeCategoryDigest
 >
 const mockSummarizeCluster = summarizeCluster as jest.MockedFunction<typeof summarizeCluster>
+const mockIsProjectPaused = isProjectPaused as jest.MockedFunction<typeof isProjectPaused>
 
 describe('/api/summarize', () => {
   beforeEach(() => {
     jest.resetAllMocks()
+    // resetAllMocks wipes the factory implementation, so re-assert it here —
+    // otherwise isProjectPaused() returns undefined and the suite passes only
+    // because undefined happens to be falsy.
+    mockIsProjectPaused.mockReturnValue(false)
     mockGetCachedData.mockResolvedValue(null)
     jest.spyOn(console, 'log').mockImplementation(() => {})
     jest.spyOn(console, 'warn').mockImplementation(() => {})

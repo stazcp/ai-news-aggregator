@@ -195,6 +195,43 @@ describe('getHomepageDataFromDb', () => {
     expect(result!.rateLimitMessage).toBeNull()
   })
 
+  it('falls back to the newest stories regardless of age when nothing is fresh', async () => {
+    // The pipeline outage that motivated this: every cluster older than the
+    // window meant zero rows, a null return, and an error page — with
+    // hundreds of usable stories in the DB.
+    const stale = clusterRows
+    let clusterQueries = 0
+    mockSql.mockImplementation((strings: TemplateStringsArray) => {
+      const query = Array.isArray(strings) ? strings.join(' ') : String(strings)
+      if (query.includes('max(last_seen_at)')) return Promise.resolve(lastSeenRows)
+      if (query.includes('FROM story_clusters')) {
+        clusterQueries++
+        // First pass is time-filtered and finds nothing; the fallback isn't.
+        return Promise.resolve(query.includes('last_seen_at >') ? [] : stale)
+      }
+      if (query.includes('NOT EXISTS')) return Promise.resolve(unclusteredRows)
+      if (query.includes('FROM cluster_articles ca')) return Promise.resolve(memberRows)
+      if (query.includes('FROM article_entities')) return Promise.resolve(entityRows)
+      if (query.includes('FROM category_digests')) return Promise.resolve(digestRows)
+      return Promise.resolve([])
+    })
+
+    const result = await getHomepageDataFromDb()
+
+    expect(clusterQueries).toBe(2)
+    expect(result!.storyClusters.map((c) => c.id)).toEqual(['st-2', 'st-1'])
+  })
+
+  it('returns null without further queries when the DB has no stories at all', async () => {
+    mockSql.mockImplementation((strings: TemplateStringsArray) => {
+      const query = Array.isArray(strings) ? strings.join(' ') : String(strings)
+      if (query.includes('FROM story_clusters')) return Promise.resolve([])
+      throw new Error(`unexpected query after an empty cluster set: ${query}`)
+    })
+
+    await expect(getHomepageDataFromDb()).resolves.toBeNull()
+  })
+
   it('serves the related-cluster links the UI gates its coverage pills on', async () => {
     // linkRelatedClusters returns a NEW array instead of mutating; serving the
     // pre-link array silently drops related-coverage pills and the modal.

@@ -37,7 +37,13 @@ export async function POST(request: Request) {
       console.log(`📊 [Cluster Summary] Title: ${clusterTitle}`)
     }
 
-    let summary = await getCachedData(cacheKey)
+    // Redis JSON-parses on read, so a cached category digest (itself JSON)
+    // comes back as an object — re-serialize instead of failing the guard.
+    const cached = await getCachedData(cacheKey)
+    let summary =
+      cached === null || cached === undefined || typeof cached === 'string'
+        ? (cached as string | null)
+        : JSON.stringify(cached)
 
     if (!summary) {
       console.log(`⚡ [AI Generation] Generating new ${summaryType} summary for: ${articleId}`)
