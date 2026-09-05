@@ -84,31 +84,10 @@ async function main() {
     console.log(`pruned raw_json on ${pruned} articles published over ${days} days ago`)
   }
 
-  // Optional, OFF by default: EVIDENCE_PRUNE_EXCESS_CHUNKS=true deletes
-  // legacy chunks beyond the 2-per-article cap. Safe because chunking
-  // constants are unchanged, so chunks 0 and 1 are byte-identical to what the
-  // capped chunkText produces today; pruned embeddings are recomputable from
-  // articles.body. This is where the real bytes are (embeddings + HNSW).
-  if (process.env.EVIDENCE_PRUNE_EXCESS_CHUNKS === 'true') {
-    let pruned = 0
-    for (;;) {
-      const rows = await sql`
-        DELETE FROM article_chunks
-        WHERE id IN (
-          SELECT id FROM article_chunks WHERE chunk_index >= 2 LIMIT ${BATCH_SIZE}
-        )
-        RETURNING id
-      `
-      pruned += rows.length
-      if (rows.length < BATCH_SIZE) break
-    }
-    console.log(`pruned ${pruned} excess chunks (chunk_index >= 2)`)
-    // Unconditional while the flag is set: deletes commit per-statement, so a
-    // rerun after a failed REINDEX would otherwise see pruned=0 and skip the
-    // rebuild (the lever's main payoff) forever.
-    console.log('rebuilding HNSW index to release its pages…')
-    await sql.query('REINDEX INDEX idx_chunks_vector')
-  }
+  // Chunk pruning lives in scripts/reclaim-space.ts (`pnpm db:reclaim`): the
+  // REINDEX this used to run needs headroom for the replacement index, which
+  // a project at its size limit — the only time pruning is urgent — does not
+  // have. That script drops the index first instead.
 
   const after = await dbStats()
   console.log(`after: db ${after.db}, raw_json bytes ${after.raw}`)

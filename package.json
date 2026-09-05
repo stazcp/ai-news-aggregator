@@ -17,6 +17,7 @@
     "ingest:evidence": "tsx -r tsconfig-paths/register scripts/ingest-evidence.ts",
     "backfill:source-slugs": "tsx -r tsconfig-paths/register scripts/backfill-source-slugs.ts",
     "db:slim": "tsx -r tsconfig-paths/register scripts/slim-raw-json.ts",
+    "db:reclaim": "tsx -r tsconfig-paths/register scripts/reclaim-space.ts",
     "extract:entities": "tsx -r tsconfig-paths/register scripts/extract-entities.ts",
     "clusters:persist": "tsx -r tsconfig-paths/register scripts/persist-clusters.ts"
   },
