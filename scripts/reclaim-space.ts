@@ -11,7 +11,7 @@ import { neon } from '@neondatabase/serverless'
 // THE DELETE IS PERMANENT under current code. Article rows, bodies, entities
 // and stories are never touched, but the dropped chunks are NOT restored by
 // re-running ingestion: backfillMissingChunks only revisits articles with ZERO
-// chunks (every article keeps 0 and 1), and chunkText caps output at
+// chunks and every article keeps chunk 0, and chunkText caps output at
 // MAX_CHUNKS_PER_ARTICLE anyway. The full text survives in articles.body, so
 // rebuilding them would take a new script with a raised cap. What is lost is
 // vector coverage of the tail of long articles — the point of the 2-chunk diet.
@@ -64,7 +64,7 @@ async function main() {
     console.log(`  1. DROP INDEX ${VECTOR_INDEX} (frees its pages immediately)`)
     console.log(`  2. DELETE article_chunks WHERE chunk_index >= ${KEEP_CHUNKS_PER_ARTICLE}`)
     console.log(
-      `  3. VACUUM ${full ? 'FULL ' : ''}(ANALYZE) article_chunks` +
+      `  3. ${full ? 'VACUUM (FULL, ANALYZE)' : 'VACUUM (ANALYZE)'} article_chunks` +
         (full
           ? ' (rewrites the table, returning pages to Neon)'
           : ' (frees pages for reuse; the reported size will barely move)')
@@ -108,11 +108,23 @@ async function main() {
   await sql.query(full ? 'VACUUM (FULL, ANALYZE) article_chunks' : 'VACUUM (ANALYZE) article_chunks')
   await report('after vacuum')
 
-  // 4. Rebuild on the reduced set.
-  console.log(`rebuilding ${VECTOR_INDEX}…`)
-  await sql.query(
-    `CREATE INDEX IF NOT EXISTS ${VECTOR_INDEX} ON article_chunks USING hnsw (embedding vector_cosine_ops)`
-  )
+  // 4. Rebuild on the reduced set. This is one long HTTP request and the graph
+  // no longer fits in maintenance_work_mem, so the build spills to disk and can
+  // outlive the client's timeout. Failing here is recoverable — the data is
+  // already reclaimed and the statement is idempotent — but the table is left
+  // without a vector index until it succeeds, so say exactly how to finish.
+  console.log(`rebuilding ${VECTOR_INDEX} (may take several minutes)…`)
+  const createIndex = `CREATE INDEX IF NOT EXISTS ${VECTOR_INDEX} ON article_chunks USING hnsw (embedding vector_cosine_ops)`
+  try {
+    await sql.query(createIndex)
+  } catch (error) {
+    console.error(`\n✗ Index rebuild failed: ${(error as Error).message}`)
+    console.error('The space HAS been reclaimed; only the vector index is missing.')
+    console.error('Finish it by re-running this script, or directly over psql:')
+    console.error(`  psql "$POSTGRES_URL_NON_POOLING" -c "${createIndex}"`)
+    process.exitCode = 1
+    return
+  }
   await report('after')
   console.log(
     full
