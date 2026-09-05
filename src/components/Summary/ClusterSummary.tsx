@@ -1,4 +1,5 @@
 import { CategorySummaryContentSkeleton } from '@/components/ui'
+import { Button } from '@/components/ui/button'
 import { useLazySummary } from '@/hooks/useLazySummary'
 import { StoryCluster } from '@/types'
 import { SummaryBase } from './SummaryBase'
@@ -34,6 +35,18 @@ export default function ClusterSummary({ cluster, eager = false }: ClusterSummar
       eager={eager}
       headerBadge={headerBadge}
       loadingContent={<CategorySummaryContentSkeleton />}
+      // Summaries no longer retry automatically (each attempt is a paid
+      // generation), so a failure needs a way back or the block just vanishes.
+      errorContent={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleRetry}
+          className="border border-destructive/20 text-destructive hover:bg-destructive/10 cursor-pointer"
+        >
+          🔄 Retry summary
+        </Button>
+      }
       placeholderContent={
         <p className="text-lg text-muted-foreground">
           AI-powered analysis will load when this section becomes visible

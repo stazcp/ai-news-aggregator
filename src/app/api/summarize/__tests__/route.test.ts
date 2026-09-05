@@ -103,6 +103,27 @@ describe('/api/summarize', () => {
     expect(mockSetCachedData).toHaveBeenCalledTimes(1)
   })
 
+  it('re-serializes a cached digest that Redis parsed back into an object', async () => {
+    // Category digests are stored as JSON text; Upstash parses on read, so the
+    // cache hit arrives as an object. Passing it through failed the string
+    // guard and turned a hit into a 502.
+    const digest = { lede: 'Markets moved on rate expectations.', takeaways: ['One', 'Two'] }
+    mockGetCachedData.mockResolvedValue(digest)
+
+    const request = new Request('http://localhost:3000/api/summarize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ articleId: 'cat-1', content: 'notes', purpose: 'category' }),
+    })
+
+    const response = await POST(request)
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(JSON.parse(data.summary)).toEqual(digest)
+    expect(mockSummarizeCategoryDigest).not.toHaveBeenCalled()
+  })
+
   it('returns cached summaries without regenerating', async () => {
     mockGetCachedData.mockResolvedValue('Cached summary')
 

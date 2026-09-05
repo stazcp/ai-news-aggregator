@@ -268,17 +268,14 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
 
   const clusterIds = clusterRows.map((row) => row.id)
 
-  const memberRows =
-    clusterIds.length > 0
-      ? ((await sql`
-          SELECT ca.cluster_id, a.id, a.title, a.url, a.source, a.category,
-                 a.published_at, left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
-          FROM cluster_articles ca
-          JOIN articles a ON a.id = ca.article_id
-          WHERE ca.cluster_id = ANY(${clusterIds})
-          ORDER BY a.published_at DESC
-        `) as ArticleRow[])
-      : []
+  const memberRows = (await sql`
+    SELECT ca.cluster_id, a.id, a.title, a.url, a.source, a.category,
+           a.published_at, left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
+    FROM cluster_articles ca
+    JOIN articles a ON a.id = ca.article_id
+    WHERE ca.cluster_id = ANY(${clusterIds})
+    ORDER BY a.published_at DESC
+  `) as ArticleRow[]
 
   const unclusteredRows = (await sql`
     SELECT a.id, a.title, a.url, a.source, a.category, a.published_at,
