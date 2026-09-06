@@ -112,7 +112,8 @@ export async function getDurableData(key: string): Promise<any> {
       if (value !== null && value !== undefined) return value
     }
   }
-  // Memory fallback (also covers writes that landed here during a Redis outage)
+  // Memory fallback (serves the Redis-unconfigured case; durable writes never
+  // land here when Redis is configured — setDurableData rethrows instead)
   for (const prefix of getCacheReadPrefixes()) {
     const cached = memoryCache.get(prefixKey(key, prefix))
     if (cached && cached.expires > Date.now()) return cached.data
