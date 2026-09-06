@@ -121,7 +121,10 @@ export async function setCachedData(key: string, data: any, ttlSeconds: number):
  * Prefer clearCacheAll() if you need a cross-instance purge.
  */
 export function clearCache(): void {
-  memoryCache.clear()
+  // Never purge durable config keys (see DURABLE_KEY_SEGMENT)
+  for (const [key] of memoryCache.entries()) {
+    if (!key.includes(DURABLE_KEY_SEGMENT)) memoryCache.delete(key)
+  }
   console.log('🗑️ In-memory cache cleared')
   if (redis)
     console.warn(

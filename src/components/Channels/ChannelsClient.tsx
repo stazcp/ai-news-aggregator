@@ -207,6 +207,26 @@ export default function ChannelsClient() {
     )
   }
 
+  // Never render the picker without the stored selection: seeding it empty after
+  // a transient failure would let a Save silently overwrite the saved list.
+  if (selected === null && selectedQuery.isError) {
+    return (
+      <ChannelsLayout>
+        <Card>
+          <CardContent className="py-10 text-center">
+            <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
+              Unable to load your saved selection
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              Something went wrong loading your saved channels. Please try again.
+            </p>
+            <Button onClick={() => selectedQuery.refetch()}>Retry</Button>
+          </CardContent>
+        </Card>
+      </ChannelsLayout>
+    )
+  }
+
   if (subscriptionsQuery.isLoading || (selected === null && selectedQuery.isLoading)) {
     return (
       <ChannelsLayout>
