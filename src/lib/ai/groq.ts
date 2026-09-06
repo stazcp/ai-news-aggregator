@@ -11,6 +11,13 @@ function getGroq(): Groq {
   return _groq
 }
 
+// Groq shut down llama-3.3-70b-versatile and llama-3.1-8b-instant for free and
+// developer-tier traffic on 2026-08-16; calls 404 with model_not_found. These
+// are Groq's own recommended successors. Named so the next retirement is a
+// two-line change rather than eight, and overridable without a deploy.
+const MODEL_QUALITY = process.env.GROQ_MODEL_QUALITY || 'openai/gpt-oss-120b'
+const MODEL_FAST = process.env.GROQ_MODEL_FAST || 'openai/gpt-oss-20b'
+
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
 const GROQ_QUEUE: Array<() => void> = []
@@ -105,7 +112,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
             content: `Summarize this article in ${maxLength} characters or less. Focus on the key facts and main points:\n\n${content}`,
           },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         max_tokens: 100,
         temperature: 0.3,
       })
@@ -183,7 +190,7 @@ ${contentToSummarize}
           { role: 'system', content: 'You are a senior news editor.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: isShort ? 0.3 : 0.4,
         max_tokens: isShort ? 90 : 320,
       })
@@ -258,7 +265,7 @@ ${content}`
           },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: 0.2,
         response_format: { type: 'json_object' },
         max_tokens: 170,
@@ -352,7 +359,7 @@ ${JSON.stringify(articleSummaries)}
             },
             { role: 'user', content: prompt },
           ],
-          model: 'llama-3.3-70b-versatile',
+          model: MODEL_QUALITY,
           temperature: 0.1,
           response_format: { type: 'json_object' },
         })
@@ -373,7 +380,7 @@ ${JSON.stringify(articleSummaries)}
               { role: 'system', content: 'Output valid JSON only. No explanations.' },
               { role: 'user', content: strictPrompt },
             ],
-            model: 'llama-3.3-70b-versatile',
+            model: MODEL_QUALITY,
             temperature: 0,
             max_tokens: 800,
           })
@@ -495,7 +502,7 @@ ${JSON.stringify(briefs)}`
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
         max_tokens: 60 * uncachedIndices.length + 100,
@@ -588,7 +595,7 @@ ${JSON.stringify(brief)}
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
         max_tokens: 200,
@@ -678,7 +685,7 @@ ${JSON.stringify(briefs)}
           { role: 'system', content: 'You return strict JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: 0.1,
         response_format: { type: 'json_object' },
         max_tokens: 800,
