@@ -1,18 +1,18 @@
 // Mock the cache adapter (keep the real DURABLE_KEY_SEGMENT constant)
 jest.mock('../../cache', () => ({
   DURABLE_KEY_SEGMENT: 'durable:',
-  getCachedData: jest.fn(),
+  getDurableData: jest.fn(),
   setCachedData: jest.fn(),
 }))
 
-import { getCachedData, setCachedData } from '../../cache'
+import { getDurableData, setCachedData } from '../../cache'
 import {
   getSelectedChannels,
   setSelectedChannels,
   SELECTED_CHANNELS_CACHE_KEY,
 } from '../channelStore'
 
-const mockGetCachedData = getCachedData as jest.MockedFunction<typeof getCachedData>
+const mockGetDurableData = getDurableData as jest.MockedFunction<typeof getDurableData>
 const mockSetCachedData = setCachedData as jest.MockedFunction<typeof setCachedData>
 
 // Valid YouTube channel ids: "UC" + 22 URL-safe base64 chars
@@ -24,20 +24,20 @@ const THUMB = 'https://yt3.ggpht.com/avatar=s88'
 describe('channelStore', () => {
   beforeEach(() => {
     jest.resetAllMocks()
-    mockGetCachedData.mockResolvedValue(null)
+    mockGetDurableData.mockResolvedValue(null)
     mockSetCachedData.mockResolvedValue(undefined)
   })
 
   describe('getSelectedChannels', () => {
     it('reads from the cache under the durable youtube:selected-channels key', async () => {
       await getSelectedChannels()
-      expect(mockGetCachedData).toHaveBeenCalledWith(SELECTED_CHANNELS_CACHE_KEY)
+      expect(mockGetDurableData).toHaveBeenCalledWith(SELECTED_CHANNELS_CACHE_KEY)
       // The durable: segment exempts the key from clearCacheAll()/pattern purges
       expect(SELECTED_CHANNELS_CACHE_KEY).toBe('durable:youtube:selected-channels')
     })
 
     it('returns [] when nothing is stored', async () => {
-      mockGetCachedData.mockResolvedValue(null)
+      mockGetDurableData.mockResolvedValue(null)
       await expect(getSelectedChannels()).resolves.toEqual([])
     })
 
@@ -46,17 +46,17 @@ describe('channelStore', () => {
         { id: UC1, title: 'Channel One', thumbnail: THUMB },
         { id: UC2, title: 'Channel Two' },
       ]
-      mockGetCachedData.mockResolvedValue(channels)
+      mockGetDurableData.mockResolvedValue(channels)
       await expect(getSelectedChannels()).resolves.toEqual(channels)
     })
 
     it('returns [] when the stored value is not an array', async () => {
-      mockGetCachedData.mockResolvedValue({ id: UC1, title: 'Not an array' })
+      mockGetDurableData.mockResolvedValue({ id: UC1, title: 'Not an array' })
       await expect(getSelectedChannels()).resolves.toEqual([])
     })
 
     it('filters out malformed entries and strips unknown fields', async () => {
-      mockGetCachedData.mockResolvedValue([
+      mockGetDurableData.mockResolvedValue([
         { id: UC1, title: 'Valid', extra: 'ignored' },
         { id: '', title: 'Empty id' },
         { id: 'UC-too-short', title: 'Bad id format' },
@@ -73,7 +73,7 @@ describe('channelStore', () => {
     })
 
     it('drops thumbnails that are not https Google avatar URLs', async () => {
-      mockGetCachedData.mockResolvedValue([
+      mockGetDurableData.mockResolvedValue([
         { id: UC1, title: 'One', thumbnail: 'https://evil.example.com/pixel.gif' },
         { id: UC2, title: 'Two', thumbnail: 'http://yt3.ggpht.com/insecure' },
       ])
@@ -83,9 +83,9 @@ describe('channelStore', () => {
       ])
     })
 
-    it('returns [] when the cache read throws', async () => {
-      mockGetCachedData.mockRejectedValue(new Error('redis down'))
-      await expect(getSelectedChannels()).resolves.toEqual([])
+    it('propagates a store outage instead of masking it as an empty selection', async () => {
+      mockGetDurableData.mockRejectedValue(new Error('redis down'))
+      await expect(getSelectedChannels()).rejects.toThrow('redis down')
     })
   })
 

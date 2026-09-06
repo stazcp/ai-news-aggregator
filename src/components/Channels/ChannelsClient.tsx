@@ -38,8 +38,15 @@ function useSelectedChannels() {
     queryKey: ['youtube-selected-channels'],
     queryFn: async (): Promise<YouTubeChannel[]> => {
       const response = await fetch('/api/youtube/channels')
-      // Selection is optional config — degrade to empty rather than blocking the page
-      if (!response.ok) return []
+      if (!response.ok) {
+        // 5xx = selection store unavailable: surface the error (Retry card)
+        // rather than rendering an empty list a Save would then overwrite
+        if (response.status >= 500) {
+          throw new Error(`Failed to load saved selection: ${response.status}`)
+        }
+        // Other non-OK (e.g. paused): degrade to empty rather than blocking the page
+        return []
+      }
       const data = await response.json().catch(() => ({}))
       return Array.isArray(data.channels) ? data.channels : []
     },

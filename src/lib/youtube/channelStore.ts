@@ -4,7 +4,7 @@
 // so we use a 1-year TTL as the longest practical expiry for this durable config.
 // The 'durable:' segment exempts the key from clearCacheAll()/clearCacheByPattern()
 // purges, so a routine cache clear cannot wipe the selection.
-import { DURABLE_KEY_SEGMENT, getCachedData, setCachedData } from '../cache'
+import { DURABLE_KEY_SEGMENT, getDurableData, setCachedData } from '../cache'
 import { CHANNEL_ID_PATTERN, isAllowedThumbnailUrl, MAX_CHANNEL_TITLE_LENGTH } from './constants'
 import type { YouTubeChannel } from '@/types'
 
@@ -33,17 +33,16 @@ function sanitizeChannel(value: unknown): YouTubeChannel | null {
 /**
  * Read the user's selected YouTube channels.
  * Returns [] when nothing is stored or the stored value has a bad shape.
+ * Throws when the backing store is unreachable — an outage must not read as an
+ * empty selection (a subsequent save would overwrite the real list); callers
+ * decide how to degrade.
  */
 export async function getSelectedChannels(): Promise<YouTubeChannel[]> {
-  try {
-    const stored = await getCachedData(SELECTED_CHANNELS_CACHE_KEY)
-    if (!Array.isArray(stored)) return []
-    return stored
-      .map(sanitizeChannel)
-      .filter((channel): channel is YouTubeChannel => channel !== null)
-  } catch {
-    return []
-  }
+  const stored = await getDurableData(SELECTED_CHANNELS_CACHE_KEY)
+  if (!Array.isArray(stored)) return []
+  return stored
+    .map(sanitizeChannel)
+    .filter((channel): channel is YouTubeChannel => channel !== null)
 }
 
 /**

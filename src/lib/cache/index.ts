@@ -100,6 +100,26 @@ export async function getCachedData(key: string): Promise<any> {
   return null
 }
 
+/**
+ * Strict read for durable config keys. Unlike getCachedData, a Redis error is
+ * thrown instead of masked as a miss, so callers can tell "store unreachable"
+ * from "nothing stored" and avoid treating an outage as legitimately empty state.
+ */
+export async function getDurableData(key: string): Promise<any> {
+  if (redis) {
+    for (const prefix of getCacheReadPrefixes()) {
+      const value = await redis.get(prefixKey(key, prefix))
+      if (value !== null && value !== undefined) return value
+    }
+  }
+  // Memory fallback (also covers writes that landed here during a Redis outage)
+  for (const prefix of getCacheReadPrefixes()) {
+    const cached = memoryCache.get(prefixKey(key, prefix))
+    if (cached && cached.expires > Date.now()) return cached.data
+  }
+  return null
+}
+
 export async function setCachedData(key: string, data: any, ttlSeconds: number): Promise<void> {
   const prefixedKey = prefixKey(key)
 
