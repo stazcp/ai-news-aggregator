@@ -62,6 +62,13 @@ const getCachePrefix = () => {
 // Helper to add prefix to keys
 const prefixKey = (key: string, prefix = getCachePrefix()) => `${prefix}${key}`
 
+/**
+ * Keys containing this segment hold durable user config (e.g. the YouTube channel
+ * selection) rather than re-derivable cached data. The purge helpers below skip
+ * them so a routine cache clear cannot silently wipe configuration.
+ */
+export const DURABLE_KEY_SEGMENT = 'durable:'
+
 const getCacheReadPrefixes = (): string[] => {
   const primary = getCachePrefix()
   const fallbacks = envString(
@@ -93,6 +100,42 @@ export async function getCachedData(key: string): Promise<any> {
   return null
 }
 
+/**
+ * Strict read for durable config keys. Unlike getCachedData, a Redis error is
+ * thrown instead of masked as a miss, so callers can tell "store unreachable"
+ * from "nothing stored" and avoid treating an outage as legitimately empty state.
+ */
+export async function getDurableData(key: string): Promise<any> {
+  if (redis) {
+    for (const prefix of getCacheReadPrefixes()) {
+      const value = await redis.get(prefixKey(key, prefix))
+      if (value !== null && value !== undefined) return value
+    }
+  }
+  // Memory fallback (serves the Redis-unconfigured case; durable writes never
+  // land here when Redis is configured — setDurableData rethrows instead)
+  for (const prefix of getCacheReadPrefixes()) {
+    const cached = memoryCache.get(prefixKey(key, prefix))
+    if (cached && cached.expires > Date.now()) return cached.data
+  }
+  return null
+}
+
+/**
+ * Strict write counterpart of getDurableData: a Redis write error is thrown
+ * instead of silently degrading to per-instance memory, so callers never
+ * acknowledge a durable save that Redis did not accept (the stale Redis value
+ * would shadow the memory copy again once Redis recovers).
+ */
+export async function setDurableData(key: string, data: any, ttlSeconds: number): Promise<void> {
+  const prefixedKey = prefixKey(key)
+  if (redis) {
+    await redis.set(prefixedKey, data, { ex: ttlSeconds })
+    return
+  }
+  memoryCache.set(prefixedKey, { data, expires: Date.now() + ttlSeconds * 1000 })
+}
+
 export async function setCachedData(key: string, data: any, ttlSeconds: number): Promise<void> {
   const prefixedKey = prefixKey(key)
 
@@ -114,7 +157,10 @@ export async function setCachedData(key: string, data: any, ttlSeconds: number):
  * Prefer clearCacheAll() if you need a cross-instance purge.
  */
 export function clearCache(): void {
-  memoryCache.clear()
+  // Never purge durable config keys (see DURABLE_KEY_SEGMENT)
+  for (const [key] of memoryCache.entries()) {
+    if (!key.includes(DURABLE_KEY_SEGMENT)) memoryCache.delete(key)
+  }
   console.log('🗑️ In-memory cache cleared')
   if (redis)
     console.warn(
@@ -128,7 +174,7 @@ export function clearCache(): void {
 export function clearCacheByPattern(pattern: string): number {
   let clearedCount = 0
   for (const [key] of memoryCache.entries()) {
-    if (key.includes(pattern)) {
+    if (key.includes(pattern) && !key.includes(DURABLE_KEY_SEGMENT)) {
       memoryCache.delete(key)
       clearedCount++
     }
@@ -176,10 +222,12 @@ export async function clearCacheAll(prefix?: string): Promise<{ memory: number; 
         string[],
       ]
       cursor = next
-      if (keys && keys.length) {
+      // Never purge durable config keys (see DURABLE_KEY_SEGMENT)
+      const deletable = (keys || []).filter((key) => !key.includes(DURABLE_KEY_SEGMENT))
+      if (deletable.length) {
         // Upstash DEL supports variadic arguments
-        await (redis as any).del(...keys)
-        deleted += keys.length
+        await (redis as any).del(...deletable)
+        deleted += deletable.length
       }
     } while (String(cursor) !== '0')
     console.log(`🗑️ Cleared ${deleted} Redis keys with prefix: ${cachePrefix}`)

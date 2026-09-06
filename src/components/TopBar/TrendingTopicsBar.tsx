@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Youtube } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 interface TrendingTopicsBarProps {
@@ -46,25 +48,34 @@ export default function TrendingTopicsBar({
     router.push(`?${next.toString()}`)
   }
 
-  if (!topics?.length) return null
-
+  // Even with no topics yet, keep the bar so the Channels link stays reachable
   return (
     <div className="flex flex-wrap items-center justify-center gap-2 ">
-      <Button size="sm" variant={active ? 'outline' : 'default'} onClick={() => setTopic('')}>
-        Trending
-      </Button>
-      {topics.map((t) => (
-        <Button
-          key={t}
-          size="sm"
-          variant={active === t ? 'default' : 'outline'}
-          onClick={() => setTopic(t)}
-          aria-pressed={active === t}
-        >
-          {t}
-        </Button>
-      ))}
+      {topics?.length ? (
+        <>
+          <Button size="sm" variant={active ? 'outline' : 'default'} onClick={() => setTopic('')}>
+            Trending
+          </Button>
+          {topics.map((t) => (
+            <Button
+              key={t}
+              size="sm"
+              variant={active === t ? 'default' : 'outline'}
+              onClick={() => setTopic(t)}
+              aria-pressed={active === t}
+            >
+              {t}
+            </Button>
+          ))}
+        </>
+      ) : null}
       {additionalActions}
+      <Button size="sm" variant="outline" asChild>
+        <Link href="/channels">
+          <Youtube />
+          Channels
+        </Link>
+      </Button>
     </div>
   )
 }
