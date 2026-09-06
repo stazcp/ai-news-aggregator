@@ -2,10 +2,10 @@
 jest.mock('../../cache', () => ({
   DURABLE_KEY_SEGMENT: 'durable:',
   getDurableData: jest.fn(),
-  setCachedData: jest.fn(),
+  setDurableData: jest.fn(),
 }))
 
-import { getDurableData, setCachedData } from '../../cache'
+import { getDurableData, setDurableData } from '../../cache'
 import {
   getSelectedChannels,
   setSelectedChannels,
@@ -13,7 +13,7 @@ import {
 } from '../channelStore'
 
 const mockGetDurableData = getDurableData as jest.MockedFunction<typeof getDurableData>
-const mockSetCachedData = setCachedData as jest.MockedFunction<typeof setCachedData>
+const mockSetDurableData = setDurableData as jest.MockedFunction<typeof setDurableData>
 
 // Valid YouTube channel ids: "UC" + 22 URL-safe base64 chars
 const UC1 = 'UCaaaaaaaaaaaaaaaaaaaaaa'
@@ -25,7 +25,7 @@ describe('channelStore', () => {
   beforeEach(() => {
     jest.resetAllMocks()
     mockGetDurableData.mockResolvedValue(null)
-    mockSetCachedData.mockResolvedValue(undefined)
+    mockSetDurableData.mockResolvedValue(undefined)
   })
 
   describe('getSelectedChannels', () => {
@@ -94,8 +94,8 @@ describe('channelStore', () => {
       const channels = [{ id: UC1, title: 'Channel One' }]
       await setSelectedChannels(channels)
 
-      expect(mockSetCachedData).toHaveBeenCalledTimes(1)
-      const [key, data, ttlSeconds] = mockSetCachedData.mock.calls[0]
+      expect(mockSetDurableData).toHaveBeenCalledTimes(1)
+      const [key, data, ttlSeconds] = mockSetDurableData.mock.calls[0]
       expect(key).toBe(SELECTED_CHANNELS_CACHE_KEY)
       expect(data).toEqual(channels)
       // Durable config: adapter requires a TTL, so we use 1 year
@@ -109,20 +109,25 @@ describe('channelStore', () => {
         { id: 'garbage-id', title: 'Bad format' },
       ] as any)
 
-      const [, data] = mockSetCachedData.mock.calls[0]
+      const [, data] = mockSetDurableData.mock.calls[0]
       expect(data).toEqual([{ id: UC1, title: 'Valid' }])
     })
 
     it('truncates oversized titles before persisting', async () => {
       await setSelectedChannels([{ id: UC1, title: 'x'.repeat(5000) }])
 
-      const [, data] = mockSetCachedData.mock.calls[0]
+      const [, data] = mockSetDurableData.mock.calls[0]
       expect((data as { title: string }[])[0].title).toHaveLength(200)
+    })
+
+    it('propagates a store outage instead of acknowledging a lost write', async () => {
+      mockSetDurableData.mockRejectedValue(new Error('redis down'))
+      await expect(setSelectedChannels([{ id: UC1, title: 'One' }])).rejects.toThrow('redis down')
     })
 
     it('persists an empty list to clear the selection', async () => {
       await setSelectedChannels([])
-      const [key, data] = mockSetCachedData.mock.calls[0]
+      const [key, data] = mockSetDurableData.mock.calls[0]
       expect(key).toBe(SELECTED_CHANNELS_CACHE_KEY)
       expect(data).toEqual([])
     })

@@ -36,6 +36,7 @@ function mockApi({
   subscriptionsStatus = 200,
   subscriptions = SUBSCRIPTIONS,
   selection = [] as YouTubeChannel[],
+  selectionStatus = 200,
   onPut = jest.fn(),
 } = {}) {
   mockFetch.mockImplementation(async (input, init) => {
@@ -51,6 +52,9 @@ function mockApi({
         const body = JSON.parse(String(init.body))
         onPut(body)
         return jsonResponse({ channels: body.channels })
+      }
+      if (selectionStatus !== 200) {
+        return jsonResponse({ error: 'store unavailable' }, selectionStatus)
       }
       return jsonResponse({ channels: selection })
     }
@@ -95,6 +99,16 @@ describe('ChannelsClient', () => {
 
     await screen.findByText('Google OAuth is not configured')
     expect(screen.getByText(/GOOGLE_CLIENT_ID/).textContent).toContain('GOOGLE_CLIENT_SECRET')
+  })
+
+  it('shows a Retry card, not the picker, when the stored selection fails to load (5xx)', async () => {
+    mockApi({ selectionStatus: 500 })
+    renderPage()
+
+    await screen.findByText('Unable to load your saved selection')
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy()
+    // The picker must not render: an empty selection here could be saved over the real one
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0)
   })
 
   it('renders subscriptions pre-checked from the stored selection', async () => {

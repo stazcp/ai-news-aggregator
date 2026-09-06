@@ -120,6 +120,21 @@ export async function getDurableData(key: string): Promise<any> {
   return null
 }
 
+/**
+ * Strict write counterpart of getDurableData: a Redis write error is thrown
+ * instead of silently degrading to per-instance memory, so callers never
+ * acknowledge a durable save that Redis did not accept (the stale Redis value
+ * would shadow the memory copy again once Redis recovers).
+ */
+export async function setDurableData(key: string, data: any, ttlSeconds: number): Promise<void> {
+  const prefixedKey = prefixKey(key)
+  if (redis) {
+    await redis.set(prefixedKey, data, { ex: ttlSeconds })
+    return
+  }
+  memoryCache.set(prefixedKey, { data, expires: Date.now() + ttlSeconds * 1000 })
+}
+
 export async function setCachedData(key: string, data: any, ttlSeconds: number): Promise<void> {
   const prefixedKey = prefixKey(key)
 
