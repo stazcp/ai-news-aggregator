@@ -10,6 +10,15 @@ export const ENV_DEFAULTS = {
   groqMaxConcurrency: 2,
   groqRetryMax: 3,
   groqRetryBaseMs: 800,
+  // Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant on
+  // 2026-08-16; these are its recommended successors. Overridable so the next
+  // retirement can be survived with an env change instead of a deploy.
+  groqModelQuality: 'openai/gpt-oss-120b',
+  groqModelFast: 'openai/gpt-oss-20b',
+  // Tokens reserved for hidden reasoning on top of each call's answer budget.
+  // Reasoning is billed against the completion cap, so an answer-sized cap
+  // yields an empty string instead of an error.
+  groqReasoningHeadroom: 1800,
   summaryFallbackOnLimit: false,
 
   // Feed intake

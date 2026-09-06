@@ -20,7 +20,17 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error(err)
-  process.exit(1)
-})
+main()
+  .then(() => {
+    // The local embedding model (@xenova/transformers → onnxruntime-node) keeps
+    // native handles open after the last await, so the event loop never drains
+    // and the step hangs until the job timeout kills it. Run 34065417107: work
+    // finished in 70s, the process was killed 44 minutes later having done
+    // nothing, and the two later steps were skipped. Exit explicitly instead of
+    // trusting the loop to empty.
+    process.exit(0)
+  })
+  .catch((err) => {
+    console.error(err)
+    process.exit(1)
+  })

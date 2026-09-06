@@ -1,7 +1,7 @@
 import Groq from 'groq-sdk'
 import { getCachedData, setCachedData } from '@/lib/cache'
 import { Article, StoryCluster } from '@/types'
-import { ENV_DEFAULTS, envBool, envInt } from '@/lib/config/env'
+import { ENV_DEFAULTS, envBool, envInt, envString } from '@/lib/config/env'
 
 // Lazy: groq-sdk throws at construction when the key is missing, which would
 // crash consumers at import time before their own no-key guards can run.
@@ -15,8 +15,19 @@ function getGroq(): Groq {
 // developer-tier traffic on 2026-08-16; calls 404 with model_not_found. These
 // are Groq's own recommended successors. Named so the next retirement is a
 // two-line change rather than eight, and overridable without a deploy.
-const MODEL_QUALITY = process.env.GROQ_MODEL_QUALITY || 'openai/gpt-oss-120b'
-const MODEL_FAST = process.env.GROQ_MODEL_FAST || 'openai/gpt-oss-20b'
+// Trimmed because a model id is matched exactly: a trailing space pasted into
+// a dashboard env field would 404 every call, i.e. this bug all over again.
+const MODEL_QUALITY = envString('GROQ_MODEL_QUALITY', ENV_DEFAULTS.groqModelQuality).trim()
+const MODEL_FAST = envString('GROQ_MODEL_FAST', ENV_DEFAULTS.groqModelFast).trim()
+
+// The gpt-oss models are reasoning models: they spend completion tokens on
+// hidden reasoning before emitting any content, and that spend comes out of the
+// same budget as the answer. A cap sized for a llama-era one-paragraph reply
+// gets consumed entirely by reasoning, and the call returns an EMPTY string
+// rather than an error — silently, with no exception to catch. So these caps
+// are floors for "reasoning + answer", not answer length; the prompt controls
+// length, and an unused cap costs nothing.
+const REASONING_HEADROOM = envInt('GROQ_REASONING_HEADROOM', ENV_DEFAULTS.groqReasoningHeadroom)
 
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
@@ -113,7 +124,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
           },
         ],
         model: MODEL_QUALITY,
-        max_tokens: 100,
+        max_completion_tokens: 100 + REASONING_HEADROOM,
         temperature: 0.3,
       })
     )
@@ -192,7 +203,7 @@ ${contentToSummarize}
         ],
         model: MODEL_QUALITY,
         temperature: isShort ? 0.3 : 0.4,
-        max_tokens: isShort ? 90 : 320,
+        max_completion_tokens: (isShort ? 90 : 320) + REASONING_HEADROOM,
       })
     )
 
@@ -268,7 +279,7 @@ ${content}`
         model: MODEL_QUALITY,
         temperature: 0.2,
         response_format: { type: 'json_object' },
-        max_tokens: 170,
+        max_completion_tokens: 170 + REASONING_HEADROOM,
       })
     )
 
@@ -362,6 +373,12 @@ ${JSON.stringify(articleSummaries)}
           model: MODEL_QUALITY,
           temperature: 0.1,
           response_format: { type: 'json_object' },
+          // The only call site that was unbounded, so it ran to the model's
+          // 65k completion ceiling. Harmless when a cap was just a length
+          // limit; with reasoning models it is unmetered spend against a
+          // shared TPM budget, and this runs once per cluster chunk. Largest
+          // of the eight because it emits a full cluster array.
+          max_completion_tokens: 1600 + REASONING_HEADROOM,
         })
       )
       responseContent = completion.choices[0]?.message?.content ?? undefined
@@ -382,7 +399,7 @@ ${JSON.stringify(articleSummaries)}
             ],
             model: MODEL_QUALITY,
             temperature: 0,
-            max_tokens: 800,
+            max_completion_tokens: 800 + REASONING_HEADROOM,
           })
         )
         responseContent = retry.choices[0]?.message?.content ?? undefined
@@ -505,11 +522,17 @@ ${JSON.stringify(briefs)}`
         model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 60 * uncachedIndices.length + 100,
+        max_completion_tokens: 60 * uncachedIndices.length + 100 + REASONING_HEADROOM,
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Defaulting empty content to '{}' parsed cleanly and silently produced
+    // level 0 for every cluster — which then got cached for 30 minutes, so war
+    // and mass-casualty stories ranked below product launches and stayed there.
+    // An empty completion means the model told us nothing; say so and let the
+    // catch below leave severities untouched rather than caching zeros.
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)
@@ -598,11 +621,14 @@ ${JSON.stringify(brief)}
         model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 200,
+        max_completion_tokens: 200 + REASONING_HEADROOM,
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Same reasoning as batchAssessSeverityLLM: an empty completion must not
+    // become a cached level-0 verdict.
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)
@@ -688,7 +714,7 @@ ${JSON.stringify(briefs)}
         model: MODEL_QUALITY,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 800,
+        max_completion_tokens: 800 + REASONING_HEADROOM,
       })
     )
 

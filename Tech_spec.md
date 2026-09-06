@@ -148,7 +148,7 @@ Rules:
 - Divergences: max 3, must be meaningful
 - Link every claim to specific sources
   `
-  // Use Groq's llama-3.3-70b-versatile
+  // Use Groq's openai/gpt-oss-120b (llama-3.3-70b-versatile was decommissioned 2026-08-16)
   return await groq.chat.completions.create({...})
   }**Cost:** 1 call per cluster × top 20 clusters = ~$0.10/day
 
