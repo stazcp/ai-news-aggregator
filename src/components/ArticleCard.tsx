@@ -7,6 +7,7 @@ import ArticleImage from './ArticleCard/ArticleImage'
 import ArticleHeader from './ArticleCard/ArticleHeader'
 import ArticleContent from './ArticleCard/ArticleContent'
 import ArticleFooter from './ArticleCard/ArticleFooter'
+import VideoBadge from './ArticleCard/VideoBadge'
 
 interface ArticleCardProps {
   article: Article
@@ -65,6 +66,7 @@ export default function ArticleCard({
             onNoImage?.(article.id)
           }}
         />
+        {article.sourceType === 'video' && <VideoBadge />}
       </div>
 
       <CardContent className="p-6 flex flex-col flex-grow">

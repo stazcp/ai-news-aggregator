@@ -14,6 +14,15 @@ export interface Article {
   }
   category: string
   summary?: string
+  // Optional media metadata: 'rss' (default) for standard articles, 'video' for YouTube items
+  sourceType?: 'rss' | 'video'
+  videoId?: string
+}
+
+export interface YouTubeChannel {
+  id: string
+  title: string
+  thumbnail?: string
 }
 
 export interface StoryCluster {

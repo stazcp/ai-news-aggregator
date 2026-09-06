@@ -12,6 +12,7 @@ import {
   decodeAndBackfillGoogleNewsArticles,
 } from './googleNewsDecoder'
 import { ENV_DEFAULTS, envInt, envString } from '@/lib/config/env'
+import { fetchAllChannelVideos } from '../youtube/videoFeed'
 
 // Simple log gating for feed operations
 const FEED_LOG_LEVEL = envString('FEED_LOG_LEVEL', ENV_DEFAULTS.feedLogLevel).toLowerCase()
@@ -557,6 +558,13 @@ export async function fetchAllNews(): Promise<Article[]> {
 
   log('info', `⏰ Fetching ${allFeeds.length} RSS feeds in batches...`)
 
+  // Fetch selected YouTube channels' videos in parallel with the RSS batches.
+  // With no channels selected this is a single cache read resolving to [].
+  const channelVideosPromise = fetchAllChannelVideos().catch((error) => {
+    log('warn', '⚠️ Failed to fetch YouTube channel videos:', error)
+    return [] as Article[]
+  })
+
   // Process feeds in smaller batches to prevent connection exhaustion
   const BATCH_SIZE = 8 // Reduced from unlimited to 8 concurrent requests
   const results: Array<{ articles: Article[]; url: string; category: string }> = []
@@ -579,14 +587,17 @@ export async function fetchAllNews(): Promise<Article[]> {
     })
 
     const batchResults = await Promise.allSettled(
-      batchPromises.map((promise) =>
-        Promise.race([
+      batchPromises.map((promise) => {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        return Promise.race([
           promise,
-          new Promise<{ articles: Article[]; url: string; category: string }>((_, reject) =>
-            setTimeout(() => reject(new Error('Feed timeout')), FEED_OUTER_TIMEOUT_MS)
-          ),
-        ])
-      )
+          new Promise<{ articles: Article[]; url: string; category: string }>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('Feed timeout')), FEED_OUTER_TIMEOUT_MS)
+          }),
+        ]).finally(() => {
+          if (timeoutId) clearTimeout(timeoutId)
+        })
+      })
     )
 
     // Process batch results
@@ -631,6 +642,13 @@ export async function fetchAllNews(): Promise<Article[]> {
     // Even if there's a critical error, continue with whatever articles we have
   }
 
+  // Merge YouTube channel videos alongside RSS results (dedupe/sort below applies to both)
+  const channelVideos = await channelVideosPromise
+  if (channelVideos.length > 0) {
+    allArticles.push(...channelVideos)
+    log('info', `📺 Merged ${channelVideos.length} YouTube videos`)
+  }
+
   // Always return articles, even if some feeds failed
   if (allArticles.length === 0) {
     log('warn', '⚠️ No articles were successfully fetched from any feed')
@@ -652,6 +670,9 @@ export async function fetchAllNews(): Promise<Article[]> {
   // Dedupe by canonical URL or (source+title) before applying global limit
   const seenKeys = new Set<string>()
   const canonicalKey = (a: Article) => {
+    // YouTube videos share the same origin+pathname (query strings are stripped
+    // below), so key them by video id to avoid collapsing all videos into one
+    if (a.sourceType === 'video' && a.videoId) return `video:${a.videoId}`
     try {
       if (a.url) {
         const u = new URL(a.url)

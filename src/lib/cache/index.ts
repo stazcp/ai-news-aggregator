@@ -62,6 +62,13 @@ const getCachePrefix = () => {
 // Helper to add prefix to keys
 const prefixKey = (key: string, prefix = getCachePrefix()) => `${prefix}${key}`
 
+/**
+ * Keys containing this segment hold durable user config (e.g. the YouTube channel
+ * selection) rather than re-derivable cached data. The purge helpers below skip
+ * them so a routine cache clear cannot silently wipe configuration.
+ */
+export const DURABLE_KEY_SEGMENT = 'durable:'
+
 const getCacheReadPrefixes = (): string[] => {
   const primary = getCachePrefix()
   const fallbacks = envString(
@@ -128,7 +135,7 @@ export function clearCache(): void {
 export function clearCacheByPattern(pattern: string): number {
   let clearedCount = 0
   for (const [key] of memoryCache.entries()) {
-    if (key.includes(pattern)) {
+    if (key.includes(pattern) && !key.includes(DURABLE_KEY_SEGMENT)) {
       memoryCache.delete(key)
       clearedCount++
     }
@@ -176,10 +183,12 @@ export async function clearCacheAll(prefix?: string): Promise<{ memory: number; 
         string[],
       ]
       cursor = next
-      if (keys && keys.length) {
+      // Never purge durable config keys (see DURABLE_KEY_SEGMENT)
+      const deletable = (keys || []).filter((key) => !key.includes(DURABLE_KEY_SEGMENT))
+      if (deletable.length) {
         // Upstash DEL supports variadic arguments
-        await (redis as any).del(...keys)
-        deleted += keys.length
+        await (redis as any).del(...deletable)
+        deleted += deletable.length
       }
     } while (String(cursor) !== '0')
     console.log(`🗑️ Cleared ${deleted} Redis keys with prefix: ${cachePrefix}`)
