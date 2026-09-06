@@ -82,6 +82,37 @@ describe('Groq model ids', () => {
     expect(mockCreate.mock.calls[0][0].model).toBe('openai/gpt-oss-safety-20b')
   })
 
+  it('names the token budget when the model is cut off mid-answer', async () => {
+    // Without finish_reason, "budget exhausted" and "model returned nothing"
+    // are indistinguishable in the log — the ambiguity that let the
+    // decommissioned-model failure hide for days.
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: 'A truncated sum' }, finish_reason: 'length' }],
+    })
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
+    const { summarizeArticle } = await import('../groq')
+    await summarizeArticle('some article text')
+
+    const warned = warn.mock.calls.map((c) => String(c[0])).join('\n')
+    expect(warned).toContain('finish_reason=length')
+    expect(warned).toContain('GROQ_REASONING_HEADROOM')
+  })
+
+  it('does not cache the failure sentinel as a cluster summary', async () => {
+    reply('   ')
+    const { summarizeCluster } = await import('../groq')
+    const { setCachedData } = await import('@/lib/cache')
+
+    const out = await summarizeCluster([
+      { id: 'a1', title: 'T', source: { name: 'S' }, publishedAt: '', url: '' } as any,
+    ])
+
+    // Caching this pinned "Summary could not be generated." for an hour and
+    // suppressed the retry that would have replaced it.
+    expect(out).toBe('Summary could not be generated.')
+    expect(setCachedData).not.toHaveBeenCalled()
+  })
+
   it('leaves severity uncached when the model returns empty content', async () => {
     reply('   ')
     const { batchAssessSeverityLLM } = await import('../groq')

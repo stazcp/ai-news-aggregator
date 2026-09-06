@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk'
 import { getCachedData, setCachedData } from '@/lib/cache'
+import { shouldPersistSummaryToCache } from '@/lib/ai/summaryCache'
 import { Article, StoryCluster } from '@/types'
 import { ENV_DEFAULTS, envBool, envInt, envString } from '@/lib/config/env'
 
@@ -85,6 +86,22 @@ async function groqCall<T>(opName: string, call: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Distinguishes "the token budget ran out" from "the model returned nothing".
+ * Both surface as empty or truncated content, and without finish_reason an
+ * operator cannot tell which — the ambiguity that let the decommissioned-model
+ * failure hide behind a generic empty result. Call it wherever content is read.
+ */
+function noteIfTruncated(opName: string, completion: any): void {
+  if (completion?.choices?.[0]?.finish_reason === 'length') {
+    console.warn(
+      `⚠️ ${opName}: hit the completion cap (finish_reason=length). ` +
+        `Raise GROQ_REASONING_HEADROOM (currently ${REASONING_HEADROOM}) — ` +
+        `reasoning models spend this budget before emitting any answer.`
+    )
+  }
+}
+
 // Helper function to check if error is a rate limit error
 function isRateLimitError(error: any): boolean {
   if (!error) return false
@@ -129,6 +146,7 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
       })
     )
 
+    noteIfTruncated('summarizeArticle', completion)
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
     if (isRateLimitError(error)) {
@@ -207,6 +225,7 @@ ${contentToSummarize}
       })
     )
 
+    noteIfTruncated('summarizeCluster', completion)
     let summary =
       completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
     if (isShort) {
@@ -222,7 +241,13 @@ ${contentToSummarize}
         if (lastDot > 40) summary = summary.slice(0, lastDot + 1)
       }
     }
-    await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
+    // The sentinel above is a failure marker, not a summary. Caching it pinned
+    // "Summary could not be generated." in front of readers for an hour and
+    // suppressed the retry that would have fixed it. shouldPersistSummaryToCache
+    // already lists this exact string; it just was not consulted here.
+    if (shouldPersistSummaryToCache(summary)) {
+      await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
+    }
     return summary
   } catch (error) {
     if (isRateLimitError(error)) {
@@ -378,9 +403,10 @@ ${JSON.stringify(articleSummaries)}
           // limit; with reasoning models it is unmetered spend against a
           // shared TPM budget, and this runs once per cluster chunk. Largest
           // of the eight because it emits a full cluster array.
-          max_completion_tokens: 1600 + REASONING_HEADROOM,
+          max_completion_tokens: 3000 + REASONING_HEADROOM,
         })
       )
+      noteIfTruncated('clusterArticles', completion)
       responseContent = completion.choices[0]?.message?.content ?? undefined
     } catch (err: any) {
       const message = err?.message || String(err)
@@ -522,7 +548,13 @@ ${JSON.stringify(briefs)}`
         model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_completion_tokens: 60 * uncachedIndices.length + 100 + REASONING_HEADROOM,
+        // The answer term scales with the batch but a flat headroom does not:
+        // at the default top-8 it left the same reasoning budget for 8x the
+        // work, the tightest margin of any call here. Scale it with the batch.
+        max_completion_tokens:
+          60 * uncachedIndices.length +
+          100 +
+          REASONING_HEADROOM * Math.max(1, Math.ceil(uncachedIndices.length / 4)),
       })
     )
 
@@ -531,6 +563,7 @@ ${JSON.stringify(briefs)}`
     // and mass-casualty stories ranked below product launches and stayed there.
     // An empty completion means the model told us nothing; say so and let the
     // catch below leave severities untouched rather than caching zeros.
+    noteIfTruncated('batchAssessSeverityLLM', completion)
     const content = completion.choices[0]?.message?.content?.trim()
     if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
@@ -648,7 +681,9 @@ ${JSON.stringify(brief)}
     await setCachedData(cacheKey, out, 1800)
     return out
   } catch (e) {
-    console.warn('LLM severity failed; defaulting to Other')
+    // Bind the cause: without it an exhausted token budget and a 500 look
+    // identical in the log, which is how the empty-completion bug hid.
+    console.warn('LLM severity failed; defaulting to Other', e)
     return { level: 0, label: 'Other', reasons: [] }
   }
 }
@@ -718,7 +753,12 @@ ${JSON.stringify(briefs)}
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Same guard as the severity sites: '{}' from an empty completion yields
+    // zero groups, which is indistinguishable from "nothing to merge" and gets
+    // cached as such for 10 minutes without a warning.
+    noteIfTruncated('mergeClustersByLLM', completion)
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)
