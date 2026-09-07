@@ -308,6 +308,9 @@ ${content}`
       })
     )
 
+    // Most truncation-prone of the live sites: it must close a JSON object, so
+    // a cut-off answer is unparseable rather than merely short.
+    noteIfTruncated('summarizeCategoryDigest', completion)
     const content = completion.choices[0]?.message?.content?.trim()
     return content || 'Summary not available'
   } catch (error) {
