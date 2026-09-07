@@ -1,7 +1,8 @@
 import Groq from 'groq-sdk'
 import { getCachedData, setCachedData } from '@/lib/cache'
+import { shouldPersistSummaryToCache } from '@/lib/ai/summaryCache'
 import { Article, StoryCluster } from '@/types'
-import { ENV_DEFAULTS, envBool, envInt } from '@/lib/config/env'
+import { ENV_DEFAULTS, envBool, envInt, envString } from '@/lib/config/env'
 
 // Lazy: groq-sdk throws at construction when the key is missing, which would
 // crash consumers at import time before their own no-key guards can run.
@@ -10,6 +11,29 @@ function getGroq(): Groq {
   if (!_groq) _groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
   return _groq
 }
+
+// Groq shut down llama-3.3-70b-versatile and llama-3.1-8b-instant for free and
+// developer-tier traffic on 2026-08-16; calls 404 with model_not_found. These
+// are Groq's own recommended successors. Named so the next retirement is a
+// two-line change rather than eight, and overridable without a deploy.
+// Trimmed because a model id is matched exactly: a trailing space pasted into
+// a dashboard env field would 404 every call, i.e. this bug all over again.
+const MODEL_QUALITY = envString('GROQ_MODEL_QUALITY', ENV_DEFAULTS.groqModelQuality).trim()
+const MODEL_FAST = envString('GROQ_MODEL_FAST', ENV_DEFAULTS.groqModelFast).trim()
+
+// The gpt-oss models are reasoning models: they spend completion tokens on
+// hidden reasoning before emitting any content, and that spend comes out of the
+// same budget as the answer. A cap sized for a llama-era one-paragraph reply
+// gets consumed entirely by reasoning, and the call returns an EMPTY string
+// rather than an error — silently, with no exception to catch. So these caps
+// are floors for "reasoning + answer", not answer length; the prompt controls
+// length, and an unused cap costs nothing.
+// Floored at 0: envInt accepts negatives, and a negative headroom would make
+// every max_completion_tokens negative and 400 every call in the app.
+const REASONING_HEADROOM = Math.max(
+  0,
+  envInt('GROQ_REASONING_HEADROOM', ENV_DEFAULTS.groqReasoningHeadroom)
+)
 
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
@@ -67,6 +91,27 @@ async function groqCall<T>(opName: string, call: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Distinguishes "the token budget ran out" from "the model returned nothing".
+ * Both surface as empty or truncated content, and without finish_reason an
+ * operator cannot tell which — the ambiguity that let the decommissioned-model
+ * failure hide behind a generic empty result. Call it wherever content is read.
+ */
+function noteIfTruncated(opName: string, completion: any, effectiveHeadroom?: number): void {
+  if (completion?.choices?.[0]?.finish_reason === 'length') {
+    // Report the headroom this site actually used, not the base setting: the
+    // severity batch scales it, so naming the base would send an operator to
+    // raise a number that was not the one exhausted.
+    const used = effectiveHeadroom ?? REASONING_HEADROOM
+    const scaled = used === REASONING_HEADROOM ? '' : ` (${REASONING_HEADROOM} x batch scaling)`
+    console.warn(
+      `⚠️ ${opName}: hit the completion cap (finish_reason=length). ` +
+        `Effective reasoning headroom was ${used}${scaled}; raise GROQ_REASONING_HEADROOM — ` +
+        `reasoning models spend this budget before emitting any answer.`
+    )
+  }
+}
+
 // Helper function to check if error is a rate limit error
 function isRateLimitError(error: any): boolean {
   if (!error) return false
@@ -105,12 +150,13 @@ export async function summarizeArticle(content: string, maxLength: number = 150)
             content: `Summarize this article in ${maxLength} characters or less. Focus on the key facts and main points:\n\n${content}`,
           },
         ],
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 100,
+        model: MODEL_QUALITY,
+        max_completion_tokens: 100 + REASONING_HEADROOM,
         temperature: 0.3,
       })
     )
 
+    noteIfTruncated('summarizeArticle', completion)
     return completion.choices[0]?.message?.content?.trim() || 'Summary not available'
   } catch (error) {
     if (isRateLimitError(error)) {
@@ -183,12 +229,13 @@ ${contentToSummarize}
           { role: 'system', content: 'You are a senior news editor.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: isShort ? 0.3 : 0.4,
-        max_tokens: isShort ? 90 : 320,
+        max_completion_tokens: (isShort ? 90 : 320) + REASONING_HEADROOM,
       })
     )
 
+    noteIfTruncated('summarizeCluster', completion)
     let summary =
       completion.choices[0]?.message?.content?.trim() || 'Summary could not be generated.'
     if (isShort) {
@@ -204,7 +251,13 @@ ${contentToSummarize}
         if (lastDot > 40) summary = summary.slice(0, lastDot + 1)
       }
     }
-    await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
+    // The sentinel above is a failure marker, not a summary. Caching it pinned
+    // "Summary could not be generated." in front of readers for an hour and
+    // suppressed the retry that would have fixed it. shouldPersistSummaryToCache
+    // already lists this exact string; it just was not consulted here.
+    if (shouldPersistSummaryToCache(summary)) {
+      await setCachedData(cacheKey, summary, 3600) // Cache for 1 hour
+    }
     return summary
   } catch (error) {
     if (isRateLimitError(error)) {
@@ -258,13 +311,16 @@ ${content}`
           },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: 0.2,
         response_format: { type: 'json_object' },
-        max_tokens: 170,
+        max_completion_tokens: 170 + REASONING_HEADROOM,
       })
     )
 
+    // Most truncation-prone of the live sites: it must close a JSON object, so
+    // a cut-off answer is unparseable rather than merely short.
+    noteIfTruncated('summarizeCategoryDigest', completion)
     const content = completion.choices[0]?.message?.content?.trim()
     return content || 'Summary not available'
   } catch (error) {
@@ -352,11 +408,18 @@ ${JSON.stringify(articleSummaries)}
             },
             { role: 'user', content: prompt },
           ],
-          model: 'llama-3.3-70b-versatile',
+          model: MODEL_QUALITY,
           temperature: 0.1,
           response_format: { type: 'json_object' },
+          // The only call site that was unbounded, so it ran to the model's
+          // 65k completion ceiling. Harmless when a cap was just a length
+          // limit; with reasoning models it is unmetered spend against a
+          // shared TPM budget, and this runs once per cluster chunk. Largest
+          // of the eight because it emits a full cluster array.
+          max_completion_tokens: 3000 + REASONING_HEADROOM,
         })
       )
+      noteIfTruncated('clusterArticles', completion)
       responseContent = completion.choices[0]?.message?.content ?? undefined
     } catch (err: any) {
       const message = err?.message || String(err)
@@ -373,11 +436,12 @@ ${JSON.stringify(articleSummaries)}
               { role: 'system', content: 'Output valid JSON only. No explanations.' },
               { role: 'user', content: strictPrompt },
             ],
-            model: 'llama-3.3-70b-versatile',
+            model: MODEL_QUALITY,
             temperature: 0,
-            max_tokens: 800,
+            max_completion_tokens: 800 + REASONING_HEADROOM,
           })
         )
+        noteIfTruncated('clusterArticles.retry', retry)
         responseContent = retry.choices[0]?.message?.content ?? undefined
       } else {
         throw err
@@ -463,6 +527,12 @@ export async function batchAssessSeverityLLM(
 
   if (uncachedIndices.length === 0) return results
 
+  // The answer term scales with the batch but a flat headroom does not: at the
+  // default top-8 that left the same reasoning budget for 8x the work, the
+  // tightest margin of any call here. Computed once so the cap sent to Groq and
+  // the number the truncation warning reports cannot drift apart.
+  const severityHeadroom = REASONING_HEADROOM * Math.ceil(uncachedIndices.length / 4)
+
   const briefs = uncachedIndices.map((origIdx, localIdx) => {
     const c = clusters[origIdx]
     const arts = (c.articles || []).slice(0, 4)
@@ -495,14 +565,21 @@ ${JSON.stringify(briefs)}`
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 60 * uncachedIndices.length + 100,
+        max_completion_tokens: 60 * uncachedIndices.length + 100 + severityHeadroom,
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Defaulting empty content to '{}' parsed cleanly and silently produced
+    // level 0 for every cluster — which then got cached for 30 minutes, so war
+    // and mass-casualty stories ranked below product launches and stayed there.
+    // An empty completion means the model told us nothing; say so and let the
+    // catch below leave severities untouched rather than caching zeros.
+    noteIfTruncated('batchAssessSeverityLLM', completion, severityHeadroom)
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)
@@ -588,14 +665,18 @@ ${JSON.stringify(brief)}
           { role: 'system', content: 'Return valid JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.1-8b-instant',
+        model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 200,
+        max_completion_tokens: 200 + REASONING_HEADROOM,
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Same reasoning as batchAssessSeverityLLM: an empty completion must not
+    // become a cached level-0 verdict.
+    noteIfTruncated('assessClusterSeverityLLM', completion)
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)
@@ -615,7 +696,9 @@ ${JSON.stringify(brief)}
     await setCachedData(cacheKey, out, 1800)
     return out
   } catch (e) {
-    console.warn('LLM severity failed; defaulting to Other')
+    // Bind the cause: without it an exhausted token budget and a 500 look
+    // identical in the log, which is how the empty-completion bug hid.
+    console.warn('LLM severity failed; defaulting to Other', e)
     return { level: 0, label: 'Other', reasons: [] }
   }
 }
@@ -678,14 +761,19 @@ ${JSON.stringify(briefs)}
           { role: 'system', content: 'You return strict JSON only.' },
           { role: 'user', content: prompt },
         ],
-        model: 'llama-3.3-70b-versatile',
+        model: MODEL_QUALITY,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        max_tokens: 800,
+        max_completion_tokens: 800 + REASONING_HEADROOM,
       })
     )
 
-    const content = completion.choices[0]?.message?.content || '{}'
+    // Same guard as the severity sites: '{}' from an empty completion yields
+    // zero groups, which is indistinguishable from "nothing to merge" and gets
+    // cached as such for 10 minutes without a warning.
+    noteIfTruncated('mergeClustersByLLM', completion)
+    const content = completion.choices[0]?.message?.content?.trim()
+    if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
     try {
       obj = JSON.parse(content)

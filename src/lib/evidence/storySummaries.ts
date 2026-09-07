@@ -217,11 +217,26 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
       return result
     }
     if (!isUsableSummary(digestText)) continue
-    let digest: unknown
+    // The digest is requested as JSON. Treating unparseable text as the lede
+    // meant a truncated fragment ('{"lede": "Markets slid as central') was
+    // persisted verbatim and shown to readers — and ON CONFLICT DO NOTHING
+    // pinned it for the rest of the UTC day. Skip instead: a missing digest
+    // costs one category for one day and is retried, a bad one is stuck.
+    let digest: { lede: string; takeaways: unknown[] } | null = null
     try {
-      digest = JSON.parse(digestText)
+      const parsed = JSON.parse(digestText) as { lede?: unknown; takeaways?: unknown }
+      if (typeof parsed?.lede === 'string' && parsed.lede.trim().length > 0) {
+        digest = {
+          lede: parsed.lede,
+          takeaways: Array.isArray(parsed.takeaways) ? parsed.takeaways : [],
+        }
+      }
     } catch {
-      digest = { lede: digestText, takeaways: [] }
+      // fall through — digest stays null
+    }
+    if (!digest) {
+      console.warn(`⚠️ Unusable digest for ${category}; skipping rather than persisting a fragment`)
+      continue
     }
     await sql`
       INSERT INTO category_digests (category, digest_date, digest)
