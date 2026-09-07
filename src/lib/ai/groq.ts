@@ -28,7 +28,12 @@ const MODEL_FAST = envString('GROQ_MODEL_FAST', ENV_DEFAULTS.groqModelFast).trim
 // rather than an error — silently, with no exception to catch. So these caps
 // are floors for "reasoning + answer", not answer length; the prompt controls
 // length, and an unused cap costs nothing.
-const REASONING_HEADROOM = envInt('GROQ_REASONING_HEADROOM', ENV_DEFAULTS.groqReasoningHeadroom)
+// Floored at 0: envInt accepts negatives, and a negative headroom would make
+// every max_completion_tokens negative and 400 every call in the app.
+const REASONING_HEADROOM = Math.max(
+  0,
+  envInt('GROQ_REASONING_HEADROOM', ENV_DEFAULTS.groqReasoningHeadroom)
+)
 
 // ---- Groq concurrency + retry wrapper ----
 let GROQ_IN_FLIGHT = 0
@@ -92,11 +97,16 @@ async function groqCall<T>(opName: string, call: () => Promise<T>): Promise<T> {
  * operator cannot tell which — the ambiguity that let the decommissioned-model
  * failure hide behind a generic empty result. Call it wherever content is read.
  */
-function noteIfTruncated(opName: string, completion: any): void {
+function noteIfTruncated(opName: string, completion: any, effectiveHeadroom?: number): void {
   if (completion?.choices?.[0]?.finish_reason === 'length') {
+    // Report the headroom this site actually used, not the base setting: the
+    // severity batch scales it, so naming the base would send an operator to
+    // raise a number that was not the one exhausted.
+    const used = effectiveHeadroom ?? REASONING_HEADROOM
+    const scaled = used === REASONING_HEADROOM ? '' : ` (${REASONING_HEADROOM} x batch scaling)`
     console.warn(
       `⚠️ ${opName}: hit the completion cap (finish_reason=length). ` +
-        `Raise GROQ_REASONING_HEADROOM (currently ${REASONING_HEADROOM}) — ` +
+        `Effective reasoning headroom was ${used}${scaled}; raise GROQ_REASONING_HEADROOM — ` +
         `reasoning models spend this budget before emitting any answer.`
     )
   }
@@ -431,6 +441,7 @@ ${JSON.stringify(articleSummaries)}
             max_completion_tokens: 800 + REASONING_HEADROOM,
           })
         )
+        noteIfTruncated('clusterArticles.retry', retry)
         responseContent = retry.choices[0]?.message?.content ?? undefined
       } else {
         throw err
@@ -516,6 +527,12 @@ export async function batchAssessSeverityLLM(
 
   if (uncachedIndices.length === 0) return results
 
+  // The answer term scales with the batch but a flat headroom does not: at the
+  // default top-8 that left the same reasoning budget for 8x the work, the
+  // tightest margin of any call here. Computed once so the cap sent to Groq and
+  // the number the truncation warning reports cannot drift apart.
+  const severityHeadroom = REASONING_HEADROOM * Math.ceil(uncachedIndices.length / 4)
+
   const briefs = uncachedIndices.map((origIdx, localIdx) => {
     const c = clusters[origIdx]
     const arts = (c.articles || []).slice(0, 4)
@@ -551,13 +568,7 @@ ${JSON.stringify(briefs)}`
         model: MODEL_FAST,
         temperature: 0.1,
         response_format: { type: 'json_object' },
-        // The answer term scales with the batch but a flat headroom does not:
-        // at the default top-8 it left the same reasoning budget for 8x the
-        // work, the tightest margin of any call here. Scale it with the batch.
-        max_completion_tokens:
-          60 * uncachedIndices.length +
-          100 +
-          REASONING_HEADROOM * Math.max(1, Math.ceil(uncachedIndices.length / 4)),
+        max_completion_tokens: 60 * uncachedIndices.length + 100 + severityHeadroom,
       })
     )
 
@@ -566,7 +577,7 @@ ${JSON.stringify(briefs)}`
     // and mass-casualty stories ranked below product launches and stayed there.
     // An empty completion means the model told us nothing; say so and let the
     // catch below leave severities untouched rather than caching zeros.
-    noteIfTruncated('batchAssessSeverityLLM', completion)
+    noteIfTruncated('batchAssessSeverityLLM', completion, severityHeadroom)
     const content = completion.choices[0]?.message?.content?.trim()
     if (!content) throw new Error('empty completion (no content returned)')
     let obj: any
@@ -663,6 +674,7 @@ ${JSON.stringify(brief)}
 
     // Same reasoning as batchAssessSeverityLLM: an empty completion must not
     // become a cached level-0 verdict.
+    noteIfTruncated('assessClusterSeverityLLM', completion)
     const content = completion.choices[0]?.message?.content?.trim()
     if (!content) throw new Error('empty completion (no content returned)')
     let obj: any

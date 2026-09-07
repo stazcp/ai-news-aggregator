@@ -124,6 +124,8 @@ describe('Groq model ids', () => {
 
     // An empty completion must not be cached as a level-0 verdict for 30 min.
     expect(setCachedData).not.toHaveBeenCalled()
-    expect(out).toBeDefined()
+    // null, not {level:0}: clusterService only overwrites severity when this is
+    // truthy, so null preserves the heuristic value instead of flattening it.
+    expect(out).toEqual([null])
   })
 })
