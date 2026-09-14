@@ -115,17 +115,54 @@ const LONE_SURROGATE =
  * feeds emit an emoji — so a feed that emits or truncates one half hands us a
  * lone surrogate directly.
  *
- * Apply this to EVERY string that becomes a bare text param. The Neon HTTP
- * driver JSON-encodes params, and one unpaired surrogate fails the whole
- * request with "unexpected end of hex escape" — killing the batch, not the row.
- * Note raw_json is already safe: JSON.stringify escapes the surrogate to ASCII
- * before it ever becomes a param, so it re-escapes harmlessly.
+ * There are TWO distinct rejections, and surviving the first does not imply
+ * surviving the second:
+ *
+ *  1. Neon's HTTP body parser rejects a bare text param carrying an unpaired
+ *     surrogate — "unexpected end of hex escape".
+ *  2. Postgres rejects it at a ::jsonb cast — "invalid input syntax for type
+ *     json". JSON.stringify turns the surrogate into the ASCII text \ud83d,
+ *     so the param sails through (1) and dies at (2) instead. Verified against
+ *     this project's database; see PG docs 8.14.1 — json tolerates such
+ *     escapes, jsonb does not, and raw_json is jsonb.
+ *
+ * Either way the whole INSERT batch fails, not the offending row.
  */
 export function stripLoneSurrogates(s: string): string {
   // Reset lastIndex defensively: the regex is module-scoped and /g, so a
   // future .test() on it elsewhere would otherwise carry state between calls.
   LONE_SURROGATE.lastIndex = 0
   return s.replace(LONE_SURROGATE, '')
+}
+
+/**
+ * Strips lone surrogates from every free-text field of an article, once, at the
+ * boundary where feed data enters persistence.
+ *
+ * Sanitizing per-param does not scale: raw_json alone carries six fields, and
+ * missing any one of them reproduces the original outage with a different error
+ * string. Normalizing the Article itself makes every downstream param — bare
+ * text, jsonb, and chunk text alike — safe by construction.
+ *
+ * Applied before contentHash so the dedupe key matches the url actually stored.
+ */
+export function sanitizeArticleText(a: Article): Article {
+  const clean = (v: string | undefined) => (v === undefined ? undefined : stripLoneSurrogates(v))
+  return {
+    ...a,
+    title: stripLoneSurrogates(a.title),
+    description: clean(a.description),
+    content: clean(a.content),
+    url: stripLoneSurrogates(a.url),
+    urlToImage: stripLoneSurrogates(a.urlToImage ?? ''),
+    category: stripLoneSurrogates(a.category),
+    summary: clean(a.summary),
+    source: {
+      ...a.source,
+      name: stripLoneSurrogates(a.source?.name ?? ''),
+      url: stripLoneSurrogates(a.source?.url ?? ''),
+    },
+  }
 }
 
 export function chunkText(text: string): string[] {
@@ -235,7 +272,10 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
 
   // Dedup within the batch, then against the DB
   const byHash = new Map<string, Article>()
-  for (const a of articles) {
+  for (const raw of articles) {
+    // Normalize once, here: every param below (bare text, jsonb, chunk text)
+    // derives from this object, so one strip makes all of them safe.
+    const a = sanitizeArticleText(raw)
     if (a.url) byHash.set(contentHash(a), a)
   }
   const hashes = [...byHash.keys()]
@@ -253,10 +293,10 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
     FROM unnest(
       ${fresh.map(([, a]) => sourceSlug(a.source.name, [a.source.url, a.url]))}::text[],
       ${fresh.map(([, a]) => a.url)}::text[],
-      ${fresh.map(([, a]) => stripLoneSurrogates(a.title))}::text[],
+      ${fresh.map(([, a]) => a.title)}::text[],
       ${fresh.map(([, a]) => a.category)}::text[],
       ${fresh.map(([, a]) => toDate(a.publishedAt))}::text[],
-      ${fresh.map(([, a]) => stripLoneSurrogates(articleBody(a)))}::text[],
+      ${fresh.map(([, a]) => articleBody(a))}::text[],
       ${fresh.map(([, a]) => JSON.stringify(slimRawJson(a)))}::text[],
       ${fresh.map(([h]) => h)}::text[]
     ) AS x(s, u, t, c, p, b, r, h)

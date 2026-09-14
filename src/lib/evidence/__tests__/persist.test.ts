@@ -3,6 +3,7 @@ import {
   chunkText,
   contentHash,
   isSlimRawJson,
+  sanitizeArticleText,
   slimRawJson,
   stripLoneSurrogates,
 } from '../persist'
@@ -159,6 +160,48 @@ describe('stripLoneSurrogates', () => {
     const dirty = 'Rocket \uD83D launch'
     expect(JSON.stringify(dirty)).toContain('\\ud83d')
     expect(JSON.stringify(stripLoneSurrogates(dirty))).not.toContain('\\ud83d')
+  })
+
+  it('makes raw_json survive the ::jsonb cast, not just the Neon wire', () => {
+    // Two distinct rejections. JSON.stringify escapes a lone surrogate to the
+    // ASCII text \ud83d, so the param passes Neon's HTTP body parser and is
+    // then rejected by Postgres with "invalid input syntax for type json"
+    // (PG 8.14.1: json tolerates such escapes, jsonb does not). Verified
+    // against the live database — the earlier assumption that raw_json was
+    // inherently safe was wrong.
+    const dirty = makeArticle('https://example.com/a')
+    dirty.title = 'Rocket \uD83D launch'
+
+    const before = JSON.stringify(slimRawJson(dirty))
+    expect(before).toContain('\\ud83d') // would reach Postgres and be rejected
+
+    const after = JSON.stringify(slimRawJson(sanitizeArticleText(dirty)))
+    expect(after).not.toContain('\\ud83d')
+    expect(JSON.parse(after).title).toBe('Rocket  launch')
+  })
+
+  it('sanitizes every field raw_json carries, not just the title', () => {
+    const a = makeArticle('https://example.com/a')
+    a.title = `t\uD83D`
+    a.urlToImage = `i\uD83D`
+    a.category = `c\uD83D`
+    a.source = { name: `n\uD83D`, url: `s\uD83D` }
+    a.description = `d\uD83D`
+    a.content = `b\uD83D`
+
+    const clean = sanitizeArticleText(a)
+    const serialized = JSON.stringify(slimRawJson(clean))
+
+    expect(serialized).not.toContain('\\ud83d')
+    expect([clean.title, clean.urlToImage, clean.category, clean.description, clean.content]).toEqual(
+      ['t', 'i', 'c', 'd', 'b']
+    )
+    expect(clean.source).toEqual({ name: 'n', url: 's' })
+  })
+
+  it('leaves a clean article structurally identical', () => {
+    const a = makeArticle('https://example.com/a')
+    expect(sanitizeArticleText(a)).toEqual(a)
   })
 
   it('is not stateful across calls despite the /g regex', () => {
