@@ -150,13 +150,19 @@ export function sanitizeArticleText(a: Article): Article {
   const clean = (v: string | undefined) => (v === undefined ? undefined : stripLoneSurrogates(v))
   return {
     ...a,
+    id: stripLoneSurrogates(a.id),
     title: stripLoneSurrogates(a.title),
     description: clean(a.description),
     content: clean(a.content),
     url: stripLoneSurrogates(a.url),
     urlToImage: stripLoneSurrogates(a.urlToImage ?? ''),
+    // Unvalidated: the published_at COLUMN goes through toDate(), but
+    // slimRawJson stores this field verbatim, so raw_json receives whatever
+    // the feed's <pubDate> said — straight onto the ::jsonb path.
+    publishedAt: stripLoneSurrogates(a.publishedAt),
     category: stripLoneSurrogates(a.category),
     summary: clean(a.summary),
+    videoId: clean(a.videoId),
     source: {
       ...a.source,
       name: stripLoneSurrogates(a.source?.name ?? ''),

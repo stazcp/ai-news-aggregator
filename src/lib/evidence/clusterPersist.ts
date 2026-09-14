@@ -195,7 +195,7 @@ export async function persistClusters(
           category = ${category},
           score = ${score},
           severity_level = ${severityLevel},
-          severity_label = ${severityLabel},
+          severity_label = ${stripLoneSurrogates(severityLabel ?? '')},
           image_urls = COALESCE(${imageUrls}::jsonb, image_urls),
           last_seen_at = now()
         WHERE id = ${storyId}
@@ -215,7 +215,7 @@ export async function persistClusters(
       const inserted = await sql`
         WITH s AS (
           INSERT INTO story_clusters (title, category, score, severity_level, severity_label, image_urls)
-          VALUES (${stripLoneSurrogates(cluster.clusterTitle)}, ${category}, ${score}, ${severityLevel}, ${severityLabel}, ${imageUrls}::jsonb)
+          VALUES (${stripLoneSurrogates(cluster.clusterTitle)}, ${category}, ${score}, ${severityLevel}, ${stripLoneSurrogates(severityLabel ?? '')}, ${imageUrls}::jsonb)
           RETURNING id
         ), m AS (
           INSERT INTO cluster_articles (cluster_id, article_id)

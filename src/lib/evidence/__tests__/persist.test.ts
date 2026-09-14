@@ -204,6 +204,20 @@ describe('stripLoneSurrogates', () => {
     expect(sanitizeArticleText(a)).toEqual(a)
   })
 
+  it('covers every SLIM_RAW_KEYS field, including publishedAt and id', () => {
+    // publishedAt is the easy one to miss: the published_at COLUMN goes through
+    // toDate(), but slimRawJson stores the field verbatim off the feed's
+    // <pubDate>, so it reaches raw_json — and the ::jsonb cast — unvalidated.
+    const a = makeArticle('https://example.com/a')
+    a.id = `id\uD83D`
+    a.publishedAt = `2026-01-01T00:00:00.000Z\uD83D`
+
+    const clean = sanitizeArticleText(a)
+    expect(clean.id).toBe('id')
+    expect(clean.publishedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(JSON.stringify(slimRawJson(clean))).not.toContain('\\ud83d')
+  })
+
   it('is not stateful across calls despite the /g regex', () => {
     // A module-scoped /g regex carries lastIndex; three identical calls must
     // return three identical results.

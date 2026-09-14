@@ -1,6 +1,7 @@
 import { Article } from '@/types'
 import { summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
 import { getSql } from './db'
+import { stripLoneSurrogates } from './persist'
 
 export interface SummaryRunResult {
   summariesGenerated: number
@@ -178,7 +179,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     if (!isUsableSummary(summary)) continue
     await sql`
       UPDATE story_clusters SET
-        summary = ${summary},
+        summary = ${stripLoneSurrogates(summary)},
         summary_generated_at = now(),
         summary_article_count = ${memberCountById.get(storyId) ?? members.length}
       WHERE id = ${storyId}
@@ -240,7 +241,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     }
     await sql`
       INSERT INTO category_digests (category, digest_date, digest)
-      VALUES (${category}, ${digestDate}, ${JSON.stringify(digest)}::jsonb)
+      VALUES (${category}, ${digestDate}, ${stripLoneSurrogates(JSON.stringify(digest))}::jsonb)
       ON CONFLICT (category, digest_date) DO NOTHING
     `
     result.digestsGenerated++
