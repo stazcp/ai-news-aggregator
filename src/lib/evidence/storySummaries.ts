@@ -39,6 +39,19 @@ const UNUSABLE_SUMMARIES = new Set([
   'An error occurred while generating the cluster summary.',
 ])
 
+/**
+ * Serializes a digest with every string field stripped of lone surrogates.
+ *
+ * The strip must happen BEFORE serialization, not after. Since ES2019
+ * ("well-formed JSON.stringify") a lone surrogate is emitted as the six ASCII
+ * characters \ud83d, so the serialized text contains no surrogate code units
+ * at all and stripping it matches nothing — while Postgres still rejects that
+ * escape at the ::jsonb cast. A replacer also reaches nested takeaways.
+ */
+export function serializeDigest(digest: unknown): string {
+  return JSON.stringify(digest, (_k, v) => (typeof v === 'string' ? stripLoneSurrogates(v) : v))
+}
+
 function isUsableSummary(summary: string | undefined): summary is string {
   return !!summary && !UNUSABLE_SUMMARIES.has(summary.trim())
 }
@@ -241,7 +254,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     }
     await sql`
       INSERT INTO category_digests (category, digest_date, digest)
-      VALUES (${category}, ${digestDate}, ${stripLoneSurrogates(JSON.stringify(digest))}::jsonb)
+      VALUES (${category}, ${digestDate}, ${serializeDigest(digest)}::jsonb)
       ON CONFLICT (category, digest_date) DO NOTHING
     `
     result.digestsGenerated++
