@@ -1,6 +1,7 @@
 import { Article } from '@/types'
 import { summarizeCategoryDigest, summarizeCluster } from '@/lib/ai/groq'
 import { getSql } from './db'
+import { stripUnstorable } from './persist'
 
 export interface SummaryRunResult {
   summariesGenerated: number
@@ -37,6 +38,19 @@ const UNUSABLE_SUMMARIES = new Set([
   'Summary could not be generated.',
   'An error occurred while generating the cluster summary.',
 ])
+
+/**
+ * Serializes a digest with every string field stripped of lone surrogates.
+ *
+ * The strip must happen BEFORE serialization, not after. Since ES2019
+ * ("well-formed JSON.stringify") a lone surrogate is emitted as the six ASCII
+ * characters \ud83d, so the serialized text contains no surrogate code units
+ * at all and stripping it matches nothing — while Postgres still rejects that
+ * escape at the ::jsonb cast. A replacer also reaches nested takeaways.
+ */
+export function serializeDigest(digest: unknown): string {
+  return JSON.stringify(digest, (_k, v) => (typeof v === 'string' ? stripUnstorable(v) : v))
+}
 
 function isUsableSummary(summary: string | undefined): summary is string {
   return !!summary && !UNUSABLE_SUMMARIES.has(summary.trim())
@@ -178,7 +192,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     if (!isUsableSummary(summary)) continue
     await sql`
       UPDATE story_clusters SET
-        summary = ${summary},
+        summary = ${stripUnstorable(summary)},
         summary_generated_at = now(),
         summary_article_count = ${memberCountById.get(storyId) ?? members.length}
       WHERE id = ${storyId}
@@ -225,10 +239,21 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     let digest: { lede: string; takeaways: unknown[] } | null = null
     try {
       const parsed = JSON.parse(digestText) as { lede?: unknown; takeaways?: unknown }
-      if (typeof parsed?.lede === 'string' && parsed.lede.trim().length > 0) {
+      // Sanitize BEFORE the emptiness check, not after: stripping can empty a
+      // lede that passed the guard, and ON CONFLICT DO NOTHING would pin that
+      // empty row for the rest of the UTC day.
+      const lede = typeof parsed?.lede === 'string' ? stripUnstorable(parsed.lede) : ''
+      if (lede.trim().length > 0) {
         digest = {
-          lede: parsed.lede,
-          takeaways: Array.isArray(parsed.takeaways) ? parsed.takeaways : [],
+          lede,
+          // Narrowed to strings: a JSON.stringify replacer can rewrite values
+          // but never KEYS, so a nested object could smuggle an unstorable
+          // character through serializeDigest in a property name. Strings make
+          // that unrepresentable — and the read path already discards
+          // non-string takeaways, so nothing is lost by filtering here.
+          takeaways: (Array.isArray(parsed.takeaways) ? parsed.takeaways : []).filter(
+            (t): t is string => typeof t === 'string'
+          ),
         }
       }
     } catch {
@@ -240,7 +265,7 @@ export async function generateSummaries(storyIds: string[]): Promise<SummaryRunR
     }
     await sql`
       INSERT INTO category_digests (category, digest_date, digest)
-      VALUES (${category}, ${digestDate}, ${JSON.stringify(digest)}::jsonb)
+      VALUES (${category}, ${digestDate}, ${serializeDigest(digest)}::jsonb)
       ON CONFLICT (category, digest_date) DO NOTHING
     `
     result.digestsGenerated++

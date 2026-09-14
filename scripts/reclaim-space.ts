@@ -26,6 +26,11 @@ import { neon } from '@neondatabase/serverless'
 //   pnpm db:reclaim --apply --full   also VACUUM FULL to return pages to Neon
 
 const BATCH_SIZE = 2000
+// Neon free tier ceiling. The gate below compares against it rather than a
+// hardcoded guess so the message stays true if the plan changes.
+const PROJECT_LIMIT_BYTES = 512 * 1024 * 1024
+const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`
+
 const VECTOR_INDEX = 'idx_chunks_vector'
 // Must match MAX_CHUNKS_PER_ARTICLE in src/lib/evidence/persist.ts
 const KEEP_CHUNKS_PER_ARTICLE = 2
@@ -56,6 +61,7 @@ async function report(label: string): Promise<void> {
 async function main() {
   const apply = process.argv.includes('--apply')
   const full = process.argv.includes('--full')
+  const skipIndex = process.argv.includes('--no-index')
   const sql = getSql()
   await report('before')
 
@@ -113,6 +119,35 @@ async function main() {
   // outlive the client's timeout. Failing here is recoverable — the data is
   // already reclaimed and the statement is idempotent — but the table is left
   // without a vector index until it succeeds, so say exactly how to finish.
+  // An HNSW index stores the full vector, so rebuilding costs roughly
+  // chunks x 384 x 4 bytes plus link overhead — around 140 MB at 80k chunks,
+  // MORE than the ~97 MB the delete just freed. Rebuilding straight after a
+  // reclaim can therefore leave the database LARGER than before, or fail
+  // mid-build against the project limit and leave the operator believing they
+  // bought headroom they did not. Skip it unless the space is demonstrably
+  // there, and say so either way.
+  const [{ chunks: remaining, free_bytes: freeBytes }] = (await sql`
+    SELECT (SELECT count(*) FROM article_chunks)::int AS chunks,
+           (${PROJECT_LIMIT_BYTES}::bigint - pg_database_size(current_database())) AS free_bytes
+  `) as unknown as { chunks: number; free_bytes: string }[]
+  const estimatedIndexBytes = remaining * (384 * 4 + 128)
+  const free = Number(freeBytes)
+  if (skipIndex) {
+    console.log(`skipping ${VECTOR_INDEX} rebuild (--no-index).`)
+    console.log(`  Semantic search degrades to a sequential scan until it is rebuilt.`)
+    await report('after')
+    return
+  }
+  if (free < estimatedIndexBytes * 1.2) {
+    console.log(`\n⚠️ NOT rebuilding ${VECTOR_INDEX}: it needs about ${mb(estimatedIndexBytes)},`)
+    console.log(`   and only ${mb(free)} is free. Rebuilding now would re-fill the space you`)
+    console.log(`   just reclaimed, or fail part-way through.`)
+    console.log(`   Semantic search degrades to a sequential scan until it is rebuilt.`)
+    console.log(`   Rebuild later, once there is headroom, with:`)
+    console.log(`     pnpm db:reclaim --rebuild-index-only`)
+    await report('after')
+    return
+  }
   console.log(`rebuilding ${VECTOR_INDEX} (may take several minutes)…`)
   const createIndex = `CREATE INDEX IF NOT EXISTS ${VECTOR_INDEX} ON article_chunks USING hnsw (embedding vector_cosine_ops)`
   try {

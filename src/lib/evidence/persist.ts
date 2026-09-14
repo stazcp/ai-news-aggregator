@@ -74,14 +74,127 @@ export function contentHash(article: Article): string {
   return createHash('sha256').update(article.url.trim()).digest('hex')
 }
 
+const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff
+const isLowSurrogate = (c: number) => c >= 0xdc00 && c <= 0xdfff
+
+/**
+ * slice() that never cuts a surrogate pair in half.
+ *
+ * JS strings are UTF-16, so a fixed code-unit offset can land between the two
+ * halves of a non-BMP character — any emoji. The resulting chunk ends on a lone
+ * surrogate, which JSON-encodes to an invalid escape; the Neon HTTP driver
+ * sends query params as JSON, so the INSERT fails with
+ *   "could not parse the HTTP request body: unexpected end of hex escape".
+ *
+ * That alone would be a dropped article, but backfillMissingChunks re-selects
+ * every zero-chunk article on the next run, so the same row fails forever and
+ * takes the whole ingest with it — entity extraction and clustering never run.
+ * Observed 2026-09-10 through 2026-09-13: article ev-48138 carried U+1F680 in
+ * an img alt attribute at offset 1199 of a 1200-char chunk, and every scheduled
+ * run failed on it for three days.
+ *
+ * A surrogate at a slice edge is by definition unpaired *within the slice* —
+ * its partner is on the other side of the boundary — so trimming the edge is
+ * always the correct repair. The character survives in the adjacent chunk.
+ */
+function sliceWholeCodePoints(s: string, start: number, end: number): string {
+  if (start < s.length && isLowSurrogate(s.charCodeAt(start))) start++
+  if (end > start && isHighSurrogate(s.charCodeAt(end - 1))) end--
+  return s.slice(start, end)
+}
+
+// NUL belongs here for the same reason as the surrogates: Postgres cannot
+// store it in text ("invalid byte sequence for encoding UTF8: 0x00") and
+// rejects its escape at a jsonb cast ("unsupported Unicode escape sequence"),
+// with the same json/jsonb asymmetry. \u0000 is legal JSON, so JSON.parse of an
+// LLM response yields a real NUL — the same untrusted source as the surrogates.
+const UNSTORABLE =
+  /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/**
+ * Removes surrogates that are unpaired in the source itself.
+ *
+ * Boundary trimming handles pairs this code splits; a feed can also deliver a
+ * half-character of its own. rss-parser decodes numeric character references
+ * without validating pairing, and `&#55357;&#56898;` is how WordPress-family
+ * feeds emit an emoji — so a feed that emits or truncates one half hands us a
+ * lone surrogate directly.
+ *
+ * There are TWO distinct rejections, and surviving the first does not imply
+ * surviving the second:
+ *
+ *  1. Neon's HTTP body parser rejects a bare text param carrying an unpaired
+ *     surrogate — "unexpected end of hex escape".
+ *  2. Postgres rejects it at a ::jsonb cast — "invalid input syntax for type
+ *     json". JSON.stringify turns the surrogate into the ASCII text \ud83d,
+ *     so the param sails through (1) and dies at (2) instead. Verified against
+ *     this project's database; see PG docs 8.14.1 — json tolerates such
+ *     escapes, jsonb does not, and raw_json is jsonb.
+ *
+ * Either way the whole INSERT batch fails, not the offending row.
+ */
+export function stripUnstorable(s: unknown): string {
+  // Tolerant of null/undefined/non-string. This runs on every article of every
+  // ingest, ahead of the `if (a.url)` guard that used to be the first thing to
+  // touch feed data — so a field the feed omitted must degrade to '' here, not
+  // throw and abort the batch. Being stricter than the code it replaced would
+  // reintroduce the whole-batch failure this function exists to prevent.
+  if (typeof s !== 'string') return s === undefined || s === null ? '' : String(s)
+  // lastIndex is not carried by String.replace with a /g regex, but reset it
+  // anyway: the pattern is module-scoped, and a future .test() would be stateful.
+  UNSTORABLE.lastIndex = 0
+  return s.replace(UNSTORABLE, '')
+}
+
+/**
+ * Strips lone surrogates from every free-text field of an article, once, at the
+ * boundary where feed data enters persistence.
+ *
+ * Sanitizing per-param does not scale: raw_json alone carries six fields, and
+ * missing any one of them reproduces the original outage with a different error
+ * string. Normalizing the Article itself makes every downstream param — bare
+ * text, jsonb, and chunk text alike — safe by construction.
+ *
+ * Applied before contentHash so the dedupe key matches the url actually stored.
+ */
+export function sanitizeArticleText(a: Article): Article {
+  const clean = (v: string | undefined) => (v === undefined ? undefined : stripUnstorable(v))
+  return {
+    ...a,
+    id: stripUnstorable(a.id),
+    title: stripUnstorable(a.title),
+    description: clean(a.description),
+    content: clean(a.content),
+    url: stripUnstorable(a.url),
+    urlToImage: stripUnstorable(a.urlToImage ?? ''),
+    // Unvalidated: the published_at COLUMN goes through toDate(), but
+    // slimRawJson stores this field verbatim, so raw_json receives whatever
+    // the feed's <pubDate> said — straight onto the ::jsonb path.
+    publishedAt: stripUnstorable(a.publishedAt),
+    category: stripUnstorable(a.category),
+    summary: clean(a.summary),
+    videoId: clean(a.videoId),
+    source: {
+      ...a.source,
+      name: stripUnstorable(a.source?.name ?? ''),
+      url: stripUnstorable(a.source?.url ?? ''),
+    },
+  }
+}
+
 export function chunkText(text: string): string[] {
-  const clean = text.replace(/\s+/g, ' ').trim()
+  // Strip before collapsing whitespace, not after: removing a half-character
+  // from between two spaces would otherwise leave a double space behind.
+  const clean = stripUnstorable(text).replace(/\s+/g, ' ').trim()
   if (!clean) return []
   if (clean.length <= CHUNK_MAX_CHARS) return [clean]
   const chunks: string[] = []
   let start = 0
   while (start < clean.length && chunks.length < MAX_CHUNKS_PER_ARTICLE) {
-    chunks.push(clean.slice(start, start + CHUNK_MAX_CHARS))
+    const slice = sliceWholeCodePoints(clean, start, Math.min(start + CHUNK_MAX_CHARS, clean.length))
+    // Trimming a one-code-unit window can empty it. Unreachable at the
+    // current chunk size, but an empty chunk would be embedded and stored.
+    if (slice) chunks.push(slice)
     start += CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS
   }
   return chunks
@@ -176,7 +289,10 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
 
   // Dedup within the batch, then against the DB
   const byHash = new Map<string, Article>()
-  for (const a of articles) {
+  for (const raw of articles) {
+    // Normalize once, here: every param below (bare text, jsonb, chunk text)
+    // derives from this object, so one strip makes all of them safe.
+    const a = sanitizeArticleText(raw)
     if (a.url) byHash.set(contentHash(a), a)
   }
   const hashes = [...byHash.keys()]

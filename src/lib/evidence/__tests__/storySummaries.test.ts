@@ -1,4 +1,9 @@
-import { selectDigestCategories, selectStoriesForSummary, SummaryCandidate } from '../storySummaries'
+import {
+  selectDigestCategories,
+  selectStoriesForSummary,
+  serializeDigest,
+  SummaryCandidate,
+} from '../storySummaries'
 
 // Keep the test hermetic: never construct the real Groq client (which needs
 // GROQ_API_KEY at module load) or touch the network.
@@ -77,5 +82,35 @@ describe('selectDigestCategories', () => {
     ]
     const picked = selectDigestCategories(stories)
     expect(picked).toEqual(['A', 'B', 'C', 'D', 'E', 'F'])
+  })
+})
+
+describe('serializeDigest', () => {
+  // Digest fields come from JSON.parse of raw model text, so a model emitting
+  // the characters \ud83d inside its JSON yields a REAL lone surrogate. The
+  // strip must run before serialization: since ES2019 JSON.stringify escapes a
+  // lone surrogate to ASCII, so stripping the SERIALIZED text matches nothing
+  // while Postgres still rejects the escape at ::jsonb.
+  const hasEscapedSurrogate = (s: string) => /\\u[dD][89abAB][0-9a-fA-F]{2}/.test(s)
+
+  it('produces a param Postgres will accept at the ::jsonb cast', () => {
+    const digest = { lede: 'Rocket \uD83D launch', takeaways: ['a\uDE80b', 'clean'] }
+
+    // The naive version: strip after serializing. Proven inert.
+    expect(hasEscapedSurrogate(JSON.stringify(digest))).toBe(true)
+
+    const out = serializeDigest(digest)
+    expect(hasEscapedSurrogate(out)).toBe(false)
+    expect(JSON.parse(out)).toEqual({ lede: 'Rocket  launch', takeaways: ['ab', 'clean'] })
+  })
+
+  it('reaches nested takeaways, not just the lede', () => {
+    const out = serializeDigest({ lede: 'ok', takeaways: ['deep \uD83D value'] })
+    expect(JSON.parse(out).takeaways[0]).toBe('deep  value')
+  })
+
+  it('leaves a clean digest byte-identical to JSON.stringify', () => {
+    const digest = { lede: 'Markets moved 🚀 today', takeaways: ['one', 'two'] }
+    expect(serializeDigest(digest)).toBe(JSON.stringify(digest))
   })
 })

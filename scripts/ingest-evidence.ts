@@ -11,7 +11,19 @@ async function main() {
   const articles = await fetchAllNews()
   console.log(`fetched ${articles.length} articles, persisting…`)
   const result = await persistArticles(articles)
-  const backfilled = await backfillMissingChunks()
+  // Degrade, do not abort. The primary persist has already committed by now, and
+  // a throw here exits non-zero — which skips the entity-extraction and
+  // clustering steps in the workflow. That coupling is what turned ONE poisoned
+  // row into four days of zero summaries (2026-09-10 to 09-14): articles were
+  // persisting fine the whole time; only backfill was failing. Backfill is a
+  // recovery pass for earlier partial runs, so losing one attempt costs nothing
+  // that the next run cannot redo.
+  let backfilled = 0
+  try {
+    backfilled = await backfillMissingChunks()
+  } catch (err) {
+    console.error('⚠️ backfillMissingChunks failed; continuing so clustering still runs:', err)
+  }
   const seconds = Math.round((Date.now() - started) / 1000)
   console.log(
     `done in ${seconds}s — inserted ${result.inserted} new articles ` +
