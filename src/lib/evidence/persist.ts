@@ -74,14 +74,53 @@ export function contentHash(article: Article): string {
   return createHash('sha256').update(article.url.trim()).digest('hex')
 }
 
+const isHighSurrogate = (c: number) => c >= 0xd800 && c <= 0xdbff
+const isLowSurrogate = (c: number) => c >= 0xdc00 && c <= 0xdfff
+
+/**
+ * slice() that never cuts a surrogate pair in half.
+ *
+ * JS strings are UTF-16, so a fixed code-unit offset can land between the two
+ * halves of a non-BMP character — any emoji. The resulting chunk ends on a lone
+ * surrogate, which JSON-encodes to an invalid escape; the Neon HTTP driver
+ * sends query params as JSON, so the INSERT fails with
+ *   "could not parse the HTTP request body: unexpected end of hex escape".
+ *
+ * That alone would be a dropped article, but backfillMissingChunks re-selects
+ * every zero-chunk article on the next run, so the same row fails forever and
+ * takes the whole ingest with it — entity extraction and clustering never run.
+ * Observed 2026-09-10 through 2026-09-13: article ev-48138 carried U+1F680 in
+ * an img alt attribute at offset 1199 of a 1200-char chunk, and every scheduled
+ * run failed on it for three days.
+ *
+ * A surrogate at a slice edge is by definition unpaired *within the slice* —
+ * its partner is on the other side of the boundary — so trimming the edge is
+ * always the correct repair. The character survives in the adjacent chunk.
+ */
+function sliceWholeCodePoints(s: string, start: number, end: number): string {
+  if (start < s.length && isLowSurrogate(s.charCodeAt(start))) start++
+  if (end > start && isHighSurrogate(s.charCodeAt(end - 1))) end--
+  return s.slice(start, end)
+}
+
+/**
+ * Removes surrogates that are unpaired in the source itself. Boundary trimming
+ * handles the pairs this code splits; a feed can also deliver a half-character
+ * of its own, and that breaks the same encoder for the same reason.
+ */
+const LONE_SURROGATE =
+  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
 export function chunkText(text: string): string[] {
-  const clean = text.replace(/\s+/g, ' ').trim()
+  // Strip before collapsing whitespace, not after: removing a half-character
+  // from between two spaces would otherwise leave a double space behind.
+  const clean = text.replace(LONE_SURROGATE, '').replace(/\s+/g, ' ').trim()
   if (!clean) return []
   if (clean.length <= CHUNK_MAX_CHARS) return [clean]
   const chunks: string[] = []
   let start = 0
   while (start < clean.length && chunks.length < MAX_CHUNKS_PER_ARTICLE) {
-    chunks.push(clean.slice(start, start + CHUNK_MAX_CHARS))
+    chunks.push(sliceWholeCodePoints(clean, start, Math.min(start + CHUNK_MAX_CHARS, clean.length)))
     start += CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS
   }
   return chunks

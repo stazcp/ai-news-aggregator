@@ -87,6 +87,42 @@ describe('chunkText', () => {
   it('caps very long text at 2 chunks (storage diet)', () => {
     expect(chunkText('x'.repeat(50_000)).length).toBe(2)
   })
+
+  // A lone surrogate JSON-encodes to an invalid escape, and the Neon HTTP
+  // driver sends params as JSON — so one emoji on a chunk boundary failed the
+  // INSERT, and because backfill re-selects zero-chunk articles forever, the
+  // same row killed every scheduled run for three days (article ev-48138).
+  const hasLoneSurrogate = (s: string) =>
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(s)
+
+  it('never splits a surrogate pair across a chunk boundary', () => {
+    // Place 🚀 (U+1F680) so its two code units straddle offset 1200 exactly.
+    const text = 'a'.repeat(1199) + '🚀' + 'b'.repeat(2000)
+    const chunks = chunkText(text)
+
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const c of chunks) expect(hasLoneSurrogate(c)).toBe(false)
+  })
+
+  it('produces chunks that survive JSON encoding', () => {
+    // The actual failure mode: JSON.parse of the encoded params threw
+    // "unexpected end of hex escape" inside Neon rather than in our process.
+    const text = 'a'.repeat(1199) + '🚀' + 'b'.repeat(2000)
+    const chunks = chunkText(text)
+
+    expect(() => JSON.parse(JSON.stringify(chunks))).not.toThrow()
+    expect(JSON.parse(JSON.stringify(chunks))).toEqual(chunks)
+  })
+
+  it('drops surrogates the feed itself delivered unpaired', () => {
+    // Not from our slicing — some feeds emit a half-character directly.
+    const chunks = chunkText('before \uD83D after')
+    expect(chunks).toEqual(['before after'])
+  })
+
+  it('keeps whole emoji that do not land on a boundary', () => {
+    expect(chunkText('launch 🚀 today')).toEqual(['launch 🚀 today'])
+  })
 })
 
 describe('slimRawJson', () => {
