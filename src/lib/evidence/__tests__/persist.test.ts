@@ -1,4 +1,11 @@
-import { articleBody, chunkText, contentHash, isSlimRawJson, slimRawJson } from '../persist'
+import {
+  articleBody,
+  chunkText,
+  contentHash,
+  isSlimRawJson,
+  slimRawJson,
+  stripLoneSurrogates,
+} from '../persist'
 import { Article } from '@/types'
 
 function makeArticle(url: string): Article {
@@ -122,6 +129,47 @@ describe('chunkText', () => {
 
   it('keeps whole emoji that do not land on a boundary', () => {
     expect(chunkText('launch 🚀 today')).toEqual(['launch 🚀 today'])
+  })
+})
+
+describe('stripLoneSurrogates', () => {
+  // persistArticles sends title and body as bare text params BEFORE chunkText
+  // ever runs, so a lone surrogate arriving from a feed kills the INSERT one
+  // step earlier than the bug this PR started from. rss-parser decodes numeric
+  // character references without validating pairing, and `&#55357;&#56898;` is
+  // how WordPress-family feeds emit an emoji — half of one is enough.
+  it('removes an unpaired high surrogate', () => {
+    expect(stripLoneSurrogates('Rocket \uD83D launch')).toBe('Rocket  launch')
+  })
+
+  it('removes an unpaired low surrogate', () => {
+    expect(stripLoneSurrogates('Rocket \uDE80 launch')).toBe('Rocket  launch')
+  })
+
+  it('preserves valid pairs', () => {
+    expect(stripLoneSurrogates('Rocket 🚀 launch')).toBe('Rocket 🚀 launch')
+    expect(stripLoneSurrogates('🚀🎉👍')).toBe('🚀🎉👍')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(stripLoneSurrogates('plain ascii, ünïcödé, 日本語')).toBe('plain ascii, ünïcödé, 日本語')
+  })
+
+  it('produces output that survives JSON encoding', () => {
+    const dirty = 'Rocket \uD83D launch'
+    expect(JSON.stringify(dirty)).toContain('\\ud83d')
+    expect(JSON.stringify(stripLoneSurrogates(dirty))).not.toContain('\\ud83d')
+  })
+
+  it('is not stateful across calls despite the /g regex', () => {
+    // A module-scoped /g regex carries lastIndex; three identical calls must
+    // return three identical results.
+    const s = 'a\uD83Db\uD83Dc'
+    expect([stripLoneSurrogates(s), stripLoneSurrogates(s), stripLoneSurrogates(s)]).toEqual([
+      'abc',
+      'abc',
+      'abc',
+    ])
   })
 })
 

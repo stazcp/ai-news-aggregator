@@ -1,6 +1,6 @@
 import { Article, StoryCluster } from '@/types'
 import { getSql } from './db'
-import { contentHash } from './persist'
+import { contentHash, stripLoneSurrogates } from './persist'
 
 export interface ClusterPersistResult {
   storiesCreated: number
@@ -191,7 +191,7 @@ export async function persistClusters(
     if (storyId) {
       await sql`
         UPDATE story_clusters SET
-          title = ${cluster.clusterTitle},
+          title = ${stripLoneSurrogates(cluster.clusterTitle)},
           category = ${category},
           score = ${score},
           severity_level = ${severityLevel},
@@ -215,7 +215,7 @@ export async function persistClusters(
       const inserted = await sql`
         WITH s AS (
           INSERT INTO story_clusters (title, category, score, severity_level, severity_label, image_urls)
-          VALUES (${cluster.clusterTitle}, ${category}, ${score}, ${severityLevel}, ${severityLabel}, ${imageUrls}::jsonb)
+          VALUES (${stripLoneSurrogates(cluster.clusterTitle)}, ${category}, ${score}, ${severityLevel}, ${severityLabel}, ${imageUrls}::jsonb)
           RETURNING id
         ), m AS (
           INSERT INTO cluster_articles (cluster_id, article_id)

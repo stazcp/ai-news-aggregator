@@ -103,24 +103,44 @@ function sliceWholeCodePoints(s: string, start: number, end: number): string {
   return s.slice(start, end)
 }
 
-/**
- * Removes surrogates that are unpaired in the source itself. Boundary trimming
- * handles the pairs this code splits; a feed can also deliver a half-character
- * of its own, and that breaks the same encoder for the same reason.
- */
 const LONE_SURROGATE =
   /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+
+/**
+ * Removes surrogates that are unpaired in the source itself.
+ *
+ * Boundary trimming handles pairs this code splits; a feed can also deliver a
+ * half-character of its own. rss-parser decodes numeric character references
+ * without validating pairing, and `&#55357;&#56898;` is how WordPress-family
+ * feeds emit an emoji — so a feed that emits or truncates one half hands us a
+ * lone surrogate directly.
+ *
+ * Apply this to EVERY string that becomes a bare text param. The Neon HTTP
+ * driver JSON-encodes params, and one unpaired surrogate fails the whole
+ * request with "unexpected end of hex escape" — killing the batch, not the row.
+ * Note raw_json is already safe: JSON.stringify escapes the surrogate to ASCII
+ * before it ever becomes a param, so it re-escapes harmlessly.
+ */
+export function stripLoneSurrogates(s: string): string {
+  // Reset lastIndex defensively: the regex is module-scoped and /g, so a
+  // future .test() on it elsewhere would otherwise carry state between calls.
+  LONE_SURROGATE.lastIndex = 0
+  return s.replace(LONE_SURROGATE, '')
+}
 
 export function chunkText(text: string): string[] {
   // Strip before collapsing whitespace, not after: removing a half-character
   // from between two spaces would otherwise leave a double space behind.
-  const clean = text.replace(LONE_SURROGATE, '').replace(/\s+/g, ' ').trim()
+  const clean = stripLoneSurrogates(text).replace(/\s+/g, ' ').trim()
   if (!clean) return []
   if (clean.length <= CHUNK_MAX_CHARS) return [clean]
   const chunks: string[] = []
   let start = 0
   while (start < clean.length && chunks.length < MAX_CHUNKS_PER_ARTICLE) {
-    chunks.push(sliceWholeCodePoints(clean, start, Math.min(start + CHUNK_MAX_CHARS, clean.length)))
+    const slice = sliceWholeCodePoints(clean, start, Math.min(start + CHUNK_MAX_CHARS, clean.length))
+    // Trimming a one-code-unit window can empty it. Unreachable at the
+    // current chunk size, but an empty chunk would be embedded and stored.
+    if (slice) chunks.push(slice)
     start += CHUNK_MAX_CHARS - CHUNK_OVERLAP_CHARS
   }
   return chunks
@@ -233,10 +253,10 @@ export async function persistArticles(articles: Article[]): Promise<PersistResul
     FROM unnest(
       ${fresh.map(([, a]) => sourceSlug(a.source.name, [a.source.url, a.url]))}::text[],
       ${fresh.map(([, a]) => a.url)}::text[],
-      ${fresh.map(([, a]) => a.title)}::text[],
+      ${fresh.map(([, a]) => stripLoneSurrogates(a.title))}::text[],
       ${fresh.map(([, a]) => a.category)}::text[],
       ${fresh.map(([, a]) => toDate(a.publishedAt))}::text[],
-      ${fresh.map(([, a]) => articleBody(a))}::text[],
+      ${fresh.map(([, a]) => stripLoneSurrogates(articleBody(a)))}::text[],
       ${fresh.map(([, a]) => JSON.stringify(slimRawJson(a)))}::text[],
       ${fresh.map(([h]) => h)}::text[]
     ) AS x(s, u, t, c, p, b, r, h)
