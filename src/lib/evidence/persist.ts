@@ -103,8 +103,13 @@ function sliceWholeCodePoints(s: string, start: number, end: number): string {
   return s.slice(start, end)
 }
 
-const LONE_SURROGATE =
-  /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
+// NUL belongs here for the same reason as the surrogates: Postgres cannot
+// store it in text ("invalid byte sequence for encoding UTF8: 0x00") and
+// rejects its escape at a jsonb cast ("unsupported Unicode escape sequence"),
+// with the same json/jsonb asymmetry. \u0000 is legal JSON, so JSON.parse of an
+// LLM response yields a real NUL — the same untrusted source as the surrogates.
+const UNSTORABLE =
+  /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g
 
 /**
  * Removes surrogates that are unpaired in the source itself.
@@ -128,11 +133,17 @@ const LONE_SURROGATE =
  *
  * Either way the whole INSERT batch fails, not the offending row.
  */
-export function stripLoneSurrogates(s: string): string {
-  // Reset lastIndex defensively: the regex is module-scoped and /g, so a
-  // future .test() on it elsewhere would otherwise carry state between calls.
-  LONE_SURROGATE.lastIndex = 0
-  return s.replace(LONE_SURROGATE, '')
+export function stripUnstorable(s: unknown): string {
+  // Tolerant of null/undefined/non-string. This runs on every article of every
+  // ingest, ahead of the `if (a.url)` guard that used to be the first thing to
+  // touch feed data — so a field the feed omitted must degrade to '' here, not
+  // throw and abort the batch. Being stricter than the code it replaced would
+  // reintroduce the whole-batch failure this function exists to prevent.
+  if (typeof s !== 'string') return s === undefined || s === null ? '' : String(s)
+  // lastIndex is not carried by String.replace with a /g regex, but reset it
+  // anyway: the pattern is module-scoped, and a future .test() would be stateful.
+  UNSTORABLE.lastIndex = 0
+  return s.replace(UNSTORABLE, '')
 }
 
 /**
@@ -147,26 +158,26 @@ export function stripLoneSurrogates(s: string): string {
  * Applied before contentHash so the dedupe key matches the url actually stored.
  */
 export function sanitizeArticleText(a: Article): Article {
-  const clean = (v: string | undefined) => (v === undefined ? undefined : stripLoneSurrogates(v))
+  const clean = (v: string | undefined) => (v === undefined ? undefined : stripUnstorable(v))
   return {
     ...a,
-    id: stripLoneSurrogates(a.id),
-    title: stripLoneSurrogates(a.title),
+    id: stripUnstorable(a.id),
+    title: stripUnstorable(a.title),
     description: clean(a.description),
     content: clean(a.content),
-    url: stripLoneSurrogates(a.url),
-    urlToImage: stripLoneSurrogates(a.urlToImage ?? ''),
+    url: stripUnstorable(a.url),
+    urlToImage: stripUnstorable(a.urlToImage ?? ''),
     // Unvalidated: the published_at COLUMN goes through toDate(), but
     // slimRawJson stores this field verbatim, so raw_json receives whatever
     // the feed's <pubDate> said — straight onto the ::jsonb path.
-    publishedAt: stripLoneSurrogates(a.publishedAt),
-    category: stripLoneSurrogates(a.category),
+    publishedAt: stripUnstorable(a.publishedAt),
+    category: stripUnstorable(a.category),
     summary: clean(a.summary),
     videoId: clean(a.videoId),
     source: {
       ...a.source,
-      name: stripLoneSurrogates(a.source?.name ?? ''),
-      url: stripLoneSurrogates(a.source?.url ?? ''),
+      name: stripUnstorable(a.source?.name ?? ''),
+      url: stripUnstorable(a.source?.url ?? ''),
     },
   }
 }
@@ -174,7 +185,7 @@ export function sanitizeArticleText(a: Article): Article {
 export function chunkText(text: string): string[] {
   // Strip before collapsing whitespace, not after: removing a half-character
   // from between two spaces would otherwise leave a double space behind.
-  const clean = stripLoneSurrogates(text).replace(/\s+/g, ' ').trim()
+  const clean = stripUnstorable(text).replace(/\s+/g, ' ').trim()
   if (!clean) return []
   if (clean.length <= CHUNK_MAX_CHARS) return [clean]
   const chunks: string[] = []

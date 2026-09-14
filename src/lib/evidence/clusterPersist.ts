@@ -1,6 +1,6 @@
 import { Article, StoryCluster } from '@/types'
 import { getSql } from './db'
-import { contentHash, stripLoneSurrogates } from './persist'
+import { contentHash, stripUnstorable } from './persist'
 
 export interface ClusterPersistResult {
   storiesCreated: number
@@ -191,11 +191,11 @@ export async function persistClusters(
     if (storyId) {
       await sql`
         UPDATE story_clusters SET
-          title = ${stripLoneSurrogates(cluster.clusterTitle)},
+          title = ${stripUnstorable(cluster.clusterTitle)},
           category = ${category},
           score = ${score},
           severity_level = ${severityLevel},
-          severity_label = ${stripLoneSurrogates(severityLabel ?? '')},
+          severity_label = ${stripUnstorable(severityLabel ?? '')},
           image_urls = COALESCE(${imageUrls}::jsonb, image_urls),
           last_seen_at = now()
         WHERE id = ${storyId}
@@ -215,7 +215,7 @@ export async function persistClusters(
       const inserted = await sql`
         WITH s AS (
           INSERT INTO story_clusters (title, category, score, severity_level, severity_label, image_urls)
-          VALUES (${stripLoneSurrogates(cluster.clusterTitle)}, ${category}, ${score}, ${severityLevel}, ${stripLoneSurrogates(severityLabel ?? '')}, ${imageUrls}::jsonb)
+          VALUES (${stripUnstorable(cluster.clusterTitle)}, ${category}, ${score}, ${severityLevel}, ${stripUnstorable(severityLabel ?? '')}, ${imageUrls}::jsonb)
           RETURNING id
         ), m AS (
           INSERT INTO cluster_articles (cluster_id, article_id)

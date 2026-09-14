@@ -5,7 +5,7 @@ import {
   isSlimRawJson,
   sanitizeArticleText,
   slimRawJson,
-  stripLoneSurrogates,
+  stripUnstorable,
 } from '../persist'
 import { Article } from '@/types'
 
@@ -112,14 +112,32 @@ describe('chunkText', () => {
     for (const c of chunks) expect(hasLoneSurrogate(c)).toBe(false)
   })
 
-  it('produces chunks that survive JSON encoding', () => {
-    // The actual failure mode: JSON.parse of the encoded params threw
-    // "unexpected end of hex escape" inside Neon rather than in our process.
+  it('produces chunks whose JSON encoding carries no surrogate escape', () => {
+    // Asserting round-trip is VACUOUS: an escaped lone surrogate is valid JSON
+    // and parses back fine — it is Postgres and Neon that reject it, not
+    // JSON.parse. The real predicate is that no \ud800-\udfff escape is
+    // emitted at all, which is exactly what the wire carries.
     const text = 'a'.repeat(1199) + '🚀' + 'b'.repeat(2000)
+    const encoded = JSON.stringify(chunkText(text))
+
+    expect(encoded).not.toMatch(/\\u[dD][89abAB][0-9a-fA-F]{2}/)
+    // Guard the guard: a deliberately broken chunk WOULD trip this assertion.
+    expect(JSON.stringify(['a\uD83D'])).toMatch(/\\u[dD][89abAB][0-9a-fA-F]{2}/)
+  })
+
+  it('never starts a chunk on an orphaned low surrogate', () => {
+    // Covers the start++ trim, which no test exercised: deleting that line from
+    // sliceWholeCodePoints left the whole suite green. Chunk 1 begins at
+    // 1200-150 = 1050, so the LOW half must sit exactly there — meaning the
+    // high half is at 1049. (Padding to 1050 puts the HIGH half on the
+    // boundary, which start++ correctly ignores, and the mutation survives.)
+    const text = 'a'.repeat(1049) + '🚀' + 'b'.repeat(2000)
     const chunks = chunkText(text)
 
-    expect(() => JSON.parse(JSON.stringify(chunks))).not.toThrow()
-    expect(JSON.parse(JSON.stringify(chunks))).toEqual(chunks)
+    expect(chunks.length).toBeGreaterThan(1)
+    for (const c of chunks) expect(hasLoneSurrogate(c)).toBe(false)
+    // The low half must not lead chunk 1.
+    expect(chunks[1].charCodeAt(0)).toBeLessThan(0xdc00)
   })
 
   it('drops surrogates the feed itself delivered unpaired', () => {
@@ -133,33 +151,33 @@ describe('chunkText', () => {
   })
 })
 
-describe('stripLoneSurrogates', () => {
+describe('stripUnstorable', () => {
   // persistArticles sends title and body as bare text params BEFORE chunkText
   // ever runs, so a lone surrogate arriving from a feed kills the INSERT one
   // step earlier than the bug this PR started from. rss-parser decodes numeric
   // character references without validating pairing, and `&#55357;&#56898;` is
   // how WordPress-family feeds emit an emoji — half of one is enough.
   it('removes an unpaired high surrogate', () => {
-    expect(stripLoneSurrogates('Rocket \uD83D launch')).toBe('Rocket  launch')
+    expect(stripUnstorable('Rocket \uD83D launch')).toBe('Rocket  launch')
   })
 
   it('removes an unpaired low surrogate', () => {
-    expect(stripLoneSurrogates('Rocket \uDE80 launch')).toBe('Rocket  launch')
+    expect(stripUnstorable('Rocket \uDE80 launch')).toBe('Rocket  launch')
   })
 
   it('preserves valid pairs', () => {
-    expect(stripLoneSurrogates('Rocket 🚀 launch')).toBe('Rocket 🚀 launch')
-    expect(stripLoneSurrogates('🚀🎉👍')).toBe('🚀🎉👍')
+    expect(stripUnstorable('Rocket 🚀 launch')).toBe('Rocket 🚀 launch')
+    expect(stripUnstorable('🚀🎉👍')).toBe('🚀🎉👍')
   })
 
   it('leaves ordinary text untouched', () => {
-    expect(stripLoneSurrogates('plain ascii, ünïcödé, 日本語')).toBe('plain ascii, ünïcödé, 日本語')
+    expect(stripUnstorable('plain ascii, ünïcödé, 日本語')).toBe('plain ascii, ünïcödé, 日本語')
   })
 
   it('produces output that survives JSON encoding', () => {
     const dirty = 'Rocket \uD83D launch'
     expect(JSON.stringify(dirty)).toContain('\\ud83d')
-    expect(JSON.stringify(stripLoneSurrogates(dirty))).not.toContain('\\ud83d')
+    expect(JSON.stringify(stripUnstorable(dirty))).not.toContain('\\ud83d')
   })
 
   it('makes raw_json survive the ::jsonb cast, not just the Neon wire', () => {
@@ -199,9 +217,24 @@ describe('stripLoneSurrogates', () => {
     expect(clean.source).toEqual({ name: 'n', url: 's' })
   })
 
-  it('leaves a clean article structurally identical', () => {
-    const a = makeArticle('https://example.com/a')
+  it('leaves a fully-populated clean article structurally identical', () => {
+    // makeArticle sets only 8 of Article's 14 fields, and toEqual ignores
+    // undefined — so asserting on it alone proved little about the rest.
+    const a: Article = {
+      ...makeArticle('https://example.com/a'),
+      content: 'body text',
+      imageWidth: 640,
+      imageHeight: 480,
+      summary: 'a summary',
+      sourceType: 'video',
+      videoId: 'abc123',
+      urlToImage: 'https://example.com/i.png',
+    }
     expect(sanitizeArticleText(a)).toEqual(a)
+    // Nothing silently coerced: every string field is byte-identical.
+    expect(sanitizeArticleText(a).source).toEqual(a.source)
+    expect(sanitizeArticleText(a).videoId).toBe('abc123')
+    expect(sanitizeArticleText(a).sourceType).toBe('video')
   })
 
   it('covers every SLIM_RAW_KEYS field, including publishedAt and id', () => {
@@ -211,22 +244,30 @@ describe('stripLoneSurrogates', () => {
     const a = makeArticle('https://example.com/a')
     a.id = `id\uD83D`
     a.publishedAt = `2026-01-01T00:00:00.000Z\uD83D`
+    a.url = `https://example.com/a\uD83D`
 
     const clean = sanitizeArticleText(a)
     expect(clean.id).toBe('id')
     expect(clean.publishedAt).toBe('2026-01-01T00:00:00.000Z')
+    expect(clean.url).toBe('https://example.com/a')
     expect(JSON.stringify(slimRawJson(clean))).not.toContain('\\ud83d')
   })
 
-  it('is not stateful across calls despite the /g regex', () => {
-    // A module-scoped /g regex carries lastIndex; three identical calls must
-    // return three identical results.
-    const s = 'a\uD83Db\uD83Dc'
-    expect([stripLoneSurrogates(s), stripLoneSurrogates(s), stripLoneSurrogates(s)]).toEqual([
-      'abc',
-      'abc',
-      'abc',
-    ])
+  it('strips NUL, which Postgres also cannot store', () => {
+    // Same shape as the surrogates and the same untrusted source: "\u0000" is
+    // legal JSON, so JSON.parse of an LLM response yields a real NUL. Postgres
+    // rejects it in text ("invalid byte sequence for encoding UTF8: 0x00") and
+    // at a jsonb cast ("unsupported Unicode escape sequence").
+    expect(stripUnstorable('a\u0000b')).toBe('ab')
+    expect(JSON.stringify(stripUnstorable('a\u0000b'))).not.toContain('\\u0000')
+  })
+
+  it('degrades instead of throwing on absent or non-string input', () => {
+    // It runs on every article before the `if (a.url)` guard, so a field the
+    // feed omitted must not abort the batch.
+    expect(stripUnstorable(undefined)).toBe('')
+    expect(stripUnstorable(null)).toBe('')
+    expect(() => stripUnstorable(12345 as unknown as string)).not.toThrow()
   })
 })
 
