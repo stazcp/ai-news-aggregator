@@ -58,31 +58,49 @@ function toArticle(row: ArticleRow): Article {
 // One cheap authenticated call up front: some networks are blocked outright at
 // Groq's edge (403 for every request), which the engine's per-seed error
 // handling would otherwise turn into ~200 doomed calls and zero clusters.
-async function groqReachable(): Promise<boolean> {
+/**
+ * Why summaries are unavailable, in the operator's words rather than a boolean.
+ *
+ * The preflight has distinguished a rejected key from a blocked network since
+ * PR #68, but the degraded-mode line downstream printed a blanket "Groq API
+ * unreachable" regardless — so a 401 was immediately contradicted by a message
+ * blaming the network. That cost a month: the key was rotated into Vercel on
+ * 2026-09-13 and not into the GitHub secret, and every run from then to
+ * 2026-10-11 logged "unreachable" over an explicit "Invalid API Key", which
+ * reads like an outage to wait out rather than a secret to rotate.
+ */
+type GroqStatus = { ok: true } | { ok: false; reason: string }
+
+async function groqReachable(): Promise<GroqStatus> {
   if (!process.env.GROQ_API_KEY) {
     console.warn('⚠️ GROQ_API_KEY is not set — no summaries will be generated.')
-    return false
+    return { ok: false, reason: 'GROQ_API_KEY is not set' }
   }
   try {
     const res = await fetch('https://api.groq.com/openai/v1/models', {
       headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
       signal: AbortSignal.timeout(5000),
     })
-    if (res.ok) return true
-    // Distinguish a rejected key from a blocked network: both used to read as
-    // "unreachable", so an expired key silently produced no summaries forever.
+    if (res.ok) return { ok: true }
+    const rejected = res.status === 401 || res.status === 403
     const detail = (await res.text().catch(() => '')).slice(0, 200)
     console.warn(
       `⚠️ Groq preflight failed: HTTP ${res.status} ${res.statusText}. ` +
-        (res.status === 401 || res.status === 403
+        (rejected
           ? 'The API key was rejected — rotate the GROQ_API_KEY secret.'
           : 'Groq returned an unexpected status.') +
         (detail ? ` Response: ${detail}` : '')
     )
-    return false
+    return {
+      ok: false,
+      reason: rejected
+        ? `the API key was rejected (HTTP ${res.status}) — rotate the GROQ_API_KEY secret`
+        : `Groq returned HTTP ${res.status}`,
+    }
   } catch (error) {
-    console.warn('⚠️ Groq preflight failed: network error —', (error as Error).message)
-    return false
+    const message = (error as Error).message
+    console.warn('⚠️ Groq preflight failed: network error —', message)
+    return { ok: false, reason: `Groq was unreachable (${message})` }
   }
 }
 
@@ -130,12 +148,12 @@ async function main() {
   const articles = rows.map(toArticle)
   console.log(`loaded ${articles.length} articles from the last ${WINDOW_HOURS}h, clustering…`)
 
-  const groqOk = await groqReachable()
+  const groq = await groqReachable()
   // The full engine's per-seed LLM refinement is UNCAPPED (~100-200 70B calls
   // over a 2000-article window) — orders of magnitude beyond the summaries
   // budget. Deterministic clustering is the default; the LLM engine is a
   // deliberate opt-in, never an ambient cost.
-  const useLlmEngine = envBool('CLUSTERS_USE_LLM', false) && groqOk
+  const useLlmEngine = envBool('CLUSTERS_USE_LLM', false) && groq.ok
   let clusters: StoryCluster[]
   if (useLlmEngine) {
     const engine = await getStoryClusters(articles)
@@ -145,15 +163,17 @@ async function main() {
     }
     clusters = engine.clusters
   } else {
-    if (!groqOk) {
-      console.warn('⚠️ Groq API unreachable — deterministic clustering, no summaries this run.')
+    if (!groq.ok) {
+      // Repeat the preflight's actual reason. A blanket "unreachable" here
+      // contradicted it and sent debugging down the wrong path for a month.
+      console.warn(`⚠️ No summaries this run: ${groq.reason}. Clustering deterministically.`)
     }
     clusters = deterministicClusters(articles)
   }
   console.log(`clustered into ${clusters.length} stories, persisting…`)
 
   const persisted = await persistClusters(clusters, articles)
-  const summaries = groqOk
+  const summaries = groq.ok
     ? await generateSummaries(persisted.storyIds)
     : { summariesGenerated: 0, digestsGenerated: 0, groqCalls: 0 }
 
