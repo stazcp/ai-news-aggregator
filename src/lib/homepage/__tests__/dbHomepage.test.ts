@@ -195,31 +195,34 @@ describe('getHomepageDataFromDb', () => {
     expect(result!.rateLimitMessage).toBeNull()
   })
 
-  it('falls back to the newest stories regardless of age when nothing is fresh', async () => {
-    // The pipeline outage that motivated this: every cluster older than the
-    // window meant zero rows, a null return, and an error page — with
-    // hundreds of usable stories in the DB.
-    const stale = clusterRows
-    let clusterQueries = 0
-    mockSql.mockImplementation((strings: TemplateStringsArray) => {
+  it('anchors every window on the newest data, not the clock, when ingest has stalled', async () => {
+    // The outage that motivated this: ingest dead for 22 days, so a clock-
+    // anchored window was empty and the old fallback served the highest-scoring
+    // stories of the whole archive, two months old. Windows must be measured
+    // back from the newest rows that exist.
+    lastSeenRows = [
+      { last_updated: '2026-10-24T10:30:00.000Z', newest_article: '2026-10-24T15:30:00.000Z' },
+    ]
+    const calls: { query: string; values: unknown[] }[] = []
+    mockSql.mockImplementation(((strings: TemplateStringsArray, ...values: unknown[]) => {
       const query = Array.isArray(strings) ? strings.join(' ') : String(strings)
-      if (query.includes('max(last_seen_at)')) return Promise.resolve(lastSeenRows)
-      if (query.includes('FROM story_clusters')) {
-        clusterQueries++
-        // First pass is time-filtered and finds nothing; the fallback isn't.
-        return Promise.resolve(query.includes('last_seen_at >') ? [] : stale)
-      }
-      if (query.includes('NOT EXISTS')) return Promise.resolve(unclusteredRows)
-      if (query.includes('FROM cluster_articles ca')) return Promise.resolve(memberRows)
-      if (query.includes('FROM article_entities')) return Promise.resolve(entityRows)
-      if (query.includes('FROM category_digests')) return Promise.resolve(digestRows)
-      return Promise.resolve([])
-    })
+      calls.push({ query, values })
+      return originalSqlImpl!(strings)
+    }) as any)
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {})
 
     const result = await getHomepageDataFromDb()
 
-    expect(clusterQueries).toBe(2)
     expect(result!.storyClusters.map((c) => c.id)).toEqual(['st-2', 'st-1'])
+    const windowed = (needle: string) => calls.filter((c) => c.query.includes(needle))
+    const clusterQueries = windowed('last_seen_at >')
+    expect(clusterQueries).toHaveLength(1)
+    expect(clusterQueries[0].values).toContain('2026-10-24T10:30:00.000Z')
+    expect(windowed('NOT EXISTS')[0].values).toContain('2026-10-24T15:30:00.000Z')
+    expect(windowed('FROM article_entities')[0].values).toContain('2026-10-24T15:30:00.000Z')
+    expect(windowed('FROM category_digests')[0].values).toContain('2026-10-24')
+    expect(calls.some((c) => /now\(\)/.test(c.query))).toBe(false)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('ingest pipeline is likely failing'))
   })
 
   it('returns null without further queries when the DB has no stories at all', async () => {
@@ -328,6 +331,12 @@ describe('getHomepageDataFromDb', () => {
 
 describe('category digest seeding', () => {
   const digest = { lede: 'Chips and money set the tone.', takeaways: ['Chips.', 'Money.'] }
+
+  // "Today" for digests is the day of the newest data. These cases model a
+  // healthy pipeline, where that is the current UTC day.
+  beforeEach(() => {
+    lastSeenRows = [{ last_updated: new Date().toISOString() }]
+  })
 
   it("seeds the trending digest under the exact cache key CategorySummary's payload produces", async () => {
     digestRows = [{ category: 'trending', digest_date: TODAY_UTC, digest }]
