@@ -183,14 +183,14 @@ function resolveDigestTopic(category: string): { label: string; isTrending: bool
  */
 async function seedCategoryDigestCaches(
   storyClusters: StoryCluster[],
-  digests: DigestRow[]
+  digests: DigestRow[],
+  todayUtc: string
 ): Promise<void> {
   const ttl = getCacheTtl()
   // Several categories can resolve to one topic ('World' and 'World News'),
   // and they would compute the same cache key. Pick deterministically —
   // exact topic name first, then alphabetical — instead of letting unordered
   // DB rows decide which digest occupies the key for the whole TTL.
-  const todayUtc = new Date().toISOString().slice(0, 10)
   const isToday = (row: DigestRow) => toUtcDateString(row.digest_date) === todayUtc
   const byLabel = new Map<string, DigestRow>()
   for (const row of [...digests].sort((a, b) => a.category.localeCompare(b.category))) {
@@ -232,35 +232,40 @@ async function seedCategoryDigestCaches(
 export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
   const sql = getSql()
 
-  // Serve something rather than nothing: if the pipeline has been down longer
-  // than STORY_WINDOW_HOURS, every story falls outside the window and the page
-  // would drop to the legacy cache — which has no writer while the refresh
-  // cron is paused, so the reader gets an error instead of day-old news. The
-  // fallback pass drops the time filter entirely rather than widening it to a
-  // fixed bound, which would silently re-break the page once the outage
-  // outlived it. Same rows, same LIMIT; the UI shows data age from lastUpdated.
-  let clusterRows = (await sql`
+  // Every window below is measured back from the newest row in the DB, not
+  // from the clock. With a healthy pipeline the two are the same instant. When
+  // ingest stalls, a clock-anchored window empties, and the previous fallback
+  // (drop the time filter, order by score) served the highest-scoring stories
+  // of the whole archive: after a 22-day outage the page led with stories from
+  // two months earlier. Anchoring on the data serves the last 48h that exist.
+  const anchorRows = (await sql`
+    SELECT (SELECT max(last_seen_at) FROM story_clusters) AS last_updated,
+           (SELECT max(published_at) FROM articles) AS newest_article
+  `) as { last_updated: string | Date | null; newest_article?: string | Date | null }[]
+  const lastUpdated = anchorRows[0]?.last_updated
+  // No clusters at all; the UI renders clusters only.
+  if (!lastUpdated) return null
+  const clusterAnchor = toIso(lastUpdated)
+  const articleAnchor = anchorRows[0]?.newest_article
+    ? toIso(anchorRows[0].newest_article)
+    : clusterAnchor
+  const dataDayUtc = clusterAnchor.slice(0, 10)
+
+  const ageHours = (Date.now() - new Date(clusterAnchor).getTime()) / 3_600_000
+  if (ageHours > STORY_WINDOW_HOURS) {
+    console.warn(
+      `⚠️ Newest story is ${Math.round(ageHours)}h old — serving the ${STORY_WINDOW_HOURS}h ` +
+        'before it. The ingest pipeline is likely failing.'
+    )
+  }
+
+  const clusterRows = (await sql`
     SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
     FROM story_clusters
-    WHERE last_seen_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
+    WHERE last_seen_at > ${clusterAnchor}::timestamptz - interval '1 hour' * ${STORY_WINDOW_HOURS}
     ORDER BY score DESC NULLS LAST, last_seen_at DESC
     LIMIT ${STORY_LIMIT}
   `) as ClusterRow[]
-  const isStale = clusterRows.length === 0
-  if (isStale) {
-    clusterRows = (await sql`
-      SELECT id, title, category, summary, severity_level, severity_label, score, image_urls
-      FROM story_clusters
-      ORDER BY score DESC NULLS LAST, last_seen_at DESC
-      LIMIT ${STORY_LIMIT}
-    `) as ClusterRow[]
-    if (clusterRows.length > 0) {
-      console.warn(
-        `⚠️ No stories within ${STORY_WINDOW_HOURS}h — serving the most recent ones ` +
-          'regardless of age. The ingest pipeline is likely failing.'
-      )
-    }
-  }
 
   // Nothing below can change the outcome once there are no clusters (the UI
   // renders clusters only), so stop before four more queries.
@@ -281,7 +286,7 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     SELECT a.id, a.title, a.url, a.source, a.category, a.published_at,
            left(a.body, ${BODY_FETCH_CHARS}) AS body, a.raw_json
     FROM articles a
-    WHERE a.published_at > now() - interval '1 hour' * ${STORY_WINDOW_HOURS}
+    WHERE a.published_at > ${articleAnchor}::timestamptz - interval '1 hour' * ${STORY_WINDOW_HOURS}
       AND NOT EXISTS (
         SELECT 1 FROM cluster_articles ca
         WHERE ca.article_id = a.id AND ca.cluster_id = ANY(${clusterIds})
@@ -295,25 +300,20 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     FROM article_entities ae
     JOIN entities e ON e.id = ae.entity_id
     JOIN articles a ON a.id = ae.article_id
-    WHERE a.published_at > now() - interval '24 hours'
+    WHERE a.published_at > ${articleAnchor}::timestamptz - interval '24 hours'
       AND e.type IN ('theme', 'company', 'geography')
     GROUP BY e.name, e.type
     ORDER BY article_count DESC, e.name ASC
     LIMIT ${TRENDING_ENTITY_POOL}
   `) as EntityRow[]
 
-  const todayUtc = new Date().toISOString().slice(0, 10)
   // digest_date as text: the driver parses DATE columns to a JS Date at LOCAL
   // midnight, which shifts the day on any server not running in UTC.
   const digestRows = (await sql`
     SELECT category, to_char(digest_date, 'YYYY-MM-DD') AS digest_date, digest
     FROM category_digests
-    WHERE digest_date IN (${todayUtc}::date, ${todayUtc}::date - 1)
+    WHERE digest_date IN (${dataDayUtc}::date, ${dataDayUtc}::date - 1)
   `) as DigestRow[]
-
-  const lastSeenRows = (await sql`
-    SELECT max(last_seen_at) AS last_updated FROM story_clusters
-  `) as { last_updated: string | Date | null }[]
 
   const membersByCluster = new Map<string, Article[]>()
   for (const row of memberRows) {
@@ -368,15 +368,17 @@ export async function getHomepageDataFromDb(): Promise<HomepageData | null> {
     unclusteredArticles,
     rateLimitMessage: null,
     topics: mapTrendingTopics(entityRows),
-    lastUpdated: lastSeenRows[0]?.last_updated
-      ? toIso(lastSeenRows[0].last_updated)
-      : new Date().toISOString(),
+    lastUpdated: clusterAnchor,
   }
 
   try {
     // Seed from the exact array served, so the payload id matches what the
     // client computes.
-    await seedCategoryDigestCaches(linkedClusters, pickLatestDigests(digestRows, todayUtc))
+    await seedCategoryDigestCaches(
+      linkedClusters,
+      pickLatestDigests(digestRows, dataDayUtc),
+      dataDayUtc
+    )
   } catch (error) {
     console.warn('⚠️ Failed to seed category digest caches from DB:', error)
   }
