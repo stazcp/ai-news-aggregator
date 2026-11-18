@@ -222,11 +222,35 @@ describe('docText feed boilerplate', () => {
     const item = makeArticle({
       id: 'b1',
       title: 'Incremental GC design',
-      description: `${body} Points: 5 # Comments: 2`,
+      description: `${body} Comments URL: https://news.ycombinator.com/item?id=1 Points: 5`,
     })
     const text = docText(item)
     expect(text).toContain('garbage collector')
     expect(text).not.toMatch(/Points|# Comments/)
+  })
+
+  it('leaves ordinary text that mentions points alone', () => {
+    const item = makeArticle({
+      id: 's1',
+      title: 'Lakers beat Celtics',
+      description: 'Lakers beat Celtics 112-104. Points: 34 for James.',
+    })
+    expect(docText(item)).toBe(
+      'Lakers beat Celtics Lakers beat Celtics 112-104. Points: 34 for James. '
+    )
+  })
+
+  it('does not swallow plain text after a literal less-than sign', () => {
+    const item = makeArticle({
+      id: 'p1',
+      title: 'Inflation report',
+      description: 'Inflation fell to < 3% as rate cuts loom',
+      content: '<p>The Fed said more data is needed.</p>',
+    })
+    const text = docText(item)
+    expect(text).toContain('rate cuts loom')
+    expect(text).toContain('Fed said')
+    expect(text).not.toContain('<p>')
   })
 
   it('leaves a normal article unchanged', () => {

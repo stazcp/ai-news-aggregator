@@ -70,28 +70,36 @@ function tokenize(text: string): string[] {
 // Link-aggregator feeds (e.g. hnrss) fill description/content with a fixed
 // template: "Article URL: … Comments URL: … Points: N # Comments: N". Those
 // label tokens are shared by every item and swamp the TF-IDF signal.
+// "Comments URL:" marks the template; the other labels are only stripped
+// when it is present, so ordinary text like "Points: 34" is left alone.
+const FEED_TEMPLATE_MARKER = /\bcomments\s+url\s*:/i
 const FEED_TEMPLATE_LABEL =
-  /\b(?:article\s+url|comments\s+url)\s*:\s*(?:https?:\/\/\S+)?|\bpoints\s*:\s*\d+|#\s*comments\s*:\s*\d+/gi
+  /\b(?:article|comments)\s+url\s*:|\bpoints\s*:\s*\d+|#\s*comments\s*:\s*\d+/gi
 
 // Below this many tokens, stripped boilerplate leaves too little body to trust.
 const MIN_BODY_TOKENS = 20
 
 function stripMarkup(text: string): string {
-  return text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi, ' ')
+  return (
+    text
+      // Only real tags (letter, / or ! after '<'), so plain-text "< 3%" survives
+      .replace(/<\/?[a-z!][^>]*>/gi, ' ')
+      // Entities, including double-encoded ones such as &amp;amp;
+      .replace(/&(?:amp;)*(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi, ' ')
+  )
 }
 
 function docText(a: Article): string {
   const title = a.title || ''
+  // Strip markup before slicing so a cut never lands inside a tag.
   // Include a bit of content to improve semantic signal without exploding tokens
-  const rawBody = [a.description || '', (a.content || '').slice(0, 500)].join(' ')
-  const stripped = stripMarkup(rawBody)
-  const body = stripped.replace(FEED_TEMPLATE_LABEL, ' ')
-  // Only fall back to the title when template boilerplate was actually removed,
-  // so ordinary short descriptions keep contributing as before.
-  if (body !== stripped && tokenize(body).length < MIN_BODY_TOKENS) return title
-  return [title, body].join(' ')
+  const content = stripMarkup(a.content || '').slice(0, 500)
+  const body = [stripMarkup(a.description || ''), content].join(' ')
+  if (!FEED_TEMPLATE_MARKER.test(body)) return [title, body].join(' ')
+  const stripped = body.replace(FEED_TEMPLATE_LABEL, ' ')
+  // Template-only items carry no real body; cluster them on the title alone.
+  if (tokenize(stripped).length < MIN_BODY_TOKENS) return title
+  return [title, stripped].join(' ')
 }
 
 export function buildTfIdf(articles: Article[]): {
