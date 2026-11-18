@@ -240,17 +240,32 @@ describe('docText feed boilerplate', () => {
     )
   })
 
-  it('does not swallow plain text after a literal less-than sign', () => {
+  it('strips tags, including encoded ones, without swallowing a literal less-than', () => {
     const item = makeArticle({
       id: 'p1',
       title: 'Inflation report',
-      description: 'Inflation fell to < 3% as rate cuts loom',
-      content: '<p>The Fed said more data is needed.</p>',
+      description: 'Inflation fell to < 3% as rate cuts loom. Comments URL: https://x.test/1',
+      content:
+        '&lt;div class=&quot;post-body&quot;&gt;The Fed said more data is needed before ' +
+        'policymakers commit, citing sticky services prices, strong wage growth ' +
+        'and rising housing costs.&lt;/div&gt;',
     })
     const text = docText(item)
     expect(text).toContain('rate cuts loom')
     expect(text).toContain('Fed said')
-    expect(text).not.toContain('<p>')
+    expect(text).not.toMatch(/div|class|quot/)
+  })
+
+  it('leaves a normal HTML article untouched', () => {
+    const item = makeArticle({
+      id: 'h1',
+      title: 'Inflation report',
+      description: 'Inflation fell to < 3%',
+      content: '<p>The Fed said more data is needed.</p>',
+    })
+    expect(docText(item)).toBe(
+      'Inflation report Inflation fell to < 3% <p>The Fed said more data is needed.</p>'
+    )
   })
 
   it('leaves a normal article unchanged', () => {

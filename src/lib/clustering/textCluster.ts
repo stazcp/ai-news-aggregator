@@ -68,38 +68,46 @@ function tokenize(text: string): string[] {
 }
 
 // Link-aggregator feeds (e.g. hnrss) fill description/content with a fixed
-// template: "Article URL: … Comments URL: … Points: N # Comments: N". Those
-// label tokens are shared by every item and swamp the TF-IDF signal.
-// "Comments URL:" marks the template; the other labels are only stripped
-// when it is present, so ordinary text like "Points: 34" is left alone.
+// template: "Article URL: … Comments URL: … Points: N # Comments: N", once as
+// text and once as HTML. Those label tokens are shared by every item and swamp
+// the TF-IDF signal. "Comments URL:" marks the template; everything below only
+// applies when it is present, so other articles' text is left exactly as is.
 const FEED_TEMPLATE_MARKER = /\bcomments\s+url\s*:/i
 const FEED_TEMPLATE_LABEL =
   /\b(?:article|comments)\s+url\s*:|\bpoints\s*:\s*\d+|#\s*comments\s*:\s*\d+/gi
 
-// Below this many tokens, stripped boilerplate leaves too little body to trust.
+// Below this many distinct tokens, the template leaves too little body to trust.
 const MIN_BODY_TOKENS = 20
 
 function stripMarkup(text: string): string {
   return (
     text
+      // Decode encoded markup first so escaped tags are stripped as tags
+      .replace(/&(?:amp;)*lt;/gi, '<')
+      .replace(/&(?:amp;)*gt;/gi, '>')
       // Only real tags (letter, / or ! after '<'), so plain-text "< 3%" survives
       .replace(/<\/?[a-z!][^>]*>/gi, ' ')
-      // Entities, including double-encoded ones such as &amp;amp;
+      // Remaining entities, including double-encoded ones such as &amp;amp;
       .replace(/&(?:amp;)*(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi, ' ')
   )
 }
 
 function docText(a: Article): string {
   const title = a.title || ''
-  // Strip markup before slicing so a cut never lands inside a tag.
+  const description = a.description || ''
   // Include a bit of content to improve semantic signal without exploding tokens
-  const content = stripMarkup(a.content || '').slice(0, 500)
-  const body = [stripMarkup(a.description || ''), content].join(' ')
-  if (!FEED_TEMPLATE_MARKER.test(body)) return [title, body].join(' ')
-  const stripped = body.replace(FEED_TEMPLATE_LABEL, ' ')
+  const content = (a.content || '').slice(0, 500)
+  if (!FEED_TEMPLATE_MARKER.test(description + ' ' + content)) {
+    return [title, description, content].join(' ')
+  }
+  // Strip markup before slicing so a cut never lands inside a tag
+  const body = [stripMarkup(description), stripMarkup(a.content || '').slice(0, 500)]
+    .join(' ')
+    .replace(FEED_TEMPLATE_LABEL, ' ')
   // Template-only items carry no real body; cluster them on the title alone.
-  if (tokenize(stripped).length < MIN_BODY_TOKENS) return title
-  return [title, stripped].join(' ')
+  // Distinct tokens, since these feeds repeat the same text in both fields.
+  if (new Set(tokenize(body)).size < MIN_BODY_TOKENS) return title
+  return [title, body].join(' ')
 }
 
 export function buildTfIdf(articles: Article[]): {
