@@ -90,13 +90,18 @@ async function groqReachable(): Promise<boolean> {
 // Degraded mode when the LLM tier is unavailable: the engine's own
 // deterministic stages (TF-IDF seeds + title merge + category severity/score),
 // so the evidence archive keeps accumulating stories through Groq outages.
-function deterministicClusters(articles: Article[]): StoryCluster[] {
+// outletById maps article id -> canonical outlet slug (articles.source).
+function deterministicClusters(
+  articles: Article[],
+  outletById: Map<string, string>
+): StoryCluster[] {
   const seeds = preClusterArticles(articles, {
     threshold: envNumber('PRECLUSTER_THRESHOLD', ENV_DEFAULTS.preclusterThreshold),
     minSize: envInt('PRECLUSTER_MIN_SIZE', ENV_DEFAULTS.preclusterMinSize),
     maxGroup: envInt('PRECLUSTER_MAX_GROUP', ENV_DEFAULTS.preclusterMaxGroup),
   })
-  const merged = mergeClustersByTitle(dropSingleSourceClusters(seeds, articles), {
+  const diverse = dropSingleSourceClusters(seeds, (id) => outletById.get(id))
+  const merged = mergeClustersByTitle(diverse, {
     threshold: envNumber('CLUSTER_TITLE_MERGE', ENV_DEFAULTS.clusterTitleMerge),
   })
   const articleById = new Map(articles.map((a) => [a.id, a]))
@@ -149,7 +154,7 @@ async function main() {
     if (!groqOk) {
       console.warn('⚠️ Groq API unreachable — deterministic clustering, no summaries this run.')
     }
-    clusters = deterministicClusters(articles)
+    clusters = deterministicClusters(articles, new Map(rows.map((r) => [r.id, r.source])))
   }
   console.log(`clustered into ${clusters.length} stories, persisting…`)
 

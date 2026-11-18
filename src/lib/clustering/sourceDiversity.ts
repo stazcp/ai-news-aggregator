@@ -1,28 +1,28 @@
-import { Article, StoryCluster } from '@/types'
+import { StoryCluster } from '@/types'
 
-function sourceKey(article: Article): string {
-  return (article.source?.name || '').trim().toLowerCase()
-}
-
-// A "story" whose members all come from one source is almost always feed
+// A "story" whose members all come from one outlet is almost always feed
 // boilerplate making unrelated items look similar (e.g. every Hacker News item
 // sharing the same "Comments" footer), not one event covered by several
 // outlets. Dissolve such groups so their articles stay unclustered. Run on the
 // seeds before any merge: a merge only unions members, so multi-source seeds
 // stay multi-source, and a single-source blob can't ride a title merge into a
-// real story.
+// real story. The cost is that a genuine single-outlet seed can't join a
+// matching multi-source story through the merge; those articles stay
+// unclustered rather than risk a blob contaminating a real story.
+//
+// outletOf must return the outlet, not the feed: raw RSS feed titles
+// ("Hacker News: Front Page" / "Hacker News: Best") would count one outlet
+// twice. Members with no known outlet don't count towards diversity.
 export function dropSingleSourceClusters(
   clusters: StoryCluster[],
-  articles: Article[]
+  outletOf: (articleId: string) => string | undefined
 ): StoryCluster[] {
-  const articleById = new Map(articles.map((a) => [a.id, a]))
   return clusters.filter((cluster) => {
-    const sources = new Set(
-      cluster.articleIds
-        .map((id) => articleById.get(id))
-        .filter((a): a is Article => Boolean(a))
-        .map(sourceKey)
-    )
-    return sources.size >= 2
+    const outlets = new Set<string>()
+    for (const id of cluster.articleIds) {
+      const outlet = outletOf(id)
+      if (outlet) outlets.add(outlet)
+    }
+    return outlets.size >= 2
   })
 }
