@@ -2,6 +2,7 @@ import './load-env'
 import { Article, StoryCluster } from '@/types'
 import { getStoryClusters } from '@/lib/clustering/clusterService'
 import { computeSeverity, scoreCluster } from '@/lib/clustering/severity'
+import { dropSingleSourceClusters } from '@/lib/clustering/sourceDiversity'
 import { mergeClustersByTitle, preClusterArticles } from '@/lib/clustering/textCluster'
 import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 import { persistClusters } from '@/lib/evidence/clusterPersist'
@@ -95,7 +96,7 @@ function deterministicClusters(articles: Article[]): StoryCluster[] {
     minSize: envInt('PRECLUSTER_MIN_SIZE', ENV_DEFAULTS.preclusterMinSize),
     maxGroup: envInt('PRECLUSTER_MAX_GROUP', ENV_DEFAULTS.preclusterMaxGroup),
   })
-  const merged = mergeClustersByTitle(seeds, {
+  const merged = mergeClustersByTitle(dropSingleSourceClusters(seeds, articles), {
     threshold: envNumber('CLUSTER_TITLE_MERGE', ENV_DEFAULTS.clusterTitleMerge),
   })
   const articleById = new Map(articles.map((a) => [a.id, a]))
