@@ -1,5 +1,5 @@
 import { StoryCluster } from '@/types'
-import { dropSingleSourceClusters } from '../sourceDiversity'
+import { dropSingleSourceClusters, outletFromSource } from '../sourceDiversity'
 
 function makeCluster(title: string, ids: string[]): StoryCluster {
   return { clusterTitle: title, articleIds: ids }
@@ -33,5 +33,22 @@ describe('dropSingleSourceClusters', () => {
     const single = makeCluster('HN blob', ['h1', 'h2'])
     const multi = makeCluster('Real story', ['r1', 'b1'])
     expect(dropSingleSourceClusters([single, multi], outletOf)).toEqual([multi])
+  })
+})
+
+describe('outletFromSource', () => {
+  it('keeps canonical slugs as they are', () => {
+    expect(outletFromSource('hacker-news')).toBe('hacker-news')
+    expect(outletFromSource('reuters')).toBe('reuters')
+  })
+
+  it('treats a missing or unknown source as no outlet', () => {
+    expect(outletFromSource('unknown')).toBeUndefined()
+    expect(outletFromSource('')).toBeUndefined()
+    expect(outletFromSource(null)).toBeUndefined()
+  })
+
+  it('normalizes a legacy raw feed title to its outlet', () => {
+    expect(outletFromSource('World - CBSNews.com')).toBe('cbsnews')
   })
 })

@@ -2,7 +2,7 @@ import './load-env'
 import { Article, StoryCluster } from '@/types'
 import { getStoryClusters } from '@/lib/clustering/clusterService'
 import { computeSeverity, scoreCluster } from '@/lib/clustering/severity'
-import { dropSingleSourceClusters } from '@/lib/clustering/sourceDiversity'
+import { dropSingleSourceClusters, outletFromSource } from '@/lib/clustering/sourceDiversity'
 import { mergeClustersByTitle, preClusterArticles } from '@/lib/clustering/textCluster'
 import { ENV_DEFAULTS, envBool, envInt, envNumber } from '@/lib/config/env'
 import { persistClusters } from '@/lib/evidence/clusterPersist'
@@ -93,7 +93,7 @@ async function groqReachable(): Promise<boolean> {
 // outletById maps article id -> canonical outlet slug (articles.source).
 function deterministicClusters(
   articles: Article[],
-  outletById: Map<string, string>
+  outletById: Map<string, string | undefined>
 ): StoryCluster[] {
   const seeds = preClusterArticles(articles, {
     threshold: envNumber('PRECLUSTER_THRESHOLD', ENV_DEFAULTS.preclusterThreshold),
@@ -154,7 +154,8 @@ async function main() {
     if (!groqOk) {
       console.warn('⚠️ Groq API unreachable — deterministic clustering, no summaries this run.')
     }
-    clusters = deterministicClusters(articles, new Map(rows.map((r) => [r.id, r.source])))
+    const outletById = new Map(rows.map((r) => [r.id, outletFromSource(r.source)]))
+    clusters = deterministicClusters(articles, outletById)
   }
   console.log(`clustered into ${clusters.length} stories, persisting…`)
 

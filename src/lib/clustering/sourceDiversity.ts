@@ -1,4 +1,5 @@
 import { StoryCluster } from '@/types'
+import { sourceSlug } from '@/lib/evidence/sourceSlug'
 
 // A "story" whose members all come from one outlet is almost always feed
 // boilerplate making unrelated items look similar (e.g. every Hacker News item
@@ -25,4 +26,12 @@ export function dropSingleSourceClusters(
     }
     return outlets.size >= 2
   })
+}
+
+// Outlet key for an articles.source value. Re-slugging is idempotent for
+// canonical slugs and normalizes legacy rows that still hold raw feed titles;
+// sourceSlug's 'unknown' fallback is no outlet, not a distinct one.
+export function outletFromSource(source: string | null | undefined): string | undefined {
+  const slug = sourceSlug(source || '')
+  return slug === 'unknown' ? undefined : slug
 }
