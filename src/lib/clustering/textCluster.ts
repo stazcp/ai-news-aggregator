@@ -74,7 +74,7 @@ function tokenize(text: string): string[] {
 // applies when it is present, so other articles' text is left exactly as is.
 const FEED_TEMPLATE_MARKER = /\bcomments\s+url\s*:/i
 const FEED_TEMPLATE_LABEL =
-  /\b(?:article|comments)\s+url\s*:|\bpoints\s*:\s*\d+|#\s*comments\s*:\s*\d+/gi
+  /\b(?:article|comments)\s+url\s*:|\bpoints\s*:\s*\d*|#\s*comments\s*:\s*\d*/gi
 
 // Below this many distinct tokens, the template leaves too little body to trust.
 const MIN_BODY_TOKENS = 20
@@ -83,8 +83,8 @@ function stripMarkup(text: string): string {
   return (
     text
       // Decode encoded markup first so escaped tags are stripped as tags
-      .replace(/&(?:amp;)*lt;/gi, '<')
-      .replace(/&(?:amp;)*gt;/gi, '>')
+      .replace(/&(?:amp;)*(?:lt|#60|#x3c);/gi, '<')
+      .replace(/&(?:amp;)*(?:gt|#62|#x3e);/gi, '>')
       // Only real tags (letter, / or ! after '<'), so plain-text "< 3%" survives
       .replace(/<\/?[a-z!][^>]*>/gi, ' ')
       // Remaining entities, including double-encoded ones such as &amp;amp;
@@ -97,11 +97,13 @@ function docText(a: Article): string {
   const description = a.description || ''
   // Include a bit of content to improve semantic signal without exploding tokens
   const content = (a.content || '').slice(0, 500)
-  if (!FEED_TEMPLATE_MARKER.test(description + ' ' + content)) {
+  // Bounded prefix: enough to find the template and 500 chars of text after markup
+  const contentHead = (a.content || '').slice(0, 2000)
+  if (!FEED_TEMPLATE_MARKER.test(description + ' ' + contentHead)) {
     return [title, description, content].join(' ')
   }
   // Strip markup before slicing so a cut never lands inside a tag
-  const body = [stripMarkup(description), stripMarkup(a.content || '').slice(0, 500)]
+  const body = [stripMarkup(description), stripMarkup(contentHead).slice(0, 500)]
     .join(' ')
     .replace(FEED_TEMPLATE_LABEL, ' ')
   // Template-only items carry no real body; cluster them on the title alone.
