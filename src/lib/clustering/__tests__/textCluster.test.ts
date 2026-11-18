@@ -1,6 +1,7 @@
 import { Article, StoryCluster } from '@/types'
 import {
   buildTfIdf,
+  preClusterArticles,
   mergeClustersByOverlap,
   mergeClustersByTitle,
   mergeClustersByEntity,
@@ -8,7 +9,8 @@ import {
   _testExports,
 } from '../textCluster'
 
-const { extractEntities, extractClusterEntities, crossClusterSimilarity, cosine } = _testExports
+const { extractEntities, extractClusterEntities, crossClusterSimilarity, cosine, docText } =
+  _testExports
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -165,6 +167,117 @@ describe('buildTfIdf', () => {
     // iPhone articles should be much more similar to each other than to the Ukraine article
     expect(sim12).toBeGreaterThan(sim13)
     expect(sim12).toBeGreaterThan(0.3)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// docText — feed template boilerplate
+// ---------------------------------------------------------------------------
+describe('docText feed boilerplate', () => {
+  /** hnrss-style item: the same template as text (description) and HTML (content) */
+  function makeHnItem(id: string, title: string, points: number, comments: number): Article {
+    const article = `https://example.com/${id}`
+    const thread = `https://news.ycombinator.com/item?id=${id}`
+    return makeArticle({
+      id,
+      title,
+      description: `Article URL: ${article}\nComments URL: ${thread}\nPoints: ${points}\n# Comments: ${comments}`,
+      content:
+        `<p>Article URL: <a href="${article}">${article}</a></p>` +
+        `<p>Comments URL: <a href="${thread}">${thread}</a></p>` +
+        `<p>Points: ${points}</p><p># Comments: ${comments}</p>`,
+      source: { name: 'Hacker News', url: 'https://news.ycombinator.com' },
+    })
+  }
+
+  const hnItems = [
+    makeHnItem('41000001', 'Show HN: A tiny Lisp interpreter written in Rust', 120, 45),
+    makeHnItem('41000002', 'The economics of municipal broadband networks', 88, 31),
+    makeHnItem('41000003', 'Why sourdough bread rises differently at altitude', 64, 12),
+    makeHnItem('41000004', 'Postgres query planner internals explained', 230, 97),
+  ]
+
+  it('reduces template-only items to their title', () => {
+    expect(docText(hnItems[0])).toBe('Show HN: A tiny Lisp interpreter written in Rust')
+  })
+
+  it('unrelated template items stay below the pre-cluster join threshold', () => {
+    const { vecs, norms } = buildTfIdf(hnItems)
+    for (let i = 0; i < hnItems.length; i++) {
+      for (let j = i + 1; j < hnItems.length; j++) {
+        const a = hnItems[i].id
+        const b = hnItems[j].id
+        const sim = cosine(vecs.get(a)!, vecs.get(b)!, norms.get(a)!, norms.get(b)!)
+        expect(sim).toBeLessThan(0.42)
+      }
+    }
+    const clusters = preClusterArticles(hnItems, { minSize: 2 })
+    expect(clusters).toHaveLength(0)
+  })
+
+  it('keeps body text that survives stripping the template', () => {
+    const body =
+      'Researchers describe a new garbage collector design that cuts pause times for large heaps ' +
+      'by splitting marking across worker threads and compacting regions incrementally during idle time'
+    const item = makeArticle({
+      id: 'b1',
+      title: 'Incremental GC design',
+      description: `${body} Comments URL: https://news.ycombinator.com/item?id=1 Points: 5`,
+    })
+    const text = docText(item)
+    expect(text).toContain('garbage collector')
+    expect(text).not.toMatch(/Points|# Comments/)
+  })
+
+  it('leaves ordinary text that mentions points alone', () => {
+    const item = makeArticle({
+      id: 's1',
+      title: 'Lakers beat Celtics',
+      description: 'Lakers beat Celtics 112-104. Points: 34 for James.',
+    })
+    expect(docText(item)).toBe(
+      'Lakers beat Celtics Lakers beat Celtics 112-104. Points: 34 for James. '
+    )
+  })
+
+  it('strips tags, including encoded ones, without swallowing a literal less-than', () => {
+    const item = makeArticle({
+      id: 'p1',
+      title: 'Inflation report',
+      description: 'Inflation fell to < 3% as rate cuts loom. Comments URL: https://x.test/1',
+      content:
+        '&lt;div class=&quot;post-body&quot;&gt;The Fed said more data is needed before ' +
+        'policymakers commit, citing sticky services prices, strong wage growth ' +
+        'and rising housing costs.&lt;/div&gt;',
+    })
+    const text = docText(item)
+    expect(text).toContain('rate cuts loom')
+    expect(text).toContain('Fed said')
+    expect(text).not.toMatch(/div|class|quot/)
+  })
+
+  it('leaves a normal HTML article untouched', () => {
+    const item = makeArticle({
+      id: 'h1',
+      title: 'Inflation report',
+      description: 'Inflation fell to < 3%',
+      content: '<p>The Fed said more data is needed.</p>',
+    })
+    expect(docText(item)).toBe(
+      'Inflation report Inflation fell to < 3% <p>The Fed said more data is needed.</p>'
+    )
+  })
+
+  it('leaves a normal article unchanged', () => {
+    const item = makeArticle({
+      id: 'n1',
+      title: 'Central bank holds rates steady',
+      description: 'Policymakers kept borrowing costs unchanged.',
+      content: 'The decision was widely expected by markets.',
+    })
+    expect(docText(item)).toBe(
+      'Central bank holds rates steady Policymakers kept borrowing costs unchanged. The decision was widely expected by markets.'
+    )
   })
 })
 
