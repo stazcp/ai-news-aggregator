@@ -67,10 +67,31 @@ function tokenize(text: string): string[] {
     .filter((t) => t && !STOPWORDS.has(t) && t.length > 2)
 }
 
+// Link-aggregator feeds (e.g. hnrss) fill description/content with a fixed
+// template: "Article URL: … Comments URL: … Points: N # Comments: N". Those
+// label tokens are shared by every item and swamp the TF-IDF signal.
+const FEED_TEMPLATE_LABEL =
+  /\b(?:article\s+url|comments\s+url)\s*:\s*(?:https?:\/\/\S+)?|\bpoints\s*:\s*\d+|#\s*comments\s*:\s*\d+/gi
+
+// Below this many tokens, stripped boilerplate leaves too little body to trust.
+const MIN_BODY_TOKENS = 20
+
+function stripMarkup(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&(?:[a-z]+|#\d+|#x[0-9a-f]+);/gi, ' ')
+}
+
 function docText(a: Article): string {
+  const title = a.title || ''
   // Include a bit of content to improve semantic signal without exploding tokens
-  const content = (a.content || '').slice(0, 500)
-  return [a.title || '', a.description || '', content].join(' ')
+  const rawBody = [a.description || '', (a.content || '').slice(0, 500)].join(' ')
+  const stripped = stripMarkup(rawBody)
+  const body = stripped.replace(FEED_TEMPLATE_LABEL, ' ')
+  // Only fall back to the title when template boilerplate was actually removed,
+  // so ordinary short descriptions keep contributing as before.
+  if (body !== stripped && tokenize(body).length < MIN_BODY_TOKENS) return title
+  return [title, body].join(' ')
 }
 
 export function buildTfIdf(articles: Article[]): {
@@ -723,4 +744,5 @@ export const _testExports = {
   cosine,
   tokenize,
   jaccardSets,
+  docText,
 }
