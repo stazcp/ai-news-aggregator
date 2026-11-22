@@ -28,6 +28,12 @@ export const ENV_DEFAULTS = {
   feedItemsPerFeed: 25,
   newsGlobalLimit: 2000,
 
+  // Evidence chunk backfill window (days), anchored on the newest article's
+  // published_at, never on the clock: a clock window empties when ingest
+  // stalls. Bounds backfillMissingChunks so a TRUNCATE of article_chunks does
+  // not re-embed the whole archive and refill Neon's 1 GB limit.
+  chunkWindowDays: 14,
+
   // Clustering
   preclusterThreshold: 0.42,
   preclusterMinSize: 2,
