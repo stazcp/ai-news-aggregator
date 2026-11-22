@@ -6,6 +6,7 @@ import {
   sanitizeArticleText,
   slimRawJson,
   stripUnstorable,
+  toDate,
 } from '../persist'
 import { Article } from '@/types'
 
@@ -320,5 +321,22 @@ describe('isSlimRawJson', () => {
 
   it('accepts a subset of the slim keys', () => {
     expect(isSlimRawJson({ id: 'a1', title: 't', source: { name: 'Test' } })).toBe(true)
+  })
+})
+
+describe('toDate', () => {
+  const now = new Date('2026-11-22T12:00:00.000Z')
+
+  it('clamps a future date to now', () => {
+    expect(toDate('2026-11-26T00:00:00Z', now)).toBe(now.toISOString())
+  })
+
+  it('leaves a past date unchanged', () => {
+    expect(toDate('2026-11-20T08:00:00Z', now)).toBe('2026-11-20T08:00:00.000Z')
+  })
+
+  it('falls back to now for a missing or invalid date', () => {
+    expect(toDate('', now)).toBe(now.toISOString())
+    expect(toDate('garbage', now)).toBe(now.toISOString())
   })
 })
