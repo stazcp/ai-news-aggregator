@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { Article } from '@/types'
+import { ENV_DEFAULTS, envInt } from '@/lib/config/env'
 import { getSql } from './db'
 import { embedTexts } from './embeddings'
 import { sourceSlug } from './sourceSlug'
@@ -245,11 +246,29 @@ async function insertChunks(
 }
 
 /**
+ * Days of articles, counted back from the newest published_at, that chunk
+ * backfill may embed. CHUNK_WINDOW_DAYS overrides; non-positive values fall
+ * back to the default so a typo can never unbound the backfill.
+ */
+export function chunkWindowDays(): number {
+  const days = envInt('CHUNK_WINDOW_DAYS', ENV_DEFAULTS.chunkWindowDays)
+  return days > 0 ? days : ENV_DEFAULTS.chunkWindowDays
+}
+
+/**
  * Embeds chunks for articles that have none — recovers from runs that
  * crashed between the article insert and the chunk insert.
+ *
+ * Bounded to the last chunkWindowDays() of DATA: published_at >=
+ * max(published_at) - N days. After a TRUNCATE article_chunks every article
+ * has zero chunks, so an unbounded backfill would re-embed the whole archive
+ * and refill the DB. The anchor is the newest article, not now(), so the
+ * window still holds the latest articles when ingest has stalled. Older
+ * articles stay unchunked; their full text remains in articles.body.
  */
 export async function backfillMissingChunks(batchSize = 200): Promise<number> {
   const sql = getSql()
+  const windowDays = chunkWindowDays()
   // Whitespace-only articles yield no chunks and would be re-selected forever;
   // excluding them per run guarantees every pass makes progress.
   const unchunkable: string[] = []
@@ -259,6 +278,8 @@ export async function backfillMissingChunks(batchSize = 200): Promise<number> {
       SELECT a.id, a.title, a.body FROM articles a
       LEFT JOIN article_chunks c ON c.article_id = a.id
       WHERE c.id IS NULL AND NOT (a.id = ANY(${unchunkable}))
+        AND a.published_at >= (SELECT max(published_at) FROM articles)
+          - make_interval(days => ${windowDays}::int)
       LIMIT ${batchSize}
     `
     if (missing.length === 0) return total
