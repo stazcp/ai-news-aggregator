@@ -209,9 +209,12 @@ export function articleBody(article: Article): string {
   return kept.join('\n\n').trim() || article.title
 }
 
-function toDate(value: string): string {
+// Clamps to ingest time so a feed's future date can't skew max(published_at)
+// anchored windows. Missing/invalid keeps the old fallback (now).
+export function toDate(value: string, now: Date = new Date()): string {
   const d = new Date(value)
-  return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  if (isNaN(d.getTime())) return now.toISOString()
+  return (d > now ? now : d).toISOString()
 }
 
 // Batched: each INSERT carries ~200 rows of ~5KB embedding literals, keeping
